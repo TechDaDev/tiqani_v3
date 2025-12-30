@@ -1,638 +1,236 @@
 import os
+import uuid
 import random
 import string
-import uuid
-from datetime import date, datetime, timedelta
 from decimal import Decimal
+from datetime import date, timedelta
 
-from django.contrib.auth.models import AbstractUser
-from django.core.validators import RegexValidator
 from django.db import models
 from django.utils import timezone
+from django.core.validators import RegexValidator
+from django.contrib.auth.models import AbstractUser
 
+# --- Configuration & Helpers ---
 
-def custom_user_profile_image_path(instance, filename):
-	"""
-	Upload path for CustomUser profile image.
-	Format: Profile/{username}_{last_section_of_uuid}.{ext}
-	Example: Profile/john_doe_a1b2c3d4e5f6.jpg
-	"""
-	ext = filename.split('.')[-1]
-	uuid_last_section = str(instance.id).split('-')[-1]
-	filename = f"{uuid_last_section}.{ext}"
-	return os.path.join('Profile/', filename)
+def universal_file_path(instance, filename):
+    """Generates paths based on the 'upload_folder' attribute defined in models."""
+    ext = filename.split('.')[-1]
+    folder = getattr(instance, 'upload_folder', 'uploads')
+    uid_part = str(instance.id).split('-')[-1]
+    return os.path.join(folder, f"{uid_part}.{ext}")
 
-
-def technician_profile_image_path(instance, filename):
-	ext = filename.split('.')[-1]
-	filename = f"{str(instance.id).split('-')[-1]}.{ext}"
-	return os.path.join('technicians/profile_images/', filename)
-
-
-def client_profile_image_path(instance, filename):
-	ext = filename.split('.')[-1]
-	filename = f"{str(instance.id).split('-')[-1]}.{ext}"
-	return os.path.join('clients/profile_images/', filename)
-
-
-def technician_identification_docs_path(instance, filename):
-	ext = filename.split('.')[-1]
-	filename = f"{str(instance.id).split('-')[-1]}_identification.{ext}"
-	return os.path.join('technicians/identification_docs/', filename)
-
-
-phone_regex = RegexValidator(
-	regex=r'^07[5|7|8]\d{8}$',
-	message="Phone number must be 11 digits and start with 077, 078, or 075."
+PHONE_REGEX = RegexValidator(
+    regex=r'^07[5|7|8]\d{8}$',
+    message="Phone number must be 11 digits (077/078/075)."
 )
 
-
 IRAQI_GOVERNORATES = [
-	('Baghdad', 'بغداد'),
-	('Basra', 'البصرة'),
-	('Nineveh', 'نينوى'),
-	('Erbil', 'أربيل'),
-	('Sulaymaniyah', 'السليمانية'),
-	('Kirkuk', 'كركوك'),
-	('Duhok', 'دهوك'),
-	('Najaf', 'النجف'),
-	('Karbala', 'كربلاء'),
-	('Anbar', 'الأنبار'),
-	('Babil', 'بابل'),
-	('Maysan', 'ميسان'),
-	('Wasit', 'واسط'),
-	('Dhi Qar', 'ذي قار'),
-	('Muthanna', 'المثنى'),
-	('Qadisiyyah', 'القادسية'),
-	('Salah al-Din', 'صلاح الدين'),
-	('Diyala', 'ديالى'),
+    ('Baghdad', 'بغداد'), ('Basra', 'البصرة'), ('Nineveh', 'نينوى'),
+    ('Erbil', 'أربيل'), ('Sulaymaniyah', 'السليمانية'), ('Kirkuk', 'كركوك'),
+    ('Duhok', 'دهوك'), ('Najaf', 'النجف'), ('Karbala', 'كربلاء'),
+    ('Anbar', 'الأنبار'), ('Babil', 'بابل'), ('Maysan', 'ميسان'),
+    ('Wasit', 'واسط'), ('Dhi Qar', 'ذي قار'), ('Muthanna', 'المثنى'),
+    ('Qadisiyyah', 'القادسية'), ('Salah al-Din', 'صلاح الدين'), ('Diyala', 'ديالى'),
 ]
 
+# --- Base Abstract Models ---
 
-class CustomUser(AbstractUser):
-	ROLE_CHOICES = [
-		('client', 'Client'),
-		('technician', 'Technician'),
-		('admin', 'Admin'),
-		('dealership', 'Dealership'),
-	]
-
-	id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-	role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='client')
-	phone_number = models.CharField(validators=[phone_regex], max_length=11, blank=True, null=True, unique=True)
-	governorate = models.CharField(choices=IRAQI_GOVERNORATES, max_length=50, null=True, blank=True)
-	address = models.CharField(max_length=255, null=True, blank=True)
-	gender = models.CharField(max_length=6, choices=[('male', 'Male'), ('female', 'Female')], null=True, blank=True)
-	date_of_birth = models.DateField(null=True, blank=True)
-	profile_image = models.ImageField(upload_to=custom_user_profile_image_path, null=True, blank=True)
-	is_delete = models.BooleanField(default=False)
-	created_at = models.DateTimeField(auto_now_add=True)
-	updated_at = models.DateTimeField(auto_now=True)
-
-	class Meta:
-		indexes = [
-			models.Index(fields=['role']),
-			models.Index(fields=['governorate']),
-		]
-
-	def __str__(self):
-		"""Return username as display name"""
-		return self.username
-
-	@property
-	def age(self):
-		if self.date_of_birth:
-			today = date.today()
-			return today.year - self.date_of_birth.year - ((today.month, today.day) < (self.date_of_birth.month, self.date_of_birth.day))
-		return None
-
-
-
-class TechnicianProfile(models.Model):
-	user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='technician_profile')
-	id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-	is_available = models.BooleanField(default=True, db_index=True)
-	approved = models.BooleanField(default=False, help_text="Administrator approval status for technician to appear in public listings", db_index=True)
-	job_title = models.CharField(max_length=100, null=True, blank=True, help_text="Professional title or role")
-	identification_documents = models.FileField(
-		upload_to=technician_identification_docs_path,
-		null=True,
-		blank=True,
-		help_text="Upload identification documents as a ZIP file (required for profile completion)",
-	)
-	url1 = models.URLField(max_length=255, null=True, blank=True)
-	url2 = models.URLField(max_length=255, null=True, blank=True)
-	about = models.TextField(null=True, blank=True)
-	years_of_expertise = models.PositiveIntegerField(default=0, help_text="Number of years of professional experience")
-	rate = models.DecimalField(max_digits=3, decimal_places=2, default=Decimal('0.00'), help_text="Cached average rating (auto-calculated from reviews)")
-	skill_sets = models.OneToOneField('TechnicianSkillSet', on_delete=models.SET_NULL, null=True, blank=True, related_name='technician_profile_skill')
-	is_complete = models.BooleanField(default=False)
-	is_delete = models.BooleanField(default=False)
-	last_active = models.DateTimeField(null=True, blank=True, db_index=True)
-	created_at = models.DateTimeField(default=timezone.now)
-	updated_at = models.DateTimeField(auto_now=True)
-
-	class Meta:
-		indexes = [
-			models.Index(fields=['user']),
-			models.Index(fields=['is_available', 'approved']),
-			models.Index(fields=['approved']),
-			models.Index(fields=['rate', 'approved']),
-		]
-		ordering = ['-created_at']
-
-	def __str__(self):
-		return f"{self.user.get_full_name() or self.user.username} - {self.job_title or 'Technician'}"
-
-	def update_rating(self):
-		"""
-		Recalculate and cache the average rating from all reviews.
-		Should be called after a new review is added.
-		"""
-		from django.db.models import Avg
-
-		# Use the FK reverse relation to include every review saved against this technician
-		avg_rating = self.reviews_received.aggregate(avg=Avg('rating'))['avg']
-		if avg_rating is not None:
-			self.rate = round(avg_rating, 2)
-		else:
-			self.rate = 0.00
-		self.save(update_fields=['rate'])
-		return self.rate
-
-	def check_profile_completion(self):
-		"""
-		Check if the technician profile has all required fields filled.
-		Required fields from CustomUser: phone_number, profile_image, governorate, address, gender, date_of_birth
-		Required fields from TechnicianProfile: job_title, about, years_of_expertise, identification_documents, url1, url2, skill_sets
-		"""
-		user = self.user
-		if not user.phone_number or not user.profile_image or not user.governorate or not user.address or not user.gender or not user.date_of_birth:
-			return False
-		
-		if not self.job_title or not self.about or self.years_of_expertise <= 0 or not self.identification_documents or not self.url1 or not self.url2:
-			return False
-		
-		if not self.skill_sets:
-			return False
-			
-		return True
-
-	def update_completion_status(self):
-		"""Update the is_complete flag based on profile completion check"""
-		is_complete = self.check_profile_completion()
-		if self.is_complete != is_complete:
-			self.is_complete = is_complete
-			self.save(update_fields=['is_complete'])
-		return is_complete
-
-	@property
-	def is_online(self):
-		"""Returns True if the user was active in the last 5 minutes"""
-		if not self.last_active:
-			return False
-		return (timezone.now() - self.last_active).total_seconds() < 300
-
-	def get_incomplete_fields(self):
-		"""
-		Returns a list of field names that are incomplete and preventing the profile from being completed.
-		This helps users understand exactly what they need to fill out.
-		"""
-		incomplete_fields = []
-		user = self.user
-		
-		# Check CustomUser fields
-		if not user.phone_number:
-			incomplete_fields.append('phone_number')
-		if not user.profile_image:
-			incomplete_fields.append('profile_image')
-		if not user.governorate:
-			incomplete_fields.append('governorate')
-		if not user.address:
-			incomplete_fields.append('address')
-		if not user.gender:
-			incomplete_fields.append('gender')
-		if not user.date_of_birth:
-			incomplete_fields.append('date_of_birth')
-		
-		# Check TechnicianProfile fields
-		if not self.job_title:
-			incomplete_fields.append('job_title')
-		if not self.about:
-			incomplete_fields.append('about')
-		if self.years_of_expertise <= 0:
-			incomplete_fields.append('years_of_expertise')
-		if not self.identification_documents:
-			incomplete_fields.append('identification_documents')
-		if not self.url1:
-			incomplete_fields.append('url1')
-		if not self.url2:
-			incomplete_fields.append('url2')
-		if not self.skill_sets:
-			incomplete_fields.append('Skill Sets')
-			
-		return incomplete_fields
-
-
-class TechnicianSkillSet(models.Model):
-    technician = models.ForeignKey(TechnicianProfile, on_delete=models.CASCADE, related_name='skill_set_records')
-    categories = models.ManyToManyField('category.Category', related_name='technician_skill_sets')
-    skills = models.ManyToManyField('category.Skill', related_name='technician_skill_sets')
-    sub_skills = models.ManyToManyField('category.SubSkill', related_name='technician_skill_sets')
-    created_at = models.DateTimeField(default=timezone.now)
+class TimestampedModel(models.Model):
+    """Centralizes ID, soft-delete, and timestamp logic."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    is_delete = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        indexes = [models.Index(fields=['technician'])]
-        ordering = ['-created_at']
+        abstract = True
+
+class BaseProfile(TimestampedModel):
+    """
+    Abstract profile logic handling automatic completion status.
+    Uses save() hooks to avoid the complexity of signals.
+    """
+    is_complete = models.BooleanField(default=False, db_index=True)
+    
+    # Required field sets to be defined/extended in subclasses
+    REQ_USER_FIELDS = ['phone_number', 'profile_image', 'governorate', 'address']
+    REQ_PROFILE_FIELDS = []
+
+    class Meta:
+        abstract = True
+
+    def calculate_completion(self):
+        """Verifies if all required fields (User + Profile level) are populated."""
+        user = self.user
+        for field in self.REQ_USER_FIELDS:
+            if not getattr(user, field): return False
+        
+        for field in self.REQ_PROFILE_FIELDS:
+            val = getattr(self, field)
+            if not val or (isinstance(val, (int, Decimal)) and val <= 0):
+                return False
+        return True
+
+    def get_incomplete_fields(self):
+        """Helper for frontend to show which fields are missing."""
+        missing = [f for f in self.REQ_USER_FIELDS if not getattr(self.user, f)]
+        missing += [f for f in self.REQ_PROFILE_FIELDS if not getattr(self, f)]
+        return missing
+
+    def save(self, *args, **kwargs):
+        # Hook: Update completion flag before saving
+        self.is_complete = self.calculate_completion()
+        super().save(*args, **kwargs)
+
+# --- Primary User Model ---
+
+class CustomUser(AbstractUser):
+    ROLE_CHOICES = [
+        ('client', 'Client'), 
+        ('technician', 'Technician'),
+        ('admin', 'Admin'),
+    ]
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='client')
+    phone_number = models.CharField(validators=[PHONE_REGEX], max_length=11, blank=True, null=True, unique=True)
+    governorate = models.CharField(choices=IRAQI_GOVERNORATES, max_length=50, null=True, blank=True)
+    address = models.CharField(max_length=255, null=True, blank=True)
+    gender = models.CharField(max_length=6, choices=[('male', 'Male'), ('female', 'Female')], null=True, blank=True)
+    date_of_birth = models.DateField(null=True, blank=True)
+    profile_image = models.ImageField(upload_to=universal_file_path, null=True, blank=True)
+    is_delete = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    upload_folder = 'Profile'
+
+    class Meta:
+        indexes = [models.Index(fields=['role']), models.Index(fields=['governorate'])]
+
+    @property
+    def age(self):
+        if not self.date_of_birth: return None
+        today = date.today()
+        return today.year - self.date_of_birth.year - ((today.month, today.day) < (self.date_of_birth.month, self.date_of_birth.day))
 
     def __str__(self):
-        """Return skill set representation with technician name"""
-        return f"SkillSet for {self.technician.user.username}"
+        return f"{self.username} ({self.role})"
 
+# --- Profile Implementations ---
 
-class TechnicianImage(models.Model):
-	technician = models.ForeignKey(TechnicianProfile, on_delete=models.CASCADE, related_name='images')
-	image = models.ImageField(upload_to='technicians/uploads/')
-	description = models.CharField(max_length=255, blank=True, null=True)
-	created_at = models.DateTimeField(default=timezone.now)
-	updated_at = models.DateTimeField(auto_now=True)
+class TechnicianProfile(BaseProfile):
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='technician_profile')
+    is_available = models.BooleanField(default=True, db_index=True)
+    approved = models.BooleanField(default=False, db_index=True)
+    job_title = models.CharField(max_length=100, null=True, blank=True)
+    identification_documents = models.FileField(upload_to=universal_file_path, null=True, blank=True)
+    url1 = models.URLField(max_length=255, null=True, blank=True)
+    url2 = models.URLField(max_length=255, null=True, blank=True)
+    about = models.TextField(null=True, blank=True)
+    years_of_expertise = models.PositiveIntegerField(default=0)
+    rate = models.DecimalField(max_digits=3, decimal_places=2, default=Decimal('0.00'))
+    skill_sets = models.OneToOneField('TechnicianSkillSet', on_delete=models.SET_NULL, null=True, blank=True)
+    last_active = models.DateTimeField(null=True, blank=True, db_index=True)
 
-	class Meta:
-		indexes = [models.Index(fields=['technician']), models.Index(fields=['created_at'])]
-		ordering = ['-created_at']
+    upload_folder = 'technicians/profile_images'
+    REQ_USER_FIELDS = BaseProfile.REQ_USER_FIELDS + ['gender', 'date_of_birth']
+    REQ_PROFILE_FIELDS = ['job_title', 'about', 'years_of_expertise', 'identification_documents', 'url1', 'url2', 'skill_sets']
 
-	def __str__(self):
-		"""Return image representation with technician and description"""
-		return f"Image for {self.technician.user.username}" + (f": {self.description}" if self.description else "")
+    class Meta(BaseProfile.Meta):
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user']),
+            models.Index(fields=['is_available', 'approved']),
+            models.Index(fields=['rate', 'approved']),
+        ]
 
+    def update_rating(self):
+        from django.db.models import Avg
+        avg_rating = self.reviews_received.aggregate(avg=Avg('rating'))['avg']
+        self.rate = round(avg_rating, 2) if avg_rating else 0.00
+        self.save(update_fields=['rate'])
 
-class ClientProfile(models.Model):
-	user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='client_profile')
-	id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-	is_complete = models.BooleanField(default=False)
-	is_delete = models.BooleanField(default=False)
-	created_at = models.DateTimeField(default=timezone.now)
-	updated_at = models.DateTimeField(auto_now=True)
+    @property
+    def is_online(self):
+        if not self.last_active: return False
+        return (timezone.now() - self.last_active).total_seconds() < 300
 
-	class Meta:
-		indexes = [
-			models.Index(fields=['user']),
-			models.Index(fields=['is_complete']),
-			models.Index(fields=['is_delete']),
-		]
-		ordering = ['-created_at']
+class ClientProfile(BaseProfile):
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='client_profile')
+    REQ_USER_FIELDS = BaseProfile.REQ_USER_FIELDS + ['gender', 'date_of_birth']
 
-	def __str__(self):
-		return f"{self.user.get_full_name() or self.user.username} (Client)"
+    def calculate_completion(self):
+        # Custom logic hook for Client-specific age requirement
+        basic_complete = super().calculate_completion()
+        age_ok = self.user.age is not None and self.user.age >= 18
+        return basic_complete and age_ok
 
-	def check_profile_completion(self):
-		"""
-		Check if the client profile has all required fields filled.
-		Required fields from CustomUser: phone_number, profile_image, governorate, address, gender, date_of_birth
-		Age validation: must be >= 18 years old
-		"""
-		user = self.user
-		required_checks = [
-			user.phone_number,
-			user.profile_image,
-			user.governorate,
-			user.address,
-			user.gender,
-			user.date_of_birth,
-		]
-		
-		if not all(required_checks):
-			return False
-		
-		try:
-			if user.age is not None and user.age < 18:
-				return False
-		except Exception:
-			return False
-		
-		return True
+class AdminProfile(BaseProfile):
+    ADMIN_ROLES = [
+        ('system_admin', 'Admin'), 
+        ('content_moderator', 'Moderator'), 
+        ('finance_admin', 'Finance')
+    ]
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='admin_profile')
+    role = models.CharField(max_length=50, choices=ADMIN_ROLES, default='system_admin')
+    notes = models.TextField(blank=True, null=True)
+    last_login_ip = models.GenericIPAddressField(null=True, blank=True)
 
-	def update_completion_status(self):
-		"""Update the is_complete flag based on profile completion check"""
-		is_complete = self.check_profile_completion()
-		if self.is_complete != is_complete:
-			self.is_complete = is_complete
-			self.save(update_fields=['is_complete'])
-		return is_complete
+    def save(self, *args, **kwargs):
+        # Hook: Auto-promote User to staff when AdminProfile is created/updated
+        if not self.user.is_staff:
+            self.user.is_staff = True
+            self.user.save(update_fields=['is_staff'])
+        super().save(*args, **kwargs)
 
-	def get_incomplete_fields(self):
-		"""
-		Returns a list of field names that are incomplete and preventing the profile from being completed.
-		This helps users understand exactly what they need to fill out.
-		"""
-		incomplete_fields = []
-		user = self.user
-		
-		if not user.phone_number:
-			incomplete_fields.append('phone_number')
-		if not user.profile_image:
-			incomplete_fields.append('profile_image')
-		if not user.governorate:
-			incomplete_fields.append('governorate')
-		if not user.address:
-			incomplete_fields.append('address')
-		if not user.gender:
-			incomplete_fields.append('gender')
-		if not user.date_of_birth:
-			incomplete_fields.append('date_of_birth')
-		
-		# Age validation
-		if user.date_of_birth and user.age is not None and user.age < 18:
-			incomplete_fields.append('age_requirement')
-		
-		return incomplete_fields
-
+# --- Financial & Utility Models ---
 
 class Wallet(models.Model):
-	"""User wallet for managing account balance and transactions"""
-	user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='wallet', db_index=True)
-	balance = models.DecimalField(max_digits=15, decimal_places=2, default=Decimal('0.00'), help_text="Account balance in IQD")
-	transaction_id = models.CharField(max_length=12, unique=True, editable=False)
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='wallet')
+    balance = models.DecimalField(max_digits=15, decimal_places=2, default=Decimal('0.00'))
+    transaction_id = models.CharField(max_length=12, unique=True, editable=False)
 
-	class Meta:
-		indexes = [models.Index(fields=['user'])]
+    def save(self, *args, **kwargs):
+        # Hook: Business logic for Transaction IDs and Balance safety
+        if not self.transaction_id:
+            self.transaction_id = uuid.uuid4().hex[:12]
+        if self.balance < 0:
+            raise ValueError("Balance cannot be negative.")
+        super().save(*args, **kwargs)
 
-	def save(self, *args, **kwargs):
-		"""Generate unique transaction ID if not present; prevent negative balance"""
-		if not self.transaction_id:
-			self.transaction_id = uuid.uuid4().hex[:12]
-		if self.balance < 0:
-			raise ValueError("Wallet balance cannot be negative")
-		super().save(*args, **kwargs)
+class WalletTransaction(TimestampedModel):
+    wallet = models.ForeignKey(Wallet, on_delete=models.PROTECT, related_name='transactions')
+    contract = models.ForeignKey('contract.Contract', null=True, blank=True, on_delete=models.SET_NULL)
+    transaction_type = models.CharField(max_length=20, db_index=True)
+    amount = models.DecimalField(max_digits=15, decimal_places=2)
+    amount_usd = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    exchange_rate = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    description = models.TextField()
 
-	def __str__(self):
-		"""Return wallet representation with username and balance"""
-		return f"{self.user.username}'s Wallet (Balance: {self.balance} IQD)"
+class OTPVerification(TimestampedModel):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='otp_codes')
+    otp_code = models.CharField(max_length=6)
+    verification_id = models.CharField(max_length=32, unique=True)
+    is_used = models.BooleanField(default=False, db_index=True)
 
+    @classmethod
+    def generate_otp(cls, user):
+        return cls.objects.create(
+            user=user,
+            otp_code=''.join(random.choices(string.digits, k=6)),
+            verification_id=''.join(random.choices(string.ascii_letters + string.digits, k=32))
+        )
 
-class WalletTransaction(models.Model):
-	TRANSACTION_TYPE_CHOICES = [
-		('deposit', 'Deposit'),
-		('transfer_in', 'Transfer In'),
-		('transfer_out', 'Transfer Out'),
-		('escrow', 'Escrow'),
-		('release', 'Release Payment'),
-		('refund', 'Refund'),
-		('withdrawal', 'Withdrawal'),
-	]
+    def is_valid(self):
+        return not self.is_used and (timezone.now() - self.created_at).total_seconds() < 600
 
-	wallet = models.ForeignKey(Wallet, on_delete=models.PROTECT, related_name='transactions')
-	contract = models.ForeignKey('contract.Contract', null=True, blank=True, on_delete=models.SET_NULL, related_name='transactions')
-	transaction_type = models.CharField(max_length=20, choices=TRANSACTION_TYPE_CHOICES, db_index=True, help_text="Type of transaction")
-	amount = models.DecimalField(max_digits=15, decimal_places=2, help_text="Transaction amount in IQD")
-	amount_usd = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="Equivalent USD amount at transaction time")
-	exchange_rate = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="Exchange rate IQD to USD at transaction time")
-	description = models.TextField(help_text="Transaction description and details")
-	created_at = models.DateTimeField(default=timezone.now)
-	updated_at = models.DateTimeField(auto_now=True)
+class TechnicianSkillSet(TimestampedModel):
+    technician = models.ForeignKey(TechnicianProfile, on_delete=models.CASCADE, related_name='skill_set_records')
+    categories = models.ManyToManyField('category.Category')
+    skills = models.ManyToManyField('category.Skill')
+    sub_skills = models.ManyToManyField('category.SubSkill')
 
-	class Meta:
-		indexes = [
-			models.Index(fields=['wallet', 'created_at']),
-			models.Index(fields=['transaction_type']),
-		]
-		ordering = ['-created_at']
-
-	def __str__(self):
-		return f"{self.transaction_type} of {self.amount} IQD for wallet {self.wallet.user.username}"
-
-
-class OTPVerification(models.Model):
-	"""One-time password verification for sensitive operations"""
-	user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='otp_codes')
-	otp_code = models.CharField(max_length=6, help_text="6-digit OTP code")
-	verification_id = models.CharField(max_length=32, unique=True, help_text="Unique verification identifier")
-	created_at = models.DateTimeField(auto_now_add=True)
-	is_used = models.BooleanField(default=False, db_index=True, help_text="Whether this OTP has been used")
-
-	class Meta:
-		indexes = [
-			models.Index(fields=['user', 'created_at']),
-			models.Index(fields=['is_used']),
-		]
-		ordering = ['-created_at']
-
-	@classmethod
-	def generate_otp(cls, user):
-		"""Generate a new OTP for a user"""
-		otp_code = ''.join(random.choices(string.digits, k=6))
-		verification_id = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
-		return cls.objects.create(
-			user=user,
-			otp_code=otp_code,
-			verification_id=verification_id,
-		)
-
-	def is_valid(self):
-		"""Check if OTP is still valid (not expired and not used)"""
-		expiry_time = self.created_at + timedelta(minutes=10)
-		now = timezone.now() if timezone.is_aware(self.created_at) else datetime.now()
-		return not self.is_used and now <= expiry_time
-
-	def __str__(self):
-		"""Return OTP representation"""
-		return f"OTP for {self.user.username} - {self.verification_id[:8]}..."
-
-
-class AdminProfile(models.Model):
-	ADMIN_ROLE_CHOICES = [
-		('system_admin', 'System Administrator'),
-		('content_moderator', 'Content Moderator'),
-		('account_manager', 'Account Manager'),
-		('finance_admin', 'Financial Administrator'),
-	]
-
-	user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='admin_profile')
-	id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-	role = models.CharField(
-		max_length=50,
-		choices=ADMIN_ROLE_CHOICES,
-		default='system_admin',
-		help_text="Specific administrative role and permissions",
-	)
-	notes = models.TextField(blank=True, null=True, help_text="Internal notes about the admin user")
-	last_login_ip = models.GenericIPAddressField(null=True, blank=True)
-	is_complete = models.BooleanField(default=False)
-	is_delete = models.BooleanField(default=False)
-	created_at = models.DateTimeField(auto_now_add=True)
-	updated_at = models.DateTimeField(auto_now=True)
-
-	class Meta:
-		indexes = [
-			models.Index(fields=['user']),
-			models.Index(fields=['role']),
-			models.Index(fields=['is_complete']),
-			models.Index(fields=['is_delete']),
-		]
-		ordering = ['-created_at']
-
-	def __str__(self):
-		role_display = dict(self.ADMIN_ROLE_CHOICES).get(self.role, self.role)
-		return f"{self.user.get_full_name() or self.user.username} ({role_display})"
-
-	def save(self, *args, **kwargs):
-		"""Ensure user has staff privileges before saving"""
-		if not self.user.is_staff:
-			self.user.is_staff = True
-			self.user.save(update_fields=['is_staff'])
-		super().save(*args, **kwargs)
-
-	@property
-	def is_system_admin(self):
-		"""Check if this admin has system admin role"""
-		return self.role == 'system_admin'
-
-	@property
-	def is_content_moderator(self):
-		"""Check if this admin has content moderator role"""
-		return self.role == 'content_moderator'
-
-	@property
-	def is_account_manager(self):
-		"""Check if this admin has account manager role"""
-		return self.role == 'account_manager'
-
-	@property
-	def is_finance_admin(self):
-		"""Check if this admin has finance admin role"""
-		return self.role == 'finance_admin'
-
-	def check_profile_completion(self):
-		"""
-		Check if the admin profile has all required fields filled.
-		Required fields from CustomUser: phone_number, profile_image, governorate, address, gender, date_of_birth
-		Required fields from AdminProfile: role is set (always has default)
-		"""
-		user = self.user
-		required_checks = [
-			user.phone_number,
-			user.profile_image,
-			user.governorate,
-			user.address,
-			user.gender,
-			user.date_of_birth,
-		]
-		
-		return all(required_checks)
-
-	def update_completion_status(self):
-		"""Update the is_complete flag based on profile completion check"""
-		is_complete = self.check_profile_completion()
-		if self.is_complete != is_complete:
-			self.is_complete = is_complete
-			self.save(update_fields=['is_complete'])
-		return is_complete
-
-	def get_incomplete_fields(self):
-		"""
-		Returns a list of field names that are incomplete and preventing the profile from being completed.
-		This helps admins understand exactly what they need to fill out.
-		"""
-		incomplete_fields = []
-		user = self.user
-		
-		if not user.phone_number:
-			incomplete_fields.append('phone_number')
-		if not user.profile_image:
-			incomplete_fields.append('profile_image')
-		if not user.governorate:
-			incomplete_fields.append('governorate')
-		if not user.address:
-			incomplete_fields.append('address')
-		if not user.gender:
-			incomplete_fields.append('gender')
-		if not user.date_of_birth:
-			incomplete_fields.append('date_of_birth')
-		
-		return incomplete_fields
-
-
-class DealershipProfile(models.Model):
-	id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-	user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='dealership_profile')
-	company_name = models.CharField(max_length=255)
-	company_registration_number = models.CharField(max_length=50, unique=True)
-	about = models.TextField(blank=True)
-	is_complete = models.BooleanField(default=False)
-	is_delete = models.BooleanField(default=False)
-	created_at = models.DateTimeField(auto_now_add=True)
-	updated_at = models.DateTimeField(auto_now=True)
-
-	class Meta:
-		indexes = [
-			models.Index(fields=['user']),
-			models.Index(fields=['company_registration_number']),
-			models.Index(fields=['is_complete']),
-			models.Index(fields=['is_delete']),
-		]
-		ordering = ['-created_at']
-
-	def __str__(self):
-		return f"{self.company_name} - {self.user.get_full_name() or self.user.username}"
-
-	def check_profile_completion(self):
-		"""
-		Check if the dealership profile has all required fields filled.
-		Required fields from CustomUser: phone_number, profile_image, governorate, address
-		Required fields from DealershipProfile: company_name, company_registration_number, about
-		"""
-		user = self.user
-		required_user_fields = [
-			user.phone_number,
-			user.profile_image,
-			user.governorate,
-			user.address,
-		]
-		
-		if not all(required_user_fields):
-			return False
-		
-		required_profile_fields = [
-			self.company_name,
-			self.company_registration_number,
-			self.about,
-		]
-		
-		return all(required_profile_fields)
-
-	def update_completion_status(self):
-		"""Update the is_complete flag based on profile completion check"""
-		is_complete = self.check_profile_completion()
-		if self.is_complete != is_complete:
-			self.is_complete = is_complete
-			self.save(update_fields=['is_complete'])
-		return is_complete
-
-	def get_incomplete_fields(self):
-		"""
-		Returns a list of field names that are incomplete and preventing the profile from being completed.
-		This helps dealerships understand exactly what they need to fill out.
-		"""
-		incomplete_fields = []
-		user = self.user
-		
-		# Check CustomUser fields
-		if not user.phone_number:
-			incomplete_fields.append('phone_number')
-		if not user.profile_image:
-			incomplete_fields.append('profile_image')
-		if not user.governorate:
-			incomplete_fields.append('governorate')
-		if not user.address:
-			incomplete_fields.append('address')
-		
-		# Check DealershipProfile fields
-		if not self.company_name:
-			incomplete_fields.append('company_name')
-		if not self.company_registration_number:
-			incomplete_fields.append('company_registration_number')
-		if not self.about:
-			incomplete_fields.append('about')
-		
-		return incomplete_fields
+class TechnicianImage(TimestampedModel):
+    technician = models.ForeignKey(TechnicianProfile, on_delete=models.CASCADE, related_name='images')
+    image = models.ImageField(upload_to='technicians/uploads/')
+    description = models.CharField(max_length=255, blank=True, null=True)
