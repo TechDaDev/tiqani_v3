@@ -89,3 +89,9 @@ celerybeat-schedule
 # Misc
 .vscode-server/
 settings_local.py
+
+
+# media files
+media/
+uploads/
+*.sqlite3
