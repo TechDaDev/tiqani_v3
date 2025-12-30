@@ -1,0 +1,233 @@
+{
+    "category": "Programming & Tech",
+    "skills": [
+        {
+            "skill": "Website Development",
+            "sub_skills": [
+                "WordPress",
+                "Shopify",
+                "Wix",
+                "Squarespace",
+                "Webflow",
+                "GoDaddy",
+                "WooCommerce",
+                "ClickFunnels",
+                "Custom Websites",
+                "Magento",
+                "SiteBuilder",
+                "Thinkific",
+                "Drupal",
+                "Joomla",
+                "Blogger",
+                "Other Builders",
+                "Opencart",
+                "BigCommerce",
+                "Prestashop",
+                "Shopware",
+                "Big Cartel",
+                "OsCommerce",
+                "Weebly",
+                "Simvoly",
+                "Ionos",
+                "Tilda",
+                "Jimdo",
+                "Strikingly",
+                "Site123"
+            ]
+        },
+        {
+            "skill": "Website Maintenance",
+            "sub_skills": [
+                "Customization",
+                "Bug Fixes",
+                "Backup & Migration",
+                "Hosting",
+                "Themes/Plugins Installation",
+                "Help/Consultation",
+                "Installation",
+                "Speed Optimization",
+                "Security",
+                "Analytics"
+            ]
+        },
+        {
+            "skill": "Software Development",
+            "sub_skills": [
+                "Web Application",
+                "Desktop Applications",
+                "API & Integrations",
+                "Bug Fixes",
+                "Browser Extensions",
+                "Email Template",
+                "Convert PSD",
+                "Scripting",
+                "Help/Consultation",
+                "Plugins Development"
+            ]
+        },
+        {
+            "skill": "Mobile App Development",
+            "sub_skills": [
+                "Cross-Platform Development",
+                "Website to App",
+                "Android App Development",
+                "IOS App Development"
+            ]
+        },
+        {
+            "skill": "Game Development",
+            "sub_skills": [
+                "Consultation",
+                "Backup & Migration",
+                "Customization",
+                "Prototyping",
+                "Game Mods",
+                "Full Game Creation",
+                "Bug Fixes"
+            ]
+        },
+        {
+            "skill": "AI Development",
+            "sub_skills": [
+                "AI Applications",
+                "AI Agents",
+                "Custom GPT Apps",
+                "AI Integrations",
+                "AI Chatbot",
+                "AI Model Fine-Tuning"
+            ]
+        },
+        {
+            "skill": "Chatbot Development",
+            "sub_skills": []
+        },
+        {
+            "skill": "Cloud Computing",
+            "sub_skills": [
+                "Cloud Consultation",
+                "Cloud Network & Security",
+                "Cloud Management",
+                "Serverless Computing"
+            ]
+        },
+        {
+            "skill": "DevOps Engineering",
+            "sub_skills": [
+                "Infra as Code",
+                "CI/CD",
+                "DevOps Containerization",
+                "DevOps Consulting"
+            ]
+        },
+        {
+            "skill": "Support & IT",
+            "sub_skills": [
+                "Technical Support",
+                "Server Administration",
+                "Email Management",
+                "VoIP and Telephony",
+                "Software Installation",
+                "CCTV Setup"
+            ]
+        },
+        {
+            "skill": "Cryptocurrencies & Tokens",
+            "sub_skills": [
+                "E-Wallet Development",
+                "Coin Design & Tokenization",
+                "Exchange Platforms",
+                "Smart Contracts"
+            ]
+        },
+        {
+            "skill": "Mobile App Maintenance",
+            "sub_skills": [
+                "Mobile App Customization",
+                "Mobile App Bug Fixes",
+                "Mobile App Consultation",
+                "Mobile Store Management"
+            ]
+        },
+        {
+            "skill": "Blockchain Development & Solutions",
+            "sub_skills": [
+                "Chain Analysis",
+                "Blockchain Protocol Development",
+                "Technical Support",
+                "Blockchain Security & Audits",
+                "Decentralized Applications (dApps)"
+            ]
+        },
+        {
+            "skill": "NFT Development",
+            "sub_skills": [
+                "NFT Generators",
+                "NFT Marketplace",
+                "NFT Websites"
+            ]
+        },
+        {
+            "skill": "Electronics Engineering",
+            "sub_skills": [
+                "Embedded Systems & IoT",
+                "Printed Circuit Boards (PCB)"
+            ]
+        },
+        {
+            "skill": "Cybersecurity",
+            "sub_skills": [
+                "Consultation",
+                "Compliance Services",
+                "Assessment & Penetration Test",
+                "Cybersecurity Management"
+            ]
+        },
+        {
+            "skill": "Development for Streamers",
+            "sub_skills": [
+                "Addons & Customization",
+                "Setup & Installation"
+            ]
+        },
+        {
+            "skill": "Online Coding Lessons",
+            "sub_skills": []
+        },
+        {
+            "skill": "Wearable App Development",
+            "sub_skills": [
+                "Smartwatch Development",
+                "VR & AR Development"
+            ]
+        },
+        {
+            "skill": "Convert Files",
+            "sub_skills": [
+                "Convert to a Fillable Form",
+                "Convert to an eBook",
+                "Convert to an Editable File",
+                "Convert to Another File"
+            ]
+        },
+        {
+            "skill": "User Testing",
+            "sub_skills": []
+        },
+        {
+            "skill": "QA & Review",
+            "sub_skills": [
+                "Design Review",
+                "Code Review",
+                "Software Testing"
+            ]
+        },
+        {
+            "skill": "Other",
+            "sub_skills": []
+        },
+        {
+            "skill": "Trading Bots Development",
+            "sub_skills": []
+        }
+    ]
+}

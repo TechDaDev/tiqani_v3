@@ -1,0 +1,302 @@
+{
+    "category": "Graphics & Design",
+    "skills": [
+        {
+            "skill": "Logo Design",
+            "sub_skills": []
+        },
+        {
+            "skill": "Brand Style Guides",
+            "sub_skills": []
+        },
+        {
+            "skill": "Game Art",
+            "sub_skills": [
+                "Character Design",
+                "Props & Objects",
+                "Backgrounds & Environments",
+                "UI & UX"
+            ]
+        },
+        {
+            "skill": "Graphics for Streamers",
+            "sub_skills": []
+        },
+        {
+            "skill": "Business Cards & Stationery",
+            "sub_skills": []
+        },
+        {
+            "skill": "Website Design",
+            "sub_skills": [
+                "Website UI/UX Design",
+                "Website Builders Design"
+            ]
+        },
+        {
+            "skill": "App Design",
+            "sub_skills": []
+        },
+        {
+            "skill": "UX Design",
+            "sub_skills": []
+        },
+        {
+            "skill": "Landing Page Design",
+            "sub_skills": []
+        },
+        {
+            "skill": "Resume Design",
+            "sub_skills": []
+        },
+        {
+            "skill": "Illustration",
+            "sub_skills": []
+        },
+        {
+            "skill": "Children\u2019s Book Illustration",
+            "sub_skills": []
+        },
+        {
+            "skill": "AI Artists",
+            "sub_skills": [
+                "Image Generation",
+                "Custom Image Prompts"
+            ]
+        },
+        {
+            "skill": "AI Avatar Design",
+            "sub_skills": []
+        },
+        {
+            "skill": "NFT Art",
+            "sub_skills": []
+        },
+        {
+            "skill": "Pattern Design",
+            "sub_skills": []
+        },
+        {
+            "skill": "Fonts & Typography",
+            "sub_skills": [
+                "Font Design",
+                "Typography",
+                "Hand Lettering",
+                "Calligraphy"
+            ]
+        },
+        {
+            "skill": "Poster Design",
+            "sub_skills": []
+        },
+        {
+            "skill": "Brochure Design",
+            "sub_skills": []
+        },
+        {
+            "skill": "Flyer Design",
+            "sub_skills": []
+        },
+        {
+            "skill": "Book Design",
+            "sub_skills": [
+                "Book Layout Design & Typesetting",
+                "Book Cover Design"
+            ]
+        },
+        {
+            "skill": "Album Cover Design",
+            "sub_skills": []
+        },
+        {
+            "skill": "Podcast Cover Art",
+            "sub_skills": []
+        },
+        {
+            "skill": "Packaging & Label Design",
+            "sub_skills": [
+                "Packaging Design",
+                "Label Design",
+                "Dieline Design"
+            ]
+        },
+        {
+            "skill": "Storyboards",
+            "sub_skills": []
+        },
+        {
+            "skill": "Social Media Design",
+            "sub_skills": [
+                "Headers & Covers",
+                "Social Posts & Banners",
+                "Thumbnails Design",
+                "AR Filters & Lenses"
+            ]
+        },
+        {
+            "skill": "Catalog Design",
+            "sub_skills": []
+        },
+        {
+            "skill": "Menu Design",
+            "sub_skills": []
+        },
+        {
+            "skill": "Invitation Design",
+            "sub_skills": []
+        },
+        {
+            "skill": "Portraits & Caricatures",
+            "sub_skills": []
+        },
+        {
+            "skill": "Cartoons & Comics",
+            "sub_skills": []
+        },
+        {
+            "skill": "Tattoo Design",
+            "sub_skills": []
+        },
+        {
+            "skill": "Signage Design",
+            "sub_skills": []
+        },
+        {
+            "skill": "Web Banners",
+            "sub_skills": []
+        },
+        {
+            "skill": "Image Editing",
+            "sub_skills": [
+                "Product Image Editing",
+                "Photo Manipulation",
+                "Portraits Retouching",
+                "Photo Restoration",
+                "Mockups"
+            ]
+        },
+        {
+            "skill": "AI Image Editing",
+            "sub_skills": []
+        },
+        {
+            "skill": "Architecture & Interior Design",
+            "sub_skills": [
+                "Mood Boards",
+                "Architectural Graphics",
+                "Virtual Staging",
+                "Architectural Planning",
+                "Interior Design",
+                "3D Modeling & Rendering",
+                "2D Drawings & Floor Plans"
+            ]
+        },
+        {
+            "skill": "Landscape Design",
+            "sub_skills": [
+                "Planning & Design",
+                "3D Modeling & Rendering",
+                "2D Drawings & Site Plans"
+            ]
+        },
+        {
+            "skill": "Building Engineering",
+            "sub_skills": [
+                "HVAC",
+                "Electrical Engineering",
+                "Plumbing & Drainage",
+                "Civil & Structural"
+            ]
+        },
+        {
+            "skill": "Building Information Modeling",
+            "sub_skills": [
+                "BIM 4D Construction Simulation",
+                "BIM Online Training & Implementation",
+                "BIM Family Creation",
+                "BIM Coordination & Clash Detection",
+                "BIM 3D Modeling"
+            ]
+        },
+        {
+            "skill": "Character Modeling",
+            "sub_skills": []
+        },
+        {
+            "skill": "Industrial & Product Design",
+            "sub_skills": [
+                "Concept Development",
+                "3D Modeling & Rendering",
+                "Rapid Prototyping",
+                "Design for Manufacturing",
+                "Technical Drawing",
+                "Full Design Process"
+            ]
+        },
+        {
+            "skill": "Trade Booth Design",
+            "sub_skills": []
+        },
+        {
+            "skill": "T-Shirts & Merchandise",
+            "sub_skills": []
+        },
+        {
+            "skill": "Fashion Design",
+            "sub_skills": [
+                "Technical Drawing & Tech Pack",
+                "Pattern Making",
+                "Fashion Illustration",
+                "3D Garment Design",
+                "Full Design Process"
+            ]
+        },
+        {
+            "skill": "Jewelry Design",
+            "sub_skills": [
+                "3D Modeling & Rendering",
+                "Concept Design & Sketching"
+            ]
+        },
+        {
+            "skill": "Presentation Design",
+            "sub_skills": []
+        },
+        {
+            "skill": "Email Design",
+            "sub_skills": []
+        },
+        {
+            "skill": "Icon Design",
+            "sub_skills": []
+        },
+        {
+            "skill": "Infographic Design",
+            "sub_skills": []
+        },
+        {
+            "skill": "Car Wraps",
+            "sub_skills": []
+        },
+        {
+            "skill": "Vector Tracing",
+            "sub_skills": []
+        },
+        {
+            "skill": "NSFW Art",
+            "sub_skills": []
+        },
+        {
+            "skill": "Other",
+            "sub_skills": []
+        },
+        {
+            "skill": "Design Advice",
+            "sub_skills": [
+                "Design Review & Consultation",
+                "Design Mentorship",
+                "Design Lessons"
+            ]
+        }
+    ]
+}

@@ -1,0 +1,98 @@
+{
+    "category": "Data",
+    "skills": [
+        {
+            "skill": "Data Governance & Protection",
+            "sub_skills": []
+        },
+        {
+            "skill": "Data Scraping",
+            "sub_skills": []
+        },
+        {
+            "skill": "Data Annotation",
+            "sub_skills": []
+        },
+        {
+            "skill": "Data Formatting",
+            "sub_skills": []
+        },
+        {
+            "skill": "Databases",
+            "sub_skills": [
+                "Consultation",
+                "Database Administration (DBA)",
+                "SQL & NoSQL Queries",
+                "Design & Optimization",
+                "Database Development",
+                "Database Migration & Performance"
+            ]
+        },
+        {
+            "skill": "Data Cleaning",
+            "sub_skills": []
+        },
+        {
+            "skill": "Data Enrichment",
+            "sub_skills": []
+        },
+        {
+            "skill": "Data Processing",
+            "sub_skills": [
+                "Consultation",
+                "Automations",
+                "Formulas & Macros"
+            ]
+        },
+        {
+            "skill": "Data Engineering",
+            "sub_skills": []
+        },
+        {
+            "skill": "Data Analytics",
+            "sub_skills": [
+                "BI Analytics",
+                "Data Analytics Consultation",
+                "Supply Chain Analytics",
+                "Financial Analytics",
+                "Statistical Modeling & Analytics",
+                "Product Analytics",
+                "Marketing Analytics"
+            ]
+        },
+        {
+            "skill": "Data Visualization",
+            "sub_skills": [
+                "Consultation",
+                "Reports",
+                "Geographic Information Systems (GIS)",
+                "Data Dashboards",
+                "Graphs & Charts"
+            ]
+        },
+        {
+            "skill": "Data Science & ML",
+            "sub_skills": [
+                "Machine Learning",
+                "Deep Learning",
+                "Computer Vision",
+                "Natural Language Processing",
+                "Generative Models",
+                "Time Series Analysis",
+                "Data Science Consultation"
+            ]
+        },
+        {
+            "skill": "Data Entry",
+            "sub_skills": [
+                "Web Research",
+                "Copy Paste",
+                "Data Typing"
+            ]
+        },
+        {
+            "skill": "Other",
+            "sub_skills": []
+        }
+    ]
+}
