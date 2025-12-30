@@ -84,13 +84,13 @@ class BaseProfile(TimestampedModel):
 
 # --- Primary User Model ---
 
-class CustomUser(AbstractUser):
+class CustomUser(AbstractUser,TimestampedModel):
     ROLE_CHOICES = [
         ('client', 'Client'), 
         ('technician', 'Technician'),
         ('admin', 'Admin'),
     ]
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    REQUIRED_FIELDS = ['password']
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='client')
     phone_number = models.CharField(validators=[PHONE_REGEX], max_length=11, blank=True, null=True, unique=True)
     governorate = models.CharField(choices=IRAQI_GOVERNORATES, max_length=50, null=True, blank=True)
@@ -98,9 +98,6 @@ class CustomUser(AbstractUser):
     gender = models.CharField(max_length=6, choices=[('male', 'Male'), ('female', 'Female')], null=True, blank=True)
     date_of_birth = models.DateField(null=True, blank=True)
     profile_image = models.ImageField(upload_to=universal_file_path, null=True, blank=True)
-    is_delete = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     upload_folder = 'Profile'
 
