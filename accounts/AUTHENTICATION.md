@@ -15,14 +15,15 @@ This document outlines all authentication and account-related API endpoints, req
 5. [Logout](#logout)
 6. [Forgot Password](#forgot-password)
 7. [Password Reset Confirm](#password-reset-confirm)
-8. [Technician-Specific Endpoints](#technician-specific-endpoints)
-9. [Client-Specific Endpoints](#client-specific-endpoints)
-10. [Profile Completion Tracking](#profile-completion-tracking)
-11. [Admin Panel](#admin-panel)
-12. [Error Handling](#error-handling)
-13. [Rate Limiting](#rate-limiting)
-14. [Authentication](#authentication)
-15. [Future Features](#future-features)
+8. [Public Technician List](#public-technician-list)
+9. [Technician-Specific Endpoints](#technician-specific-endpoints)
+10. [Client-Specific Endpoints](#client-specific-endpoints)
+11. [Profile Completion Tracking](#profile-completion-tracking)
+12. [Admin Panel](#admin-panel)
+13. [Error Handling](#error-handling)
+14. [Rate Limiting](#rate-limiting)
+15. [Authentication](#authentication)
+16. [Future Features](#future-features)
 
 ---
 
@@ -250,6 +251,92 @@ POST /api/auth/password-reset-confirm/
 - User can immediately login with new password
 
 ---
+
+---
+
+---
+
+## Public Technician List
+
+### Endpoint
+```
+GET /api/auth/technician/list/
+```
+
+**Authentication Required:** No (public endpoint)
+
+### Query Parameters
+
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
+| `governorate` | string | Filter by governorate | Baghdad |
+| `is_available` | boolean | Filter by availability status | true |
+| `skill_id` | UUID | Filter by skill ID | 021621b2-0569-405e-9733-b050eced63e9 |
+| `order_by` | string | Sort results | -rate (default), rate, -created_at |
+| `page_size` | integer | Results per page | 20 (default) |
+| `page` | integer | Page number | 1 |
+
+### Success Response (200 OK)
+```json
+{
+  "count": 45,
+  "next": "http://localhost:8000/api/auth/technician/list/?page=2",
+  "previous": null,
+  "results": [
+    {
+      "user_id": "550e8400-e29b-41d4-a716-446655440000",
+      "username": "john_doe",
+      "full_name": "John Doe",
+      "governorate": "Baghdad",
+      "profile_image": "http://localhost:8000/media/Profile/a1b2c3d4.jpg",
+      "job_title": "Senior Web Developer",
+      "about": "Experienced web developer specializing in full-stack...",
+      "years_of_expertise": 5,
+      "is_available": true,
+      "rate": 4.85
+    },
+    {
+      "user_id": "660e8400-e29b-41d4-a716-446655440001",
+      "username": "jane_smith",
+      "full_name": "Jane Smith",
+      "governorate": "Baghdad",
+      "profile_image": "http://localhost:8000/media/Profile/xyz.jpg",
+      "job_title": "Data Scientist",
+      "about": "Specialist in machine learning and data analysis...",
+      "years_of_expertise": 7,
+      "is_available": true,
+      "rate": 4.92
+    }
+  ]
+}
+```
+
+### Usage Examples
+
+**List all approved technicians:**
+```
+GET /api/auth/technician/list/
+```
+
+**Filter by governorate:**
+```
+GET /api/auth/technician/list/?governorate=Baghdad
+```
+
+**Filter by availability and sort by rating:**
+```
+GET /api/auth/technician/list/?is_available=true&order_by=-rate
+```
+
+**Filter by skill and paginate:**
+```
+GET /api/auth/technician/list/?skill_id=021621b2-0569-405e-9733-b050eced63e9&page=1&page_size=10
+```
+
+### Filters Applied
+- **Only approved technicians** (`approved=true`)
+- **Only complete profiles** (`is_complete=true`)
+- Inactive/incomplete profiles are excluded from results
 
 ---
 

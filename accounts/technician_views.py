@@ -5,15 +5,17 @@ All endpoints require authentication and the user must have technician role.
 
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.pagination import PageNumberPagination
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 
 from .models import TechnicianProfile, TechnicianImage, TechnicianSkillSet, CustomUser
 from .technician_serializers import (
     TechnicianProfileSerializer,
+    TechnicianListSerializer,
     TechnicianImageSerializer,
     TechnicianSkillSetSerializer,
     TechnicianAvailabilitySerializer,
@@ -24,6 +26,59 @@ class IsTechnician(IsAuthenticated):
     """Permission class to verify user is a technician."""
     def has_permission(self, request, view):
         return super().has_permission(request, view) and request.user.role == 'technician'
+
+
+# --- Pagination ---
+
+class StandardResultsSetPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
+# --- Public Technician List ---
+
+class TechnicianListView(APIView):
+    """
+    GET: List approved and complete technicians (public view, no auth required)
+    Filters: governorate, is_available, skill_id
+    """
+    permission_classes = [AllowAny]
+    pagination_class = StandardResultsSetPagination
+
+    def get(self, request):
+        """List all approved and complete technicians."""
+        queryset = TechnicianProfile.objects.filter(
+            is_complete=True,
+            approved=True
+        ).select_related('user')
+
+        # Filter by governorate
+        governorate = request.query_params.get('governorate')
+        if governorate:
+            queryset = queryset.filter(user__governorate=governorate)
+
+        # Filter by availability
+        is_available = request.query_params.get('is_available')
+        if is_available is not None:
+            is_available = is_available.lower() in ('true', '1', 'yes')
+            queryset = queryset.filter(is_available=is_available)
+
+        # Filter by skill
+        skill_id = request.query_params.get('skill_id')
+        if skill_id:
+            queryset = queryset.filter(skill_sets__skills__id=skill_id).distinct()
+
+        # Order by rating
+        order_by = request.query_params.get('order_by', '-rate')
+        queryset = queryset.order_by(order_by)
+
+        # Pagination
+        paginator = self.pagination_class()
+        paginated_queryset = paginator.paginate_queryset(queryset, request)
+
+        serializer = TechnicianListSerializer(paginated_queryset, many=True, context={'request': request})
+        return paginator.get_paginated_response(serializer.data)
 
 
 # --- Profile Management ---

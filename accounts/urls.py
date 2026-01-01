@@ -9,6 +9,7 @@ from .views import (
     ResetPasswordConfirmView
 )
 from .technician_views import (
+    TechnicianListView,
     TechnicianProfileView,
     TechnicianSkillsView,
     TechnicianImagesListView,
@@ -36,6 +37,7 @@ urlpatterns = [
     path('password-reset-confirm/', ResetPasswordConfirmView.as_view(), name='reset_password_confirm'),
 
     # --- Technician Endpoints ---
+    path('technician/list/', TechnicianListView.as_view(), name='technician_list'),
     path('technician/profile/', TechnicianProfileView.as_view(), name='technician_profile'),
     path('technician/skills/', TechnicianSkillsView.as_view(), name='technician_skills'),
     path('technician/images/', TechnicianImagesListView.as_view(), name='technician_images_list'),

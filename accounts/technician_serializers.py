@@ -10,6 +10,32 @@ from .models import TechnicianProfile, TechnicianImage, TechnicianSkillSet
 from category.models import Category, Skill, SubSkill
 
 
+class TechnicianListSerializer(serializers.ModelSerializer):
+    """Serializer for listing available technicians (public view)."""
+
+    user_id = serializers.CharField(source='user.id', read_only=True)
+    username = serializers.CharField(source='user.username', read_only=True)
+    full_name = serializers.CharField(source='user.get_full_name', read_only=True)
+    governorate = serializers.CharField(source='user.governorate', read_only=True)
+    profile_image = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TechnicianProfile
+        fields = (
+            'user_id', 'username', 'full_name', 'governorate', 'profile_image',
+            'job_title', 'about', 'years_of_expertise', 'is_available', 'rate'
+        )
+        read_only_fields = fields
+
+    def get_profile_image(self, obj):
+        if obj.user.profile_image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.user.profile_image.url)
+            return obj.user.profile_image.url
+        return None
+
+
 class TechnicianImageSerializer(serializers.ModelSerializer):
     """Serializer for managing technician portfolio images."""
 
