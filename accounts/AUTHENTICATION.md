@@ -290,6 +290,8 @@ GET /api/auth/technician/list/
 | `page` | integer | Page number | 1 |
 
 ### Success Response (200 OK)
+
+**Non-Admin Users Response:**
 ```json
 {
   "count": 45,
@@ -306,7 +308,9 @@ GET /api/auth/technician/list/
       "about": "Experienced web developer specializing in full-stack...",
       "years_of_expertise": 5,
       "is_available": true,
-      "rate": 4.85
+      "rate": 4.85,
+      "is_complete": null,
+      "incomplete_fields": null
     },
     {
       "user_id": "660e8400-e29b-41d4-a716-446655440001",
@@ -318,11 +322,57 @@ GET /api/auth/technician/list/
       "about": "Specialist in machine learning and data analysis...",
       "years_of_expertise": 7,
       "is_available": true,
-      "rate": 4.92
+      "rate": 4.92,
+      "is_complete": null,
+      "incomplete_fields": null
     }
   ]
 }
 ```
+
+**Admin Users Response:**
+```json
+{
+  "count": 47,
+  "next": "http://localhost:8000/api/auth/technician/list/?page=2",
+  "previous": null,
+  "results": [
+    {
+      "user_id": "550e8400-e29b-41d4-a716-446655440000",
+      "username": "john_doe",
+      "full_name": "John Doe",
+      "governorate": "Baghdad",
+      "profile_image": "http://localhost:8000/media/Profile/a1b2c3d4.jpg",
+      "job_title": "Senior Web Developer",
+      "about": "Experienced web developer specializing in full-stack...",
+      "years_of_expertise": 5,
+      "is_available": true,
+      "rate": 4.85,
+      "is_complete": true,
+      "incomplete_fields": []
+    },
+    {
+      "user_id": "660e8400-e29b-41d4-a716-446655440001",
+      "username": "jane_smith",
+      "full_name": "Jane Smith",
+      "governorate": "Baghdad",
+      "profile_image": "http://localhost:8000/media/Profile/xyz.jpg",
+      "job_title": "Data Scientist",
+      "about": "Specialist in machine learning and data analysis...",
+      "years_of_expertise": 7,
+      "is_available": true,
+      "rate": 4.92,
+      "is_complete": false,
+      "incomplete_fields": ["profile_image", "job_title"]
+    }
+  ]
+}
+```
+
+**Field Descriptions (Admin-Only):**
+- `is_complete` (boolean|null): Profile completion status. Only visible to admin users; null for others.
+- `incomplete_fields` (array|null): List of missing required profile fields. Only visible to admin users; null for others.
+  - Example: `["profile_image", "job_title", "phone_number"]`
 
 ### Usage Examples
 
@@ -352,10 +402,13 @@ GET /api/auth/technician/list/?skill_id=021621b2-0569-405e-9733-b050eced63e9&pag
 - Only approved technicians (`approved=true`)
 - Only complete profiles (`is_complete=true`)
 - Inactive/incomplete/unapproved profiles are excluded
+- Response fields `is_complete` and `incomplete_fields` are `null`
 
 **For Admin Users:**
 - All technicians are shown (no approval/completion restrictions)
 - All filters still apply (governorate, is_available, skill_id, sorting)
+- Response includes `is_complete` boolean and `incomplete_fields` array for profile management
+- Admins can identify and manage incomplete technician profiles
 
 ---
 
