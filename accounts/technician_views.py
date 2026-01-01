@@ -40,18 +40,32 @@ class StandardResultsSetPagination(PageNumberPagination):
 
 class TechnicianListView(APIView):
     """
-    GET: List approved and complete technicians (public view, no auth required)
+    GET: List technicians with role-based filtering
+    
+    Access Control:
+    - Anonymous users: See only approved and complete technicians
+    - Client users: See only approved and complete technicians
+    - Admin users: See all technicians (including incomplete/unapproved)
+    
     Filters: governorate, is_available, skill_id
     """
     permission_classes = [AllowAny]
     pagination_class = StandardResultsSetPagination
 
     def get(self, request):
-        """List all approved and complete technicians."""
-        queryset = TechnicianProfile.objects.filter(
-            is_complete=True,
-            approved=True
-        ).select_related('user')
+        """List technicians based on user role and authentication status."""
+        queryset = TechnicianProfile.objects.select_related('user')
+
+        # Apply role-based filtering
+        user = request.user
+        is_admin = user.is_authenticated and user.is_staff
+        
+        # Only show approved and complete if not admin
+        if not is_admin:
+            queryset = queryset.filter(
+                is_complete=True,
+                approved=True
+            )
 
         # Filter by governorate
         governorate = request.query_params.get('governorate')

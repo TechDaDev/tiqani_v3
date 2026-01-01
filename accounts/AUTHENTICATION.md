@@ -263,7 +263,20 @@ POST /api/auth/password-reset-confirm/
 GET /api/auth/technician/list/
 ```
 
-**Authentication Required:** No (public endpoint)
+**Authentication:** Optional (behavior changes based on user role)
+
+### Access Control & Filtering
+
+| User Type | Can Access | Sees Approved? | Sees Complete? | Can See Incomplete? | Can See Unapproved? |
+|-----------|-----------|---|---|---|---|
+| **Anonymous** | ✅ Yes | ✅ Only approved | ✅ Only complete | ❌ No | ❌ No |
+| **Client** | ✅ Yes | ✅ Only approved | ✅ Only complete | ❌ No | ❌ No |
+| **Admin** | ✅ Yes | ✅ All | ✅ All | ✅ **Yes** | ✅ **Yes** |
+| **Technician** | ✅ Yes | ✅ Only approved | ✅ Only complete | ❌ No | ❌ No |
+
+**Summary:**
+- **Non-admin (Anonymous/Client/Technician):** See only approved (`approved=true`) and complete (`is_complete=true`) technicians
+- **Admin:** See all technicians regardless of approval or completion status (no restrictions)
 
 ### Query Parameters
 
@@ -334,9 +347,15 @@ GET /api/auth/technician/list/?skill_id=021621b2-0569-405e-9733-b050eced63e9&pag
 ```
 
 ### Filters Applied
-- **Only approved technicians** (`approved=true`)
-- **Only complete profiles** (`is_complete=true`)
-- Inactive/incomplete profiles are excluded from results
+
+**For Non-Admin Users (Anonymous/Client/Technician):**
+- Only approved technicians (`approved=true`)
+- Only complete profiles (`is_complete=true`)
+- Inactive/incomplete/unapproved profiles are excluded
+
+**For Admin Users:**
+- All technicians are shown (no approval/completion restrictions)
+- All filters still apply (governorate, is_available, skill_id, sorting)
 
 ---
 
