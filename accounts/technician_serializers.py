@@ -11,19 +11,27 @@ from category.models import Category, Skill, SubSkill
 
 
 class TechnicianListSerializer(serializers.ModelSerializer):
-    """Serializer for listing available technicians (public view)."""
+    """Serializer for listing available technicians (public view).
+    
+    Admin users see additional fields:
+    - is_complete: Profile completion status
+    - incomplete_fields: List of missing required fields
+    """
 
     user_id = serializers.CharField(source='user.id', read_only=True)
     username = serializers.CharField(source='user.username', read_only=True)
     full_name = serializers.CharField(source='user.get_full_name', read_only=True)
     governorate = serializers.CharField(source='user.governorate', read_only=True)
     profile_image = serializers.SerializerMethodField()
+    is_complete = serializers.SerializerMethodField()
+    incomplete_fields = serializers.SerializerMethodField()
 
     class Meta:
         model = TechnicianProfile
         fields = (
             'user_id', 'username', 'full_name', 'governorate', 'profile_image',
-            'job_title', 'about', 'years_of_expertise', 'is_available', 'rate'
+            'job_title', 'about', 'years_of_expertise', 'is_available', 'rate',
+            'is_complete', 'incomplete_fields'
         )
         read_only_fields = fields
 
@@ -33,6 +41,25 @@ class TechnicianListSerializer(serializers.ModelSerializer):
             if request:
                 return request.build_absolute_uri(obj.user.profile_image.url)
             return obj.user.profile_image.url
+        return None
+
+    def _is_admin(self):
+        """Check if the request user is an admin."""
+        request = self.context.get('request')
+        if request and request.user:
+            return request.user.is_authenticated and request.user.is_staff
+        return False
+
+    def get_is_complete(self, obj):
+        """Return is_complete only for admin users."""
+        if self._is_admin():
+            return obj.is_complete
+        return None
+
+    def get_incomplete_fields(self, obj):
+        """Return incomplete fields list only for admin users."""
+        if self._is_admin():
+            return obj.get_incomplete_fields()
         return None
 
 
