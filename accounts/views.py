@@ -15,11 +15,18 @@ from .serializers import (
     ForgotPasswordSerializer, 
     ResetPasswordConfirmSerializer
 )
+from .email_utils import send_otp_email
+from .models import OTPVerification
 
 #TODO: limiting config to settings.py and append to env later
 # --- Configuration ---
 RATE_LIMIT_ATTEMPTS = 5
 RATE_LIMIT_WINDOW_SEC = 5 * 60
+
+# OTP Resend Rate Limiting
+OTP_RESEND_COOLDOWN_SEC = 5 * 60  # 5 minutes between resends
+OTP_RESEND_DAILY_LIMIT = 5  # Max 5 resends per 24 hours
+OTP_RESEND_DAILY_WINDOW_SEC = 24 * 60 * 60  # 24 hours
 
 def _get_client_ip(request):
     xff = request.META.get('HTTP_X_FORWARDED_FOR')
@@ -149,6 +156,87 @@ class VerifyEmailView(APIView):
         return Response({
             "detail": "Account activated successfully.",
             "username": user.username
+        }, status=status.HTTP_200_OK)
+
+class ResendOTPView(APIView):
+    """
+    Resends OTP verification code with rate limiting.
+    Rate limiting:
+    - 5 minutes cooldown between consecutive resends
+    - Max 5 resends per 24 hours per email
+    """
+    permission_classes = (AllowAny,)
+
+    def post(self, request):
+        email = request.data.get('email')
+        
+        if not email:
+            return Response({
+                "detail": "Email address is required."
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if user exists
+        try:
+            user = CustomUser.objects.get(email=email)
+        except CustomUser.DoesNotExist:
+            # Generic response for security (don't reveal if email exists)
+            return Response({
+                "detail": "If an account exists with this email, a new verification code will be sent."
+            }, status=status.HTTP_200_OK)
+        
+        # Check if account is already verified
+        if user.is_active:
+            return Response({
+                "detail": "This account is already verified."
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Rate limiting: Check cooldown (5 minutes)
+        cooldown_cache_key = f'otp_resend_cooldown_{email}'
+        if cache.get(cooldown_cache_key):
+            remaining_time = cache.ttl(cooldown_cache_key)
+            return Response({
+                "detail": "Please wait before requesting another code.",
+                "remaining_seconds": remaining_time if remaining_time > 0 else 0,
+                "retry_after": f"{remaining_time // 60} minutes" if remaining_time > 60 else f"{remaining_time} seconds"
+            }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        
+        # Rate limiting: Check daily limit (5 resends per 24 hours)
+        daily_cache_key = f'otp_resend_daily_{email}'
+        daily_count = cache.get(daily_cache_key, 0)
+        
+        if daily_count >= OTP_RESEND_DAILY_LIMIT:
+            return Response({
+                "detail": "Daily OTP resend limit reached. Please try again tomorrow.",
+                "limit": OTP_RESEND_DAILY_LIMIT
+            }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        
+        # Generate new OTP
+        otp = OTPVerification.generate_otp(user)
+        
+        # Send OTP email
+        try:
+            send_otp_email(user, otp.otp_code, otp.verification_id)
+        except Exception as e:
+            return Response({
+                "detail": "Failed to send verification email. Please try again later."
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # Set cooldown (5 minutes)
+        cache.set(cooldown_cache_key, True, OTP_RESEND_COOLDOWN_SEC)
+        
+        # Increment daily counter
+        if daily_count == 0:
+            # First resend today - set counter with 24-hour expiry
+            cache.set(daily_cache_key, 1, OTP_RESEND_DAILY_WINDOW_SEC)
+        else:
+            # Increment existing counter (preserve original TTL)
+            remaining_ttl = cache.ttl(daily_cache_key)
+            cache.set(daily_cache_key, daily_count + 1, remaining_ttl if remaining_ttl > 0 else OTP_RESEND_DAILY_WINDOW_SEC)
+        
+        return Response({
+            "detail": "A new verification code has been sent to your email.",
+            "email": email,
+            "resends_remaining": OTP_RESEND_DAILY_LIMIT - (daily_count + 1)
         }, status=status.HTTP_200_OK)
 
 # --- Password Recovery ---

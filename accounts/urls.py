@@ -5,6 +5,7 @@ from .views import (
     LogoutView, 
     RegistrationView, 
     VerifyEmailView,
+    ResendOTPView,
     ForgotPasswordView, 
     ResetPasswordConfirmView
 )
@@ -31,6 +32,7 @@ urlpatterns = [
     # --- Registration & Account Activation ---
     path('register/', RegistrationView.as_view(), name='auth_register'),
     path('verify-email/', VerifyEmailView.as_view(), name='verify_email'),
+    path('resend-otp/', ResendOTPView.as_view(), name='resend_otp'),
 
     # --- Password Management ---
     path('password-reset/', ForgotPasswordView.as_view(), name='forgot_password'),

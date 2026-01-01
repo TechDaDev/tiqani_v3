@@ -10,20 +10,21 @@ This document outlines all authentication and account-related API endpoints, req
 
 1. [Registration](#registration)
 2. [Email Verification](#email-verification)
-3. [Login](#login)
-4. [Refresh Token](#refresh-token)
-5. [Logout](#logout)
-6. [Forgot Password](#forgot-password)
-7. [Password Reset Confirm](#password-reset-confirm)
-8. [Public Technician List](#public-technician-list)
-9. [Technician-Specific Endpoints](#technician-specific-endpoints)
-10. [Client-Specific Endpoints](#client-specific-endpoints)
-11. [Profile Completion Tracking](#profile-completion-tracking)
-12. [Admin Panel](#admin-panel)
-13. [Error Handling](#error-handling)
-14. [Rate Limiting](#rate-limiting)
-15. [Authentication](#authentication)
-16. [Future Features](#future-features)
+3. [OTP Resend](#otp-resend)
+4. [Login](#login)
+5. [Refresh Token](#refresh-token)
+6. [Logout](#logout)
+7. [Forgot Password](#forgot-password)
+8. [Password Reset Confirm](#password-reset-confirm)
+9. [Public Technician List](#public-technician-list)
+10. [Technician-Specific Endpoints](#technician-specific-endpoints)
+11. [Client-Specific Endpoints](#client-specific-endpoints)
+12. [Profile Completion Tracking](#profile-completion-tracking)
+13. [Admin Panel](#admin-panel)
+14. [Error Handling](#error-handling)
+15. [Rate Limiting](#rate-limiting)
+16. [Authentication](#authentication)
+17. [Future Features](#future-features)
 
 ---
 
@@ -81,6 +82,67 @@ POST /api/auth/verify-email/
   "message": "You can now login with your credentials."
 }
 ```
+
+---
+
+## OTP Resend
+
+### Endpoint
+```
+POST /api/auth/resend-otp/
+```
+
+### Request Body
+```json
+{
+  "email": "string (required)"
+}
+```
+
+### Rate Limiting
+- **Cooldown:** 5 minutes between consecutive resends
+- **Daily Limit:** Maximum 5 resends per 24 hours per email address
+
+### Success Response (200 OK)
+```json
+{
+  "detail": "A new verification code has been sent to your email.",
+  "email": "john@example.com",
+  "resends_remaining": 4
+}
+```
+
+### Error Responses
+
+**Already Verified (400 Bad Request):**
+```json
+{
+  "detail": "This account is already verified."
+}
+```
+
+**Cooldown Active (429 Too Many Requests):**
+```json
+{
+  "detail": "Please wait before requesting another code.",
+  "remaining_seconds": 287,
+  "retry_after": "4 minutes"
+}
+```
+
+**Daily Limit Reached (429 Too Many Requests):**
+```json
+{
+  "detail": "Daily OTP resend limit reached. Please try again tomorrow.",
+  "limit": 5
+}
+```
+
+**Notes:**
+- Response is generic for security (doesn't reveal if email exists for unverified accounts)
+- OTP codes remain valid for 10 minutes
+- Old OTP codes are not invalidated when a new one is requested
+- Rate limits are tracked by email address
 
 ---
 
@@ -617,23 +679,26 @@ GET /api/auth/profile/incomplete-fields/
 ## Rate Limiting
 
 ### Overview
+The API implements rate limiting on critical endpoints to prevent abuse and protect system resources.
+
+### Login Endpoint
 Rate limiting on login endpoint to prevent brute force attacks: **5 failed attempts per IP address per 5 minutes**.
 
-### Implementation Details
+#### Implementation Details
 - **Tracking Method:** IP-based using Django cache
 - **Cache Key Format:** `login_attempts_{client_ip}`
 - **IP Detection:** Supports `X-Forwarded-For` header for proxy/load balancer scenarios
 - **Fallback:** Uses `REMOTE_ADDR` if `X-Forwarded-For` is not present
 
-### Configuration
+#### Configuration
 ```python
 RATE_LIMIT_ATTEMPTS = 5
 RATE_LIMIT_WINDOW_SEC = 5 * 60  # 300 seconds
 ```
 
-### Behavior
+#### Behavior
 
-#### Failed Login Response
+**Failed Login Response:**
 When credentials are invalid, the response includes `attempts_remaining`:
 ```json
 {
@@ -642,7 +707,7 @@ When credentials are invalid, the response includes `attempts_remaining`:
 }
 ```
 
-#### Rate Limited Response
+**Rate Limited Response:**
 After 5 failed attempts, further requests are blocked with HTTP 429:
 ```json
 {
@@ -651,9 +716,72 @@ After 5 failed attempts, further requests are blocked with HTTP 429:
 }
 ```
 
-#### Successful Login
+**Successful Login:**
 - Rate limit counter is **cleared** upon successful authentication
 - User can attempt login again immediately after successful login
+
+### OTP Resend Endpoint
+Rate limiting on OTP resend to prevent email spam and abuse: **5 minute cooldown + 5 resends per 24 hours**.
+
+#### Implementation Details
+- **Tracking Method:** Email-based using Django cache
+- **Cooldown Cache Key:** `otp_resend_cooldown_{email}`
+- **Daily Limit Cache Key:** `otp_resend_daily_{email}`
+- **Dual Rate Limits:** Both cooldown AND daily limit must be satisfied
+
+#### Configuration
+```python
+OTP_RESEND_COOLDOWN_SEC = 5 * 60  # 5 minutes
+OTP_RESEND_DAILY_LIMIT = 5  # Max 5 resends per 24 hours
+OTP_RESEND_DAILY_WINDOW_SEC = 24 * 60 * 60  # 24 hours
+```
+
+#### Behavior
+
+**Successful Resend Response:**
+```json
+{
+  "detail": "A new verification code has been sent to your email.",
+  "email": "john@example.com",
+  "resends_remaining": 4
+}
+```
+
+**Cooldown Active (429 Too Many Requests):**
+```json
+{
+  "detail": "Please wait before requesting another code.",
+  "remaining_seconds": 287,
+  "retry_after": "4 minutes"
+}
+```
+
+**Daily Limit Reached (429 Too Many Requests):**
+```json
+{
+  "detail": "Daily OTP resend limit reached. Please try again tomorrow.",
+  "limit": 5
+}
+```
+
+#### Flow Example
+```
+Resend 1 → HTTP 200, resends_remaining: 4, cooldown starts (5 min)
+[Within 5 minutes]
+Resend 2 → HTTP 429, cooldown active
+[After 5 minutes]
+Resend 2 → HTTP 200, resends_remaining: 3, cooldown starts (5 min)
+...
+Resend 5 → HTTP 200, resends_remaining: 0, cooldown starts (5 min)
+[After 5 minutes]
+Resend 6 → HTTP 429, daily limit reached
+[After 24 hours from first resend]
+Resend N → HTTP 200, resends_remaining: 4 (counter reset)
+```
+
+**Note:** The counter tracks resends per email address. Each successful resend:
+- Starts a new 5-minute cooldown
+- Increments the 24-hour counter (resets after 24 hours from first resend)
 
 ### Flow Example
 ```
@@ -884,7 +1012,7 @@ Comprehensive Django admin interface for managing users, profiles, wallets, OTP 
 ### Other Future Features
 - [x] Client Profile endpoints (GET/PATCH)
 - [x] Profile Completion API endpoint
-- [ ] OTP Resend endpoint
+- [x] OTP Resend endpoint with rate limiting
 - [ ] User Profile endpoints (GET/PATCH)
 - [ ] Social Authentication (Google, Facebook)
 - [ ] CAPTCHA Integration
