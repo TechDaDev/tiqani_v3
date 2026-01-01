@@ -19,7 +19,7 @@ class TimeExtensionRequestInline(admin.TabularInline):
 @admin.register(Contract)
 class ContractAdmin(admin.ModelAdmin):
     list_display = ('contract_reference', 'client', 'technician', 'status', 'agreed_amount', 'stage_number', 'client_accepted', 'technician_accepted', 'created_at')
-    list_filter = ('status', 'client_accepted', 'technician_accepted', 'is_deleted', 'created_at')
+    list_filter = ('status', 'client_accepted', 'technician_accepted', 'is_delete', 'created_at')
     search_fields = ('contract_reference', 'client__user__username', 'technician__user__username', 'work_description')
     readonly_fields = ('id', 'contract_reference', 'escrow_amount', 'total_paid', 'created_at', 'updated_at')
     inlines = [ContractStageInline, TimeExtensionRequestInline]

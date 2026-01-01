@@ -48,13 +48,13 @@ class ContractListCreateView(APIView):
         if hasattr(user, 'client_profile'):
             contracts = Contract.objects.filter(
                 client=user.client_profile,
-                is_deleted=False
+                is_delete=False
             ).select_related('client', 'technician')
         # Technician - show contracts where they are the technician
         elif hasattr(user, 'technician_profile'):
             contracts = Contract.objects.filter(
                 technician=user.technician_profile,
-                is_deleted=False
+                is_delete=False
             ).select_related('client', 'technician')
         else:
             return Response(
@@ -106,7 +106,7 @@ class ContractDetailView(APIView):
 
     def get_contract(self, contract_id, user):
         """Get contract and verify user is a party."""
-        contract = get_object_or_404(Contract, id=contract_id, is_deleted=False)
+        contract = get_object_or_404(Contract, id=contract_id, is_delete=False)
         
         # Verify user is a party to this contract
         is_client = hasattr(user, 'client_profile') and contract.client.user == user
@@ -170,7 +170,7 @@ class ContractStageListView(APIView):
     def get(self, request, contract_id):
         """List stages for a specific contract."""
         try:
-            contract = get_object_or_404(Contract, id=contract_id, is_deleted=False)
+            contract = get_object_or_404(Contract, id=contract_id, is_delete=False)
             
             # Verify user is a party
             is_client = hasattr(request.user, 'client_profile') and contract.client.user == request.user

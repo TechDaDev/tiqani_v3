@@ -1,5 +1,7 @@
+"""Contract management models for work agreements, stages, and extensions."""
+
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 from decimal import Decimal
 
 from django.conf import settings
@@ -8,7 +10,22 @@ from django.db import models
 from django.utils import timezone
 
 
-class Contract(models.Model):
+# --- Base Abstract Models ---
+
+class TimestampedModel(models.Model):
+	"""Centralizes ID, soft-delete, and timestamp logic."""
+	id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+	is_delete = models.BooleanField(default=False, db_index=True)
+	created_at = models.DateTimeField(auto_now_add=True)
+	updated_at = models.DateTimeField(auto_now=True)
+
+	class Meta:
+		abstract = True
+
+
+# --- Contract Models ---
+
+class Contract(TimestampedModel):
 	"""
 	Contract model for managing work agreements between clients and technicians.
 	Tracks stages, payments, and status throughout the service delivery lifecycle.
@@ -29,66 +46,93 @@ class Contract(models.Model):
 		(5, '5 Stages'),
 	]
 
-	# Primary Keys & Relations
-	id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-	client = models.ForeignKey('accounts.ClientProfile', on_delete=models.CASCADE, related_name='contracts', help_text="Client initiating the contract")
-	technician = models.ForeignKey('accounts.TechnicianProfile', on_delete=models.CASCADE, related_name='contracts', help_text="Technician performing the work")
+	# Relations
+	client = models.ForeignKey(
+		'accounts.ClientProfile',
+		on_delete=models.CASCADE,
+		related_name='contracts',
+		help_text="Client initiating the contract"
+	)
+	technician = models.ForeignKey(
+		'accounts.TechnicianProfile',
+		on_delete=models.CASCADE,
+		related_name='contracts',
+		help_text="Technician performing the work"
+	)
 	
 	# Reference & Identification
-	contract_reference = models.CharField(max_length=20, unique=True, blank=True, help_text="Auto-generated unique contract reference")
+	contract_reference = models.CharField(
+		max_length=20,
+		unique=True,
+		blank=True,
+		help_text="Auto-generated unique contract reference (e.g., #A1B2C3D4E5F6)"
+	)
 	
 	# Contract Details
-	work_description = models.TextField(null=True, blank=True, help_text="Detailed description of work to be performed")
+	work_description = models.TextField(
+		null=True,
+		blank=True,
+		help_text="Detailed description of work to be performed"
+	)
 	
-	# Financial Fields (All in IQD unless otherwise specified)
+	# Financial Fields (All in IQD - Iraqi Dinar)
 	agreed_amount = models.DecimalField(
-		max_digits=15, 
-		decimal_places=2, 
-		null=True, 
+		max_digits=15,
+		decimal_places=2,
+		null=True,
 		blank=True,
 		help_text="Total agreed amount in IQD (required before acceptance)"
 	)
 	amount_usd = models.DecimalField(
-		max_digits=10, 
-		decimal_places=2, 
-		null=True, 
+		max_digits=10,
+		decimal_places=2,
+		null=True,
 		blank=True,
 		help_text="USD equivalent for reference only"
 	)
 	exchange_rate = models.DecimalField(
-		max_digits=10, 
-		decimal_places=2, 
-		null=True, 
+		max_digits=10,
+		decimal_places=2,
+		null=True,
 		blank=True,
-		help_text="Exchange rate (IQD to USD) at contract creation"
+		help_text="Exchange rate (IQD to USD) recorded at contract creation"
+	)
+	currency = models.CharField(
+		max_length=3,
+		default='IQD',
+		help_text="Currency code for agreed amount"
 	)
 	escrow_amount = models.DecimalField(
-		max_digits=15, 
-		decimal_places=2, 
+		max_digits=15,
+		decimal_places=2,
 		default=Decimal('0.00'),
 		help_text="Amount held in escrow in IQD"
 	)
 	total_paid = models.DecimalField(
-		max_digits=15, 
-		decimal_places=2, 
+		max_digits=15,
+		decimal_places=2,
 		default=Decimal('0.00'),
-		help_text="Total amount paid so far in IQD"
+		help_text="Total amount paid to technician so far in IQD"
 	)
 	
 	# Timeline
-	contract_duration = models.DateField(null=True, blank=True, help_text="Expected completion date")
+	contract_duration = models.DateField(
+		null=True,
+		blank=True,
+		help_text="Expected completion date"
+	)
 	
 	# Workflow & Status
 	status = models.CharField(
-		max_length=50, 
-		choices=CONTRACT_STATUS, 
+		max_length=50,
+		choices=CONTRACT_STATUS,
 		default='draft',
 		db_index=True,
 		help_text="Current contract status"
 	)
 	stage_number = models.PositiveSmallIntegerField(
-		choices=STAGE_CHOICES, 
-		null=True, 
+		choices=STAGE_CHOICES,
+		null=True,
 		blank=True,
 		help_text="Number of payment stages for this contract"
 	)
@@ -104,11 +148,6 @@ class Contract(models.Model):
 		db_index=True,
 		help_text="Technician has accepted the contract"
 	)
-	
-	# Soft Delete & Audit
-	is_deleted = models.BooleanField(default=False, db_index=True, help_text="Soft delete flag")
-	created_at = models.DateTimeField(default=timezone.now, help_text="Contract creation timestamp")
-	updated_at = models.DateTimeField(auto_now=True, help_text="Last modification timestamp")
 
 	class Meta:
 		"""
@@ -121,12 +160,14 @@ class Contract(models.Model):
 			models.Index(fields=['status']),
 			models.Index(fields=['client_accepted', 'technician_accepted']),
 			models.Index(fields=['created_at']),
-			models.Index(fields=['is_deleted']),
+			models.Index(fields=['is_delete']),
 		]
 		ordering = ['-created_at']
+		verbose_name = 'Contract'
+		verbose_name_plural = 'Contracts'
 
 	def __str__(self):
-		"""Return contract representation with reference and status"""
+		"""Return contract representation with reference and status."""
 		status_display = dict(self.CONTRACT_STATUS).get(self.status, self.status)
 		return f"Contract {self.contract_reference} - {status_display}"
 
@@ -134,6 +175,11 @@ class Contract(models.Model):
 		"""
 		Auto-generate contract reference and handle status transitions.
 		Ensures data consistency before saving.
+		
+		Status Flow:
+		- draft → pending_acceptance (when technician adds amount/stages)
+		- pending_acceptance → in_progress (when both parties accept)
+		- in_progress → completed (when all stages approved)
 		"""
 		# Generate contract reference if not present
 		if not self.contract_reference:
@@ -148,7 +194,7 @@ class Contract(models.Model):
 				pass
 		
 		# Auto-transition to pending_acceptance when all required fields are filled
-		if (self.status == 'draft' and 
+		if (self.status == 'draft' and
 			all([self.agreed_amount, self.stage_number, self.work_description, self.contract_duration])):
 			self.status = 'pending_acceptance'
 		
@@ -158,11 +204,11 @@ class Contract(models.Model):
 				raise ValueError("Contract must have amount, stages, description and duration before acceptance")
 		
 		# Check if both parties accepted to move to in_progress
-		if (self.client_accepted and self.technician_accepted and 
+		if (self.client_accepted and self.technician_accepted and
 			self.status == 'pending_acceptance'):
 			self.status = 'in_progress'
 			
-			# Try to setup escrow if transitioning from pending_acceptance
+			# Setup escrow if transitioning from pending_acceptance
 			if old_status == 'pending_acceptance':
 				try:
 					self._setup_contract_escrow()
@@ -183,14 +229,14 @@ class Contract(models.Model):
 	def generate_contract_reference(self):
 		"""
 		Generate a unique contract reference number.
-		Format: #XXXXXXXXXXXXX (12 hex characters)
+		Format: #XXXXXXXXXXXXX (12 uppercase hex characters)
 		"""
 		return f"#{uuid.uuid4().hex[:12].upper()}"
 
 	def can_be_accepted(self):
 		"""
 		Check if contract has all required fields for acceptance.
-		Used in forms and API validation.
+		Returns boolean indicating if contract is ready for both parties to accept.
 		"""
 		return all([
 			self.agreed_amount,
@@ -202,7 +248,7 @@ class Contract(models.Model):
 	def get_incomplete_fields(self):
 		"""
 		Return list of incomplete required fields for contract acceptance.
-		Useful for form validation feedback.
+		Useful for form validation feedback and API responses.
 		"""
 		incomplete = []
 		if not self.agreed_amount:
@@ -219,9 +265,10 @@ class Contract(models.Model):
 		"""
 		Setup escrow account by creating initial wallet transaction.
 		Called when contract moves to in_progress status.
+		Locks agreed_amount in client's wallet.
 		"""
 		if self.agreed_amount and not self.escrow_amount:
-			# Calculate escrow amount (typically equals agreed amount)
+			# Set escrow amount (typically equals agreed amount)
 			self.escrow_amount = self.agreed_amount
 			
 			# Create escrow transaction in client's wallet
@@ -254,11 +301,13 @@ class Contract(models.Model):
 				contract=self,
 				stage_number=stage_num,
 				amount=amount_per_stage,
-				# Other fields (description, deadline) filled by technician
 			)
 
 	def mark_completed(self):
-		"""Mark contract as completed and release technician availability"""
+		"""
+		Mark contract as completed and release technician availability.
+		Called when all stages are approved by client.
+		"""
 		self.status = 'completed'
 		self.technician.is_available = True
 		self.technician.save(update_fields=['is_available'])
@@ -267,7 +316,7 @@ class Contract(models.Model):
 	def cancel(self, reason=''):
 		"""
 		Cancel contract and reverse escrow.
-		Logs cancellation reason.
+		Logs cancellation reason and refunds escrow amount.
 		"""
 		if self.status in ['completed', 'canceled']:
 			status_display = dict(self.CONTRACT_STATUS).get(self.status, self.status)
@@ -278,7 +327,7 @@ class Contract(models.Model):
 		self.technician.save(update_fields=['is_available'])
 		self.save(update_fields=['status'])
 		
-		# Create cancellation transaction
+		# Create cancellation transaction (refund escrow)
 		if self.escrow_amount > 0:
 			from accounts.models import WalletTransaction
 			WalletTransaction.objects.create(
@@ -290,62 +339,77 @@ class Contract(models.Model):
 			)
 
 
-class ContractStage(models.Model):
+class ContractStage(TimestampedModel):
 	"""
 	Individual work stages within a contract.
 	Breaks down contract work into milestones with associated payments.
+	Each stage represents a deliverable with a deadline and payment.
 	"""
 	
-	contract = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name='stages', help_text="Parent contract")
-	stage_number = models.PositiveIntegerField(help_text="Sequential stage number (1, 2, 3, etc.)")
-	stage_description = models.TextField(blank=True, help_text="Description of work for this stage")
+	contract = models.ForeignKey(
+		Contract,
+		on_delete=models.CASCADE,
+		related_name='stages',
+		help_text="Parent contract"
+	)
+	stage_number = models.PositiveIntegerField(
+		help_text="Sequential stage number (1, 2, 3, etc.)"
+	)
+	stage_description = models.TextField(
+		blank=True,
+		help_text="Description of work and deliverables for this stage"
+	)
 	amount = models.DecimalField(
-		max_digits=15, 
+		max_digits=15,
 		decimal_places=2,
 		help_text="Payment amount for this stage in IQD"
 	)
-	deadline = models.DateField(null=True, blank=True, help_text="Target completion date for this stage")
+	deadline = models.DateField(
+		null=True,
+		blank=True,
+		help_text="Target completion date for this stage"
+	)
 	is_approved_by_client = models.BooleanField(
 		default=False,
 		db_index=True,
 		help_text="Client has approved completion of this stage"
 	)
 	completed_at = models.DateTimeField(
-		null=True, 
+		null=True,
 		blank=True,
 		help_text="When technician marked this stage as complete"
 	)
 	transaction = models.OneToOneField(
-		'accounts.WalletTransaction', 
-		null=True, 
+		'accounts.WalletTransaction',
+		null=True,
 		blank=True,
 		on_delete=models.SET_NULL,
 		related_name='contract_stage',
 		help_text="Associated payment transaction for this stage"
 	)
-	
-	# Audit
-	created_at = models.DateTimeField(default=timezone.now)
-	updated_at = models.DateTimeField(auto_now=True)
 
 	class Meta:
 		"""
 		Index on contract and stage_number for efficient ordering.
 		Order by stage number for natural progression.
+		Enforce unique stage numbers per contract.
 		"""
 		indexes = [
 			models.Index(fields=['contract', 'stage_number']),
 			models.Index(fields=['is_approved_by_client']),
+			models.Index(fields=['created_at']),
 		]
 		ordering = ['contract', 'stage_number']
 		unique_together = [('contract', 'stage_number')]
+		verbose_name = 'Contract Stage'
+		verbose_name_plural = 'Contract Stages'
 
 	def __str__(self):
-		"""Return stage representation with contract reference and number"""
+		"""Return stage representation with contract reference and number."""
 		return f"Stage {self.stage_number} of contract {self.contract.contract_reference}"
 
 	def save(self, *args, **kwargs):
-		"""Auto-assign stage number if not provided"""
+		"""Auto-assign stage number if not provided."""
 		if not self.stage_number:
 			# Get the next stage number for this contract
 			existing_stages = ContractStage.objects.filter(
@@ -356,14 +420,15 @@ class ContractStage(models.Model):
 		super().save(*args, **kwargs)
 
 	def mark_complete(self):
-		"""Mark stage as completed by technician"""
+		"""Mark stage as completed by technician."""
 		self.completed_at = timezone.now()
 		self.save(update_fields=['completed_at'])
 
 	def approve_by_client(self):
 		"""
 		Approve stage completion and release payment.
-		Creates wallet transaction for stage payment.
+		Creates wallet transaction for stage payment (minus platform fee).
+		Updates contract total_paid counter.
 		"""
 		if self.is_approved_by_client:
 			raise ValueError("This stage has already been approved")
@@ -388,10 +453,11 @@ class ContractStage(models.Model):
 		self.contract.save(update_fields=['total_paid'])
 
 
-class TimeExtensionRequest(models.Model):
+class TimeExtensionRequest(TimestampedModel):
 	"""
 	Request to extend contract deadline.
 	Technician requests extension with reason; client approves or rejects.
+	If approved, technician distributes additional days to specific stages.
 	"""
 	
 	STATUS_CHOICES = [
@@ -401,39 +467,37 @@ class TimeExtensionRequest(models.Model):
 	]
 	
 	contract = models.ForeignKey(
-		Contract, 
-		on_delete=models.CASCADE, 
+		Contract,
+		on_delete=models.CASCADE,
 		related_name='extension_requests',
 		help_text="Contract being extended"
 	)
 	requested_by = models.ForeignKey(
-		'accounts.TechnicianProfile', 
-		on_delete=models.CASCADE, 
+		'accounts.TechnicianProfile',
+		on_delete=models.CASCADE,
 		related_name='extension_requests',
 		help_text="Technician requesting the extension"
 	)
 	requested_days = models.PositiveSmallIntegerField(
 		help_text="Number of days requested (1-30)"
 	)
-	reason = models.TextField(help_text="Reason for requesting the extension")
+	reason = models.TextField(
+		help_text="Reason for requesting the extension"
+	)
 	status = models.CharField(
-		max_length=20, 
-		choices=STATUS_CHOICES, 
+		max_length=20,
+		choices=STATUS_CHOICES,
 		default='pending',
 		db_index=True,
 		help_text="Current status of the extension request"
 	)
 	client_response = models.TextField(
-		blank=True, 
+		blank=True,
 		null=True,
-		help_text="Client's response or rejection reason"
+		help_text="Client's response comment or rejection reason"
 	)
-	
-	# Audit
-	created_at = models.DateTimeField(default=timezone.now)
-	updated_at = models.DateTimeField(auto_now=True)
 	responded_at = models.DateTimeField(
-		null=True, 
+		null=True,
 		blank=True,
 		help_text="When client responded to the request"
 	)
@@ -449,14 +513,16 @@ class TimeExtensionRequest(models.Model):
 			models.Index(fields=['created_at']),
 		]
 		ordering = ['-created_at']
+		verbose_name = 'Time Extension Request'
+		verbose_name_plural = 'Time Extension Requests'
 
 	def __str__(self):
-		"""Return extension request representation"""
+		"""Return extension request representation."""
 		return f"Extension request of {self.requested_days} days for contract {self.contract.contract_reference}"
 
 	def clean(self):
-		"""Validate extension request business logic"""
-		# Validate requested days
+		"""Validate extension request business logic."""
+		# Validate requested days (1-30)
 		if self.requested_days < 1 or self.requested_days > 30:
 			raise ValidationError("Extension request must be between 1 and 30 days")
 		
@@ -468,7 +534,7 @@ class TimeExtensionRequest(models.Model):
 		if self.contract.status != 'in_progress':
 			raise ValidationError("Extensions can only be requested for in-progress contracts")
 		
-		# Ensure technician doesn't have another pending extension
+		# Ensure technician doesn't have another pending extension for this contract
 		if self.status == 'pending' and not self.pk:
 			existing_pending = TimeExtensionRequest.objects.filter(
 				requested_by=self.requested_by,
@@ -481,7 +547,8 @@ class TimeExtensionRequest(models.Model):
 	def approve(self, client_response=''):
 		"""
 		Approve the extension request.
-		Updates contract deadline by requested days.
+		Saves client's approval comment.
+		Does NOT update contract deadline (technician distributes days later).
 		"""
 		if self.status != 'pending':
 			raise ValueError("Only pending extension requests can be approved")
@@ -490,11 +557,6 @@ class TimeExtensionRequest(models.Model):
 		self.client_response = client_response
 		self.responded_at = timezone.now()
 		self.save(update_fields=['status', 'client_response', 'responded_at'])
-		
-		# Update contract deadline
-		if self.contract.contract_duration:
-			self.contract.contract_duration += timedelta(days=self.requested_days)
-			self.contract.save(update_fields=['contract_duration'])
 
 	def reject(self, rejection_reason=''):
 		"""
@@ -508,3 +570,4 @@ class TimeExtensionRequest(models.Model):
 		self.client_response = rejection_reason
 		self.responded_at = timezone.now()
 		self.save(update_fields=['status', 'client_response', 'responded_at'])
+
