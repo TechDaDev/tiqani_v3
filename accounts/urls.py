@@ -16,6 +16,10 @@ from .technician_views import (
     TechnicianAvailabilityView,
     TechnicianRatingsView
 )
+from .client_views import (
+    ClientProfileView,
+    IncompleteFieldsView
+)
 
 urlpatterns = [
     # --- Basic Authentication ---
@@ -38,4 +42,10 @@ urlpatterns = [
     path('technician/images/<uuid:image_id>/', TechnicianImageDetailView.as_view(), name='technician_image_detail'),
     path('technician/availability/', TechnicianAvailabilityView.as_view(), name='technician_availability'),
     path('technician/ratings/', TechnicianRatingsView.as_view(), name='technician_ratings'),
+
+    # --- Client Endpoints ---
+    path('client/profile/', ClientProfileView.as_view(), name='client_profile'),
+
+    # --- Profile Completion (All Roles) ---
+    path('profile/incomplete-fields/', IncompleteFieldsView.as_view(), name='incomplete_fields'),
 ]

@@ -182,7 +182,7 @@ class CustomUserAdmin(BaseUserAdmin):
 class TechnicianProfileAdmin(admin.ModelAdmin):
     list_display = (
         'user_display', 'job_title', 'is_available', 
-        'approved', 'is_complete', 'rate', 'years_of_expertise',
+        'approved', 'is_complete', 'incomplete_fields_display', 'rate', 'years_of_expertise',
         'online_status', 'created_at'
     )
     list_filter = (
@@ -204,7 +204,7 @@ class TechnicianProfileAdmin(admin.ModelAdmin):
             'fields': ('job_title', 'about', 'years_of_expertise')
         }),
         ('Status', {
-            'fields': ('is_available', 'approved', 'is_complete')
+            'fields': ('is_available', 'approved', 'is_complete', 'incomplete_fields_list')
         }),
         ('Rating & Activity', {
             'fields': ('rate', 'last_active')
@@ -221,12 +221,30 @@ class TechnicianProfileAdmin(admin.ModelAdmin):
         }),
     )
     
-    readonly_fields = ('rate', 'is_complete', 'created_at', 'updated_at')
+    readonly_fields = ('rate', 'is_complete', 'incomplete_fields_list', 'created_at', 'updated_at')
     inlines = [TechnicianImageInline]
 
     def user_display(self, obj):
         return f"{obj.user.get_full_name()} (@{obj.user.username})"
     user_display.short_description = 'User'
+
+    def incomplete_fields_display(self, obj):
+        """Show count of incomplete fields in list view."""
+        missing = obj.get_incomplete_fields()
+        if not missing:
+            return format_html('<span style="color: green;">✓ Complete</span>')
+        count = len(missing)
+        return format_html('<span style="color: orange;">{} missing</span>', count)
+    incomplete_fields_display.short_description = 'Incomplete Fields'
+
+    def incomplete_fields_list(self, obj):
+        """Show list of incomplete fields in detail view."""
+        missing = obj.get_incomplete_fields()
+        if not missing:
+            return format_html('<span style="color: green;">✓ All required fields completed</span>')
+        fields_html = '<br>'.join([f'• {field}' for field in missing])
+        return format_html('<span style="color: red;">{}</span>', fields_html)
+    incomplete_fields_list.short_description = 'Missing Required Fields'
 
     def online_status(self, obj):
         if obj.is_online:
@@ -265,7 +283,7 @@ class TechnicianProfileAdmin(admin.ModelAdmin):
 class ClientProfileAdmin(admin.ModelAdmin):
     list_display = (
         'user_display', 'user_email', 'user_phone', 
-        'is_complete', 'age_display', 'created_at'
+        'is_complete', 'incomplete_fields_display', 'age_display', 'created_at'
     )
     list_filter = ('is_complete', 'created_at')
     search_fields = (
@@ -280,7 +298,7 @@ class ClientProfileAdmin(admin.ModelAdmin):
             'fields': ('user',)
         }),
         ('Profile Status', {
-            'fields': ('is_complete',)
+            'fields': ('is_complete', 'incomplete_fields_list')
         }),
         ('System Info', {
             'fields': ('created_at', 'updated_at', 'is_delete'),
@@ -288,11 +306,29 @@ class ClientProfileAdmin(admin.ModelAdmin):
         }),
     )
     
-    readonly_fields = ('is_complete', 'created_at', 'updated_at')
+    readonly_fields = ('is_complete', 'incomplete_fields_list', 'created_at', 'updated_at')
 
     def user_display(self, obj):
         return f"{obj.user.get_full_name()} (@{obj.user.username})"
     user_display.short_description = 'User'
+
+    def incomplete_fields_display(self, obj):
+        """Show count of incomplete fields in list view."""
+        missing = obj.get_incomplete_fields()
+        if not missing:
+            return format_html('<span style="color: green;">✓ Complete</span>')
+        count = len(missing)
+        return format_html('<span style="color: orange;">{} missing</span>', count)
+    incomplete_fields_display.short_description = 'Incomplete Fields'
+
+    def incomplete_fields_list(self, obj):
+        """Show list of incomplete fields in detail view."""
+        missing = obj.get_incomplete_fields()
+        if not missing:
+            return format_html('<span style="color: green;">✓ All required fields completed</span>')
+        fields_html = '<br>'.join([f'• {field}' for field in missing])
+        return format_html('<span style="color: red;">{}</span>', fields_html)
+    incomplete_fields_list.short_description = 'Missing Required Fields'
 
     def user_email(self, obj):
         return obj.user.email

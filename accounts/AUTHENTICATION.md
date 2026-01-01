@@ -16,11 +16,13 @@ This document outlines all authentication and account-related API endpoints, req
 6. [Forgot Password](#forgot-password)
 7. [Password Reset Confirm](#password-reset-confirm)
 8. [Technician-Specific Endpoints](#technician-specific-endpoints)
-9. [Admin Panel](#admin-panel)
-10. [Error Handling](#error-handling)
-11. [Rate Limiting](#rate-limiting)
-12. [Authentication](#authentication)
-13. [Future Features](#future-features)
+9. [Client-Specific Endpoints](#client-specific-endpoints)
+10. [Profile Completion Tracking](#profile-completion-tracking)
+11. [Admin Panel](#admin-panel)
+12. [Error Handling](#error-handling)
+13. [Rate Limiting](#rate-limiting)
+14. [Authentication](#authentication)
+15. [Future Features](#future-features)
 
 ---
 
@@ -339,7 +341,97 @@ All technician endpoints require authentication and `role='technician'`. Base pa
 ### Ratings
 - **GET /api/auth/technician/ratings/** — returns averages, totals, and optional recent reviews.
 
-## Error Handling
+---
+
+## Client-Specific Endpoints
+
+### Overview
+All client endpoints require authentication and `role='client'`. Base path: `/api/auth/client/`.
+
+### Quick Reference
+- Profile: `GET|PATCH /api/auth/client/profile/`
+
+### Profile
+- **GET /api/auth/client/profile/** — returns client profile with sensitive field masking. Example success:
+```json
+{
+  "user_id": "550e8400-e29b-41d4-a716-446655440000",
+  "username": "jane_doe",
+  "full_name": "Jane Doe",
+  "email": "jane@example.com",
+  "phone_number": "07812345678",
+  "address": "Baghdad, Al-Mansour",
+  "date_of_birth": "1995-03-15",
+  "governorate": "Baghdad",
+  "gender": "female",
+  "profile_image": "http://localhost:8000/media/Profile/xyz.jpg",
+  "age": 30,
+  "is_complete": true,
+  "wallet_id": "abc123xyz789",
+  "balance": "150.00",
+  "created_at": "2025-01-15T10:30:00Z"
+}
+```
+
+**Sensitive Field Masking:**
+- Fields visible **only to owner or admin**: `email`, `phone_number`, `address`, `date_of_birth`, `balance`
+- Others viewing the profile will see `null` for these fields
+- `governorate`, `gender`, `wallet_id` are visible to all
+
+- **PATCH /api/auth/client/profile/** — Update user fields. Editable fields:
+```json
+{
+  "phone_number": "07812345678",
+  "address": "New address",
+  "governorate": "Baghdad",
+  "gender": "female",
+  "date_of_birth": "1995-03-15",
+  "profile_image": "<file_upload>"
+}
+```
+
+**Notes:**
+- Profile completion auto-updates after edit
+- Age must be 18+ for completion status
+- All edits update the CustomUser model
+
+---
+
+## Profile Completion Tracking
+
+### Endpoint
+```
+GET /api/auth/profile/incomplete-fields/
+```
+
+**Authentication Required:** Yes (works for both client and technician roles)
+
+### Success Response (200 OK)
+```json
+{
+  "is_complete": false,
+  "incomplete_fields": [
+    "phone_number",
+    "address",
+    "profile_image"
+  ],
+  "total_required": 8,
+  "completed_count": 5,
+  "completion_percentage": 62.5
+}
+```
+
+**Use Case:**
+- Frontend can fetch this to show profile completion progress
+- Display a progress bar or checklist of missing fields
+- Works for both client and technician profiles
+
+**Admin Panel:**
+- Both ClientProfile and TechnicianProfile admins show incomplete fields count in list view
+- Detail view shows bullet list of missing required fields
+- Color-coded: green if complete, orange/red if incomplete
+
+---
 
 ### Common HTTP Status Codes
 | Status | Meaning |
@@ -631,7 +723,8 @@ Comprehensive Django admin interface for managing users, profiles, wallets, OTP 
 - [x] GET /api/technician/ratings/ - Get ratings and reviews
 
 ### Other Future Features
-- [ ] Client Profile endpoints (GET/PATCH)
+- [x] Client Profile endpoints (GET/PATCH)
+- [x] Profile Completion API endpoint
 - [ ] OTP Resend endpoint
 - [ ] User Profile endpoints (GET/PATCH)
 - [ ] Social Authentication (Google, Facebook)
