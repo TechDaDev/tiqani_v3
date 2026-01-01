@@ -119,7 +119,12 @@ class TechnicianProfile(BaseProfile):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='technician_profile')
     is_available = models.BooleanField(default=True, db_index=True)
     approved = models.BooleanField(default=False, db_index=True)
-    job_title = models.CharField(max_length=100, null=True, blank=True)
+    job_title = models.CharField(
+        max_length=100,
+        null=True,
+        blank=True,
+        help_text="Short professional title shown to clients (e.g., HVAC Specialist, Full-Stack Developer)",
+    )
     identification_documents = models.FileField(upload_to=universal_file_path, null=True, blank=True)
     url1 = models.URLField(max_length=255, null=True, blank=True)
     url2 = models.URLField(max_length=255, null=True, blank=True)
@@ -140,6 +145,10 @@ class TechnicianProfile(BaseProfile):
             models.Index(fields=['is_available', 'approved']),
             models.Index(fields=['rate', 'approved']),
         ]
+
+    def __str__(self):
+        name = self.user.get_full_name() or self.user.username
+        return f"{name} (technician)"
 
     def update_rating(self):
         from django.db.models import Avg
@@ -226,6 +235,9 @@ class TechnicianSkillSet(TimestampedModel):
     categories = models.ManyToManyField('category.Category')
     skills = models.ManyToManyField('category.Skill')
     sub_skills = models.ManyToManyField('category.SubSkill')
+
+    def __str__(self):
+        return f"Skill set for {self.technician}"
 
 class TechnicianImage(TimestampedModel):
     technician = models.ForeignKey(TechnicianProfile, on_delete=models.CASCADE, related_name='images')

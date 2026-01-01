@@ -3,7 +3,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
 
-from .models import CustomUser, TechnicianProfile, ClientProfile, OTPVerification
+from .models import CustomUser, TechnicianProfile, ClientProfile, OTPVerification, Wallet
 from .email_utils import send_otp_email, send_welcome_email, send_password_reset_email
 
 
@@ -44,6 +44,9 @@ class RegistrationSerializer(serializers.ModelSerializer):
                 **validated_data
             )
 
+            # Create wallet for user
+            Wallet.objects.create(user=user)
+
             # Create specific profile based on role
             if role == 'technician':
                 TechnicianProfile.objects.create(user=user)
@@ -65,9 +68,9 @@ class OTPBaseSerializer(serializers.Serializer):
     email = serializers.EmailField()
     otp_code = serializers.CharField(max_length=6, min_length=6)
 
-    def get_valid_otp(self, is_active_required=False):
-        email = self.validated_data['email']
-        otp_code = self.validated_data['otp_code']
+    def get_valid_otp(self, attrs, is_active_required=False):
+        email = attrs['email']
+        otp_code = attrs['otp_code']
 
         try:
             user = CustomUser.objects.get(email=email, is_active=is_active_required)
@@ -85,8 +88,7 @@ class OTPVerificationSerializer(OTPBaseSerializer):
     """Verifies account registration via OTP."""
 
     def validate(self, attrs):
-        self.validated_data = attrs
-        user, otp = self.get_valid_otp(is_active_required=False)
+        user, otp = self.get_valid_otp(attrs, is_active_required=False)
         
         with transaction.atomic():
             otp.is_used = True
@@ -98,7 +100,12 @@ class OTPVerificationSerializer(OTPBaseSerializer):
         try: send_welcome_email(user)
         except: pass
 
-        return user
+        # Store user for save() method
+        attrs['_user'] = user
+        return attrs
+
+    def save(self):
+        return self.validated_data['_user']
 
 
 # --- Password Reset Flow ---
@@ -125,16 +132,15 @@ class ResetPasswordConfirmSerializer(OTPBaseSerializer):
         if attrs['new_password'] != attrs['new_password_confirm']:
             raise serializers.ValidationError("Passwords do not match.")
         
-        self.validated_data = attrs
-        user, otp = self.get_valid_otp(is_active_required=True)
+        user, otp = self.get_valid_otp(attrs, is_active_required=True)
         
-        attrs['user_instance'] = user
-        attrs['otp_instance'] = otp
+        attrs['_user'] = user
+        attrs['_otp'] = otp
         return attrs
 
     def save(self):
-        user = self.validated_data['user_instance']
-        otp = self.validated_data['otp_instance']
+        user = self.validated_data['_user']
+        otp = self.validated_data['_otp']
         
         with transaction.atomic():
             user.set_password(self.validated_data['new_password'])

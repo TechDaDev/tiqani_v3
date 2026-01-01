@@ -30,45 +30,79 @@ def _get_client_ip(request):
 class LoginView(TokenObtainPairView):
     """
     JWT Login with built-in rate limiting and account status checks.
+    Rate limiting: 5 failed attempts per IP per 5 minutes.
     """
     permission_classes = (AllowAny,)
+    
     def post(self, request, *args, **kwargs):
- 
         username = request.data.get('username')
         password = request.data.get('password')
-        user = CustomUser.objects.filter(username=username).first()
-        if user and not user.check_password(password):
-            return Response(
-                {"detail": "Invalid credentials."},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
-
-        if user and not user.is_active:
-             return Response({"detail": "Account is inactive. Please verify your email."}, status=status.HTTP_403_FORBIDDEN)
-
-        try:
-
-            refresh = RefreshToken.for_user(user)
-            access = refresh.access_token
+        client_ip = _get_client_ip(request)
+        
+        # Rate limiting check
+        cache_key = f'login_attempts_{client_ip}'
+        attempts = cache.get(cache_key, 0)
+        
+        if attempts >= RATE_LIMIT_ATTEMPTS:
+            remaining_time = cache.ttl(cache_key)
             return Response({
-                "refresh": str(refresh),
-                "access": str(access),
-                "userdata": {
-			'id': str(user.id),
+                "detail": "Too many login attempts. Please try again later.",
+                "remaining_timeout": remaining_time if remaining_time > 0 else 0
+            }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        
+        # Get user
+        user = CustomUser.objects.filter(username=username).first()
+        
+        # Check credentials
+        if not user or not user.check_password(password):
+            # Increment failed attempts
+            cache.set(cache_key, attempts + 1, RATE_LIMIT_WINDOW_SEC)
+            attempts_remaining = RATE_LIMIT_ATTEMPTS - (attempts + 1)
+            return Response({
+                "detail": "Invalid credentials.",
+                "attempts_remaining": max(0, attempts_remaining)
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Check if account is active
+        if not user.is_active:
+            return Response({
+                "detail": "Account is inactive. Please verify your email."
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Successful login - clear rate limit cache
+        cache.delete(cache_key)
+        
+        # Update last_active for technicians
+        if user.role == 'technician' and hasattr(user, 'technician_profile'):
+            user.technician_profile.last_active = timezone.now()
+            user.technician_profile.save(update_fields=['last_active'])
+        
+        # Generate tokens
+        refresh = RefreshToken.for_user(user)
+        access = refresh.access_token
+        
+        userdata = {
+            'id': str(user.id),
             'username': user.username,
-            'email': user.email,
             'role': user.role,
             'full_name': user.get_full_name(),
             'profile_image': user.profile_image.url if user.profile_image else None,
-				}
-            }, status=status.HTTP_200_OK)
-        except Exception as e:
-            pass
+        }
 
-        return Response(
-            {"detail": "Invalid credentials."},
-            status=status.HTTP_401_UNAUTHORIZED
-        )
+        if user.role == 'technician' and hasattr(user, 'technician_profile'):
+            profile = user.technician_profile
+            userdata.update({
+                'job_title': profile.job_title,
+                'is_available': profile.is_available,
+                'rating': float(profile.rate) if profile.rate is not None else 0.0,
+                'total_reviews': 0,  # placeholder until reviews model is wired
+            })
+
+        return Response({
+            "refresh": str(refresh),
+            "access": str(access),
+            "userdata": userdata,
+        }, status=status.HTTP_200_OK)
 
 class RefreshTokenView(TokenRefreshView):
     permission_classes = (AllowAny,)

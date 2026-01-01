@@ -1,0 +1,258 @@
+"""
+Technician-specific API views for profile, skills, images, and availability management.
+All endpoints require authentication and the user must have technician role.
+"""
+
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from django.shortcuts import get_object_or_404
+from django.db import transaction
+
+from .models import TechnicianProfile, TechnicianImage, TechnicianSkillSet, CustomUser
+from .technician_serializers import (
+    TechnicianProfileSerializer,
+    TechnicianImageSerializer,
+    TechnicianSkillSetSerializer,
+    TechnicianAvailabilitySerializer,
+)
+
+
+class IsTechnician(IsAuthenticated):
+    """Permission class to verify user is a technician."""
+    def has_permission(self, request, view):
+        return super().has_permission(request, view) and request.user.role == 'technician'
+
+
+# --- Profile Management ---
+
+class TechnicianProfileView(APIView):
+    """
+    GET: Retrieve technician profile
+    PATCH: Update technician profile (job_title, about, years_of_expertise, etc.)
+    """
+    permission_classes = [IsTechnician]
+
+    def get(self, request):
+        """Retrieve technician profile."""
+        profile = get_object_or_404(TechnicianProfile, user=request.user)
+        serializer = TechnicianProfileSerializer(profile, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def patch(self, request):
+        """Update technician profile."""
+        profile = get_object_or_404(TechnicianProfile, user=request.user)
+        serializer = TechnicianProfileSerializer(
+            profile,
+            data=request.data,
+            partial=True,
+            context={'request': request}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+# --- Skills Management ---
+
+class TechnicianSkillsView(APIView):
+    """
+    GET: Retrieve technician skills, categories, and sub-skills
+    PATCH: Update technician skills assignment
+    """
+    permission_classes = [IsTechnician]
+
+    def get(self, request):
+        """Retrieve technician skills."""
+        profile = get_object_or_404(TechnicianProfile, user=request.user)
+
+        # If the profile is not linked yet, try to attach the existing skill set
+        if not profile.skill_sets:
+            skill_set = TechnicianSkillSet.objects.filter(technician=profile).order_by('-created_at').first()
+            if skill_set:
+                profile.skill_sets = skill_set
+                profile.save(update_fields=['skill_sets'])
+
+        if not profile.skill_sets:
+            return Response({
+                "detail": "No skill set assigned yet.",
+                "categories": [],
+                "skills": [],
+                "sub_skills": []
+            }, status=status.HTTP_200_OK)
+
+        skill_set = profile.skill_sets
+        serializer = TechnicianSkillSetSerializer(skill_set, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def patch(self, request):
+        """Update technician skills."""
+        profile = get_object_or_404(TechnicianProfile, user=request.user)
+        
+        # Create or get skill set
+        skill_set, created = TechnicianSkillSet.objects.get_or_create(technician=profile)
+
+        # Ensure profile points to the skill_set record
+        if profile.skill_sets_id != skill_set.id:
+            profile.skill_sets = skill_set
+            profile.save(update_fields=['skill_sets'])
+        
+        serializer = TechnicianSkillSetSerializer(
+            skill_set,
+            data=request.data,
+            partial=True,
+            context={'request': request}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        
+        # Update profile completion status
+        profile.save()
+        
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+# --- Portfolio Images Management ---
+
+class TechnicianImagesListView(APIView):
+    """
+    GET: List technician portfolio images
+    POST: Upload new portfolio image
+    """
+    permission_classes = [IsTechnician]
+
+    def get(self, request):
+        """List all technician images."""
+        profile = get_object_or_404(TechnicianProfile, user=request.user)
+        images = profile.images.all().order_by('-created_at')
+        serializer = TechnicianImageSerializer(
+            images,
+            many=True,
+            context={'request': request}
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        """Upload new portfolio image."""
+        profile = get_object_or_404(TechnicianProfile, user=request.user)
+        
+        serializer = TechnicianImageSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        
+        # Save with technician reference
+        image = serializer.save(technician=profile)
+        
+        # Update profile completion
+        profile.save()
+        
+        return Response(
+            TechnicianImageSerializer(image, context={'request': request}).data,
+            status=status.HTTP_201_CREATED
+        )
+
+
+class TechnicianImageDetailView(APIView):
+    """
+    PATCH: Update image description
+    DELETE: Remove portfolio image
+    """
+    permission_classes = [IsTechnician]
+
+    def patch(self, request, image_id):
+        """Update image description."""
+        profile = get_object_or_404(TechnicianProfile, user=request.user)
+        image = get_object_or_404(TechnicianImage, id=image_id, technician=profile)
+        
+        serializer = TechnicianImageSerializer(
+            image,
+            data=request.data,
+            partial=True,
+            context={'request': request}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def delete(self, request, image_id):
+        """Delete portfolio image."""
+        profile = get_object_or_404(TechnicianProfile, user=request.user)
+        image = get_object_or_404(TechnicianImage, id=image_id, technician=profile)
+        
+        image.delete()
+        
+        # Update profile completion
+        profile.save()
+        
+        return Response(
+            {"detail": "Image deleted successfully."},
+            status=status.HTTP_204_NO_CONTENT
+        )
+
+
+# --- Availability Management ---
+
+class TechnicianAvailabilityView(APIView):
+    """
+    GET: Check technician availability status
+    PATCH: Update availability status
+    """
+    permission_classes = [IsTechnician]
+
+    def get(self, request):
+        """Get availability status."""
+        profile = get_object_or_404(TechnicianProfile, user=request.user)
+        return Response({
+            "is_available": profile.is_available,
+            "last_active": profile.last_active,
+            "is_online": profile.is_online
+        }, status=status.HTTP_200_OK)
+
+    def patch(self, request):
+        """Update availability status."""
+        profile = get_object_or_404(TechnicianProfile, user=request.user)
+        serializer = TechnicianAvailabilitySerializer(
+            profile,
+            data=request.data,
+            partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        
+        return Response({
+            "is_available": profile.is_available,
+            "message": f"Availability status updated to {'available' if profile.is_available else 'unavailable'}."
+        }, status=status.HTTP_200_OK)
+
+
+# --- Ratings View ---
+
+class TechnicianRatingsView(APIView):
+    """
+    GET: Retrieve technician ratings and reviews summary
+    """
+    permission_classes = [IsTechnician]
+
+    def get(self, request):
+        """Get technician ratings and review statistics."""
+        profile = get_object_or_404(TechnicianProfile, user=request.user)
+        
+        # Build ratings response
+        response_data = {
+            "average_rating": float(profile.rate),
+            "total_reviews": 0,  # Will be calculated from related reviews model when implemented
+            "rating_breakdown": {
+                "5_stars": 0,
+                "4_stars": 0,
+                "3_stars": 0,
+                "2_stars": 0,
+                "1_stars": 0
+            },
+            "recent_reviews": []
+        }
+        
+        # TODO: Calculate from reviews_received relationship when rating model is added
+        
+        return Response(response_data, status=status.HTTP_200_OK)

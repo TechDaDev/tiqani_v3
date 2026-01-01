@@ -5,26 +5,33 @@ from .models import Category, Skill, SubSkill
 class SkillInline(admin.TabularInline):
     model = Skill
     extra = 0
-    fields = ('name', 'description', 'is_active', 'order')
+    fields = ('name', 'description', 'is_active', 'is_delete', 'order')
     show_change_link = True
 
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ('name', 'parent', 'is_active', 'is_featured', 'order', 'skill_count', 'created_at')
-    list_filter = ('is_active', 'is_featured', 'parent', 'created_at')
+    list_display = ('name', 'parent', 'is_active', 'is_featured', 'is_delete', 'order', 'skill_count', 'created_at')
+    list_filter = ('is_active', 'is_featured', 'is_delete', 'parent', 'created_at')
     search_fields = ('name', 'description')
     readonly_fields = ('id', 'skill_count', 'technician_count', 'created_at', 'updated_at')
     inlines = [SkillInline]
     
     fieldsets = (
         ('Basic Info', {'fields': ('name', 'description', 'icon', 'parent')}),
-        ('Status & Display', {'fields': ('is_active', 'is_featured', 'order')}),
+        ('Status & Display', {'fields': ('is_active', 'is_featured', 'is_delete', 'order')}),
         ('Statistics', {'fields': ('skill_count', 'technician_count')}),
         ('Timestamps', {'fields': ('id', 'created_at', 'updated_at')}),
     )
     
-    actions = ['activate_categories', 'deactivate_categories', 'mark_featured', 'unmark_featured']
+    actions = [
+        'activate_categories',
+        'deactivate_categories',
+        'mark_featured',
+        'unmark_featured',
+        'soft_delete_categories',
+        'restore_categories',
+    ]
     
     def activate_categories(self, request, queryset):
         queryset.update(is_active=True)
@@ -42,30 +49,38 @@ class CategoryAdmin(admin.ModelAdmin):
         queryset.update(is_featured=False)
     unmark_featured.short_description = "Remove featured status"
 
+    def soft_delete_categories(self, request, queryset):
+        queryset.update(is_delete=True)
+    soft_delete_categories.short_description = "Soft delete selected categories"
+
+    def restore_categories(self, request, queryset):
+        queryset.update(is_delete=False)
+    restore_categories.short_description = "Restore selected categories"
+
 
 class SubSkillInline(admin.TabularInline):
     model = SubSkill
     extra = 0
-    fields = ('name', 'description', 'difficulty_level', 'is_active', 'order')
+    fields = ('name', 'description', 'difficulty_level', 'is_active', 'is_delete', 'order')
     show_change_link = True
 
 
 @admin.register(Skill)
 class SkillAdmin(admin.ModelAdmin):
-    list_display = ('name', 'category', 'is_active', 'order', 'technician_count', 'created_at')
-    list_filter = ('is_active', 'category', 'created_at')
+    list_display = ('name', 'category', 'is_active', 'is_delete', 'order', 'technician_count', 'created_at')
+    list_filter = ('is_active', 'is_delete', 'category', 'created_at')
     search_fields = ('name', 'description', 'category__name')
     readonly_fields = ('id', 'technician_count', 'created_at', 'updated_at')
     inlines = [SubSkillInline]
     
     fieldsets = (
         ('Basic Info', {'fields': ('category', 'name', 'description')}),
-        ('Status & Display', {'fields': ('is_active', 'order')}),
+        ('Status & Display', {'fields': ('is_active', 'is_delete', 'order')}),
         ('Statistics', {'fields': ('technician_count',)}),
         ('Timestamps', {'fields': ('id', 'created_at', 'updated_at')}),
     )
     
-    actions = ['activate_skills', 'deactivate_skills']
+    actions = ['activate_skills', 'deactivate_skills', 'soft_delete_skills', 'restore_skills']
     
     def activate_skills(self, request, queryset):
         queryset.update(is_active=True)
@@ -75,23 +90,31 @@ class SkillAdmin(admin.ModelAdmin):
         queryset.update(is_active=False)
     deactivate_skills.short_description = "Deactivate selected skills"
 
+    def soft_delete_skills(self, request, queryset):
+        queryset.update(is_delete=True)
+    soft_delete_skills.short_description = "Soft delete selected skills"
+
+    def restore_skills(self, request, queryset):
+        queryset.update(is_delete=False)
+    restore_skills.short_description = "Restore selected skills"
+
 
 @admin.register(SubSkill)
 class SubSkillAdmin(admin.ModelAdmin):
-    list_display = ('name', 'skill', 'difficulty_level', 'is_active', 'order', 'technician_count', 'created_at')
-    list_filter = ('is_active', 'difficulty_level', 'skill__category', 'created_at')
+    list_display = ('name', 'skill', 'difficulty_level', 'is_active', 'is_delete', 'order', 'technician_count', 'created_at')
+    list_filter = ('is_active', 'is_delete', 'difficulty_level', 'skill__category', 'created_at')
     search_fields = ('name', 'description', 'skill__name', 'skill__category__name')
     readonly_fields = ('id', 'full_path', 'technician_count', 'created_at', 'updated_at')
     
     fieldsets = (
         ('Basic Info', {'fields': ('skill', 'name', 'description')}),
-        ('Status & Display', {'fields': ('is_active', 'difficulty_level', 'order')}),
+        ('Status & Display', {'fields': ('is_active', 'is_delete', 'difficulty_level', 'order')}),
         ('Hierarchy', {'fields': ('full_path',)}),
         ('Statistics', {'fields': ('technician_count',)}),
         ('Timestamps', {'fields': ('id', 'created_at', 'updated_at')}),
     )
     
-    actions = ['activate_subskills', 'deactivate_subskills']
+    actions = ['activate_subskills', 'deactivate_subskills', 'soft_delete_subskills', 'restore_subskills']
     
     def activate_subskills(self, request, queryset):
         queryset.update(is_active=True)
@@ -100,3 +123,11 @@ class SubSkillAdmin(admin.ModelAdmin):
     def deactivate_subskills(self, request, queryset):
         queryset.update(is_active=False)
     deactivate_subskills.short_description = "Deactivate selected sub-skills"
+
+    def soft_delete_subskills(self, request, queryset):
+        queryset.update(is_delete=True)
+    soft_delete_subskills.short_description = "Soft delete selected sub-skills"
+
+    def restore_subskills(self, request, queryset):
+        queryset.update(is_delete=False)
+    restore_subskills.short_description = "Restore selected sub-skills"

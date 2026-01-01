@@ -1,8 +1,8 @@
 # Accounts Authentication Documentation
 
-**Last Updated:** December 30, 2025
+**Last Updated:** December 31, 2025
 
-This document outlines all authentication and account-related API endpoints, request/response formats, and features implemented in the `accounts` app.
+This document outlines all authentication and account-related API endpoints, request/response formats, admin panel configuration, and features implemented in the `accounts` app.
 
 ---
 
@@ -15,10 +15,12 @@ This document outlines all authentication and account-related API endpoints, req
 5. [Logout](#logout)
 6. [Forgot Password](#forgot-password)
 7. [Password Reset Confirm](#password-reset-confirm)
-8. [Error Handling](#error-handling)
-9. [Rate Limiting](#rate-limiting)
-10. [Authentication](#authentication)
-11. [Future Features](#future-features)
+8. [Technician-Specific Endpoints](#technician-specific-endpoints)
+9. [Admin Panel](#admin-panel)
+10. [Error Handling](#error-handling)
+11. [Rate Limiting](#rate-limiting)
+12. [Authentication](#authentication)
+13. [Future Features](#future-features)
 
 ---
 
@@ -99,13 +101,42 @@ POST /api/auth/login/
 {
   "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "user": {
+  "userdata": {
     "id": "550e8400-e29b-41d4-a716-446655440000",
-    "first_name": "John",
-    "last_name": "Doe",
+    "username": "john_doe",
     "role": "technician",
-    "profile_image": "/media/Profile/john_doe_a1b2c3d4.jpg"
+    "full_name": "John Doe",
+    "profile_image": "/media/Profile/a1b2c3d4.jpg",
+    "job_title": "Senior HVAC Technician",
+    "is_available": true,
+    "rating": 4.85,
+    "total_reviews": 0
   }
+}
+```
+
+### Error Responses
+
+**Invalid Credentials (401 Unauthorized):**
+```json
+{
+  "detail": "Invalid credentials.",
+  "attempts_remaining": 3
+}
+```
+
+**Too Many Attempts (429 Too Many Requests):**
+```json
+{
+  "detail": "Too many login attempts. Please try again later.",
+  "remaining_timeout": 298
+}
+```
+
+**Inactive Account (403 Forbidden):**
+```json
+{
+  "detail": "Account is inactive. Please verify your email."
 }
 ```
 
@@ -218,6 +249,96 @@ POST /api/auth/password-reset-confirm/
 
 ---
 
+---
+
+## Technician-Specific Endpoints
+
+### Overview
+All technician endpoints require authentication and `role='technician'`. Base path: `/api/auth/technician/`.
+
+### Quick Reference
+- Profile: `GET|PATCH /api/auth/technician/profile/`
+- Skills: `GET|PATCH /api/auth/technician/skills/`
+- Images: `GET|POST /api/auth/technician/images/`, `PATCH|DELETE /api/auth/technician/images/{id}/`
+- Availability: `GET|PATCH /api/auth/technician/availability/`
+- Ratings: `GET /api/auth/technician/ratings/`
+
+### Profile
+- **GET /api/auth/technician/profile/** — returns technician profile. Example success:
+```json
+{
+  "user_id": "550e8400-e29b-41d4-a716-446655440000",
+  "username": "john_doe",
+  "full_name": "John Doe",
+  "email": "john@example.com",
+  "phone_number": "07812345678",
+  "profile_image": "http://localhost:8000/media/Profile/a1b2c3d4.jpg",
+  "job_title": "Web Developer",
+  "about": "Experienced web developer...",
+  "years_of_expertise": 5,
+  "is_available": true,
+  "approved": true,
+  "is_complete": true,
+  "rate": 4.85,
+  "last_active": "2025-12-31T20:30:00Z",
+  "skill_sets": {
+    "id": "skill-set-uuid",
+    "categories": ["category-uuid"],
+    "categories_detail": [{"id": "category-uuid", "name": "Data"}],
+    "skills": ["skill-uuid"],
+    "skills_detail": [{"id": "skill-uuid", "name": "Databases"}],
+    "sub_skills": ["sub-skill-uuid"],
+    "sub_skills_detail": [{"id": "sub-skill-uuid", "name": "Database Administration (DBA)"}],
+    "created_at": "2025-12-31T12:00:00Z"
+  },
+  "images": [
+    {
+      "id": "image-uuid-1",
+      "image": "/media/technicians/uploads/img1.jpg",
+      "description": "Portfolio website design"
+    }
+  ]
+}
+```
+- **Field notes**: `job_title` is a short professional title shown to clients (e.g., "HVAC Specialist", "Full-Stack Developer").
+- **PATCH /api/auth/technician/profile/** — JSON body (e.g. `job_title`, `about`, `years_of_expertise`). Example success:
+```json
+{
+  "user_id": "550e8400-e29b-41d4-a716-446655440000",
+  "username": "john_doe",
+  "full_name": "John Doe",
+  "job_title": "Senior Web Developer",
+  "about": "Updated description...",
+  "years_of_expertise": 6,
+  "is_available": true,
+  "rate": 4.85
+}
+```
+
+### Skills
+- **GET /api/auth/technician/skills/** — returns assigned categories/skills/sub_skills; if none, returns empty arrays with `detail` message.
+- **PATCH /api/auth/technician/skills/** — JSON body:
+```json
+{
+  "categories": ["category-uuid"],
+  "skills": ["skill-uuid"],
+  "sub_skills": ["sub-skill-uuid"]
+}
+```
+
+### Images (Portfolio)
+- **GET /api/auth/technician/images/** — list images with URLs and descriptions.
+- **POST /api/auth/technician/images/** — multipart/form-data with `image` (required) and optional `description`.
+- **PATCH /api/auth/technician/images/{id}/** — JSON body `{ "description": "..." }`.
+- **DELETE /api/auth/technician/images/{id}/** — 204 No Content.
+
+### Availability
+- **GET /api/auth/technician/availability/** — returns `is_available`, `last_active`, `is_online`.
+- **PATCH /api/auth/technician/availability/** — JSON body `{ "is_available": true|false }`.
+
+### Ratings
+- **GET /api/auth/technician/ratings/** — returns averages, totals, and optional recent reviews.
+
 ## Error Handling
 
 ### Common HTTP Status Codes
@@ -245,7 +366,13 @@ POST /api/auth/password-reset-confirm/
 ## Rate Limiting
 
 ### Overview
-Rate limiting on login: max 5 failed attempts per IP per 5 minutes.
+Rate limiting on login endpoint to prevent brute force attacks: **5 failed attempts per IP address per 5 minutes**.
+
+### Implementation Details
+- **Tracking Method:** IP-based using Django cache
+- **Cache Key Format:** `login_attempts_{client_ip}`
+- **IP Detection:** Supports `X-Forwarded-For` header for proxy/load balancer scenarios
+- **Fallback:** Uses `REMOTE_ADDR` if `X-Forwarded-For` is not present
 
 ### Configuration
 ```python
@@ -253,12 +380,47 @@ RATE_LIMIT_ATTEMPTS = 5
 RATE_LIMIT_WINDOW_SEC = 5 * 60  # 300 seconds
 ```
 
-**Example:**
+### Behavior
+
+#### Failed Login Response
+When credentials are invalid, the response includes `attempts_remaining`:
+```json
+{
+  "detail": "Invalid credentials.",
+  "attempts_remaining": 4
+}
 ```
-Request 1-4 (failed) → attempts_remaining: 4, 3, 2, 1
-Request 5 (failed) → BLOCKED for 5 minutes (429 Too Many Requests)
-Request 6 (within 5 min) → remaining_timeout: ~298 seconds
+
+#### Rate Limited Response
+After 5 failed attempts, further requests are blocked with HTTP 429:
+```json
+{
+  "detail": "Too many login attempts. Please try again later.",
+  "remaining_timeout": 298
+}
 ```
+
+#### Successful Login
+- Rate limit counter is **cleared** upon successful authentication
+- User can attempt login again immediately after successful login
+
+### Flow Example
+```
+Attempt 1 (failed) → HTTP 401, attempts_remaining: 4
+Attempt 2 (failed) → HTTP 401, attempts_remaining: 3
+Attempt 3 (failed) → HTTP 401, attempts_remaining: 2
+Attempt 4 (failed) → HTTP 401, attempts_remaining: 1
+Attempt 5 (failed) → HTTP 401, attempts_remaining: 0
+Attempt 6 (failed) → HTTP 429, remaining_timeout: ~300
+Attempt 7 (within 5 min) → HTTP 429, remaining_timeout: ~298
+...
+[After 5 minutes pass]
+Attempt N (failed) → HTTP 401, attempts_remaining: 4 (counter reset)
+```
+
+**Note:** The counter tracks failed attempts per IP address, not per username. This means:
+- Multiple users from the same IP share the same limit
+- VPN/proxy users may be affected if others from same IP fail login attempts
 
 ---
 
@@ -278,33 +440,206 @@ Authorization: Bearer <access_token>
 
 ---
 
-## Future Features
+## Admin Panel
 
-- [ ] OTP Resend endpoint
-- [ ] User Profile endpoints
-- [ ] Technician Profile endpoints
-- [ ] Social Authentication (Google, Facebook)
-- [ ] CAPTCHA Integration
-- [ ] Role-Based Access Control (RBAC)
+### Overview
+Comprehensive Django admin interface for managing users, profiles, wallets, OTP codes, and technician-related data.
+
+### Registered Models
+
+#### CustomUser
+**Features:**
+- Dynamic inline display based on user role (Technician/Client/Admin profiles)
+- Profile completion status indicator
+- Wallet and OTP verification history
+- Advanced filtering by role, status, governorate, gender, creation date
+- Search by username, email, name, phone number
+
+**Display Columns:**
+- Username, Email, Role, Full Name
+- Phone Number, Governorate
+- Account Status (Active/Inactive)
+- Profile Status (Complete/Incomplete)
+- Created Date
+
+**Inlines:**
+- Role-specific profile (TechnicianProfile/ClientProfile/AdminProfile)
+- Wallet information
+- OTP verification history
 
 ---
 
-## Changelog
+#### TechnicianProfile
+**Features:**
+- Approval/rejection actions (bulk operations)
+- Availability status management
+- Online/offline status indicator
+- Profile completion tracking
+- Rating display (auto-calculated from reviews)
 
-### v3.0.0 (2025-12-30)
-- ✅ Password reset request endpoint
-- ✅ Password reset confirmation endpoint
-- ✅ OTP reuse for password reset
-- ✅ Secure password hashing and validation
+**Display Columns:**
+- User (Full Name & Username)
+- Job Title, Availability, Approval Status
+- Profile Completion, Rating, Years of Expertise
+- Online Status, Created Date
 
-### v2.0.0 (2025-12-29)
-- ✅ Registration with email verification
-- ✅ OTP-based email verification
-- ✅ Role-specific profile creation
-- ✅ Account activation workflow
+**Bulk Actions:**
+- Approve selected technicians
+- Reject selected technicians
+- Mark as available
+- Mark as unavailable
 
-### v1.0.0 (2025-12-29)
-- ✅ Login with rate limiting
-- ✅ Refresh token endpoint
-- ✅ Logout with token blacklist
-- ✅ JWT authentication
+**Inlines:**
+- Technician Images (portfolio/work samples)
+
+---
+
+#### ClientProfile
+**Features:**
+- Profile completion status
+- Age calculation and display (18+ validation indicator)
+- User information quick access
+
+**Display Columns:**
+- User (Full Name & Username)
+- Email, Phone
+- Profile Completion Status
+- Age (color-coded: green if 18+, red if under 18)
+- Created Date
+
+---
+
+#### AdminProfile
+**Features:**
+- Admin role management (System Admin, Moderator, Finance)
+- Staff status indicator
+- Last login IP tracking
+
+**Display Columns:**
+- User (Full Name & Username)
+- Admin Role
+- Staff Status
+- Last Login IP
+- Created Date
+
+---
+
+#### Wallet
+**Features:**
+- Balance tracking
+- Transaction count with direct link to transactions
+- Transaction ID display
+
+**Display Columns:**
+- User (Full Name & Username)
+- Balance
+- Transaction ID
+- Transaction Count (clickable)
+
+---
+
+#### WalletTransaction
+**Features:**
+- Transaction type filtering
+- Multi-currency support (IQD and USD)
+- Contract linkage
+- Exchange rate tracking
+
+**Display Columns:**
+- Wallet (User & Transaction ID)
+- Transaction Type
+- Amount (IQD)
+- Amount (USD)
+- Related Contract (clickable link)
+- Created Date
+
+---
+
+#### OTPVerification
+**Features:**
+- Validity status indicator (valid/expired/used)
+- OTP code and verification ID display
+- User linkage
+
+**Display Columns:**
+- User (Username & Email)
+- OTP Code
+- Used Status
+- Valid Status (✓ Valid / ✗ Expired/Used)
+- Created Date
+
+---
+
+#### TechnicianSkillSet
+**Features:**
+- Many-to-many relationship management for categories, skills, and sub-skills
+- Filter horizontal widget for easy selection
+- Count displays for each skill type
+
+**Display Columns:**
+- ID (truncated UUID)
+- Technician (Full Name & Username)
+- Category Count
+- Skill Count
+- Sub-Skill Count
+- Created Date
+2.0 (2025-12-31)
+- ✅ Implemented IP-based rate limiting on login endpoint
+- ✅ Added `attempts_remaining` counter to failed login responses
+- ✅ Added `remaining_timeout` to rate limit (HTTP 429) responses
+- ✅ Rate limit counter clears on successful authentication
+- ✅ Support for `X-Forwarded-For` header (proxy/load balancer scenarios)
+
+### v3.
+---
+
+#### TechnicianImage
+**Features:**
+- Image preview in list view
+- Description management
+- Linked to technician profile
+
+**Display Columns:**
+- ID (truncated UUID)
+- Technician (Username)
+- Image Preview (thumbnail)
+- Description
+- Created Date
+
+---
+
+### Admin Access
+- Superusers have full access to all models
+- AdminProfile users are automatically promoted to `is_staff=True`
+- Access URL: `/admin/`
+
+---
+
+## Future Features
+
+### Technician-Specific Endpoints (In Progress)
+- [x] GET /api/technician/profile/ - Retrieve technician profile
+- [x] PATCH /api/technician/profile/ - Update technician profile
+- [x] GET /api/technician/skills/ - List assigned skills and categories
+- [x] PATCH /api/technician/skills/ - Update skills and categories
+- [x] GET /api/technician/images/ - List portfolio images
+- [x] POST /api/technician/images/ - Upload portfolio image
+- [x] DELETE /api/technician/images/{id}/ - Delete portfolio image
+- [x] PATCH /api/technician/images/{id}/ - Update image description
+- [x] GET /api/technician/availability/ - Get availability status
+- [x] PATCH /api/technician/availability/ - Update availability status
+- [x] GET /api/technician/ratings/ - Get ratings and reviews
+
+### Other Future Features
+- [ ] Client Profile endpoints (GET/PATCH)
+- [ ] OTP Resend endpoint
+- [ ] User Profile endpoints (GET/PATCH)
+- [ ] Social Authentication (Google, Facebook)
+- [ ] CAPTCHA Integration
+- [ ] Role-Based Access Control (RBAC) for API endpoints
+- [ ] Admin dashboard analytics
+- [ ] Email notification preferences
+
+---
+
+<!-- Changelog removed per request -->
