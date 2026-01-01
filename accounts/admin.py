@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from django.utils.html import format_html
+from django.utils.html import format_html, mark_safe
 from django.utils import timezone
 from django.urls import reverse
 from django.db.models import Count, Q
@@ -232,7 +232,7 @@ class TechnicianProfileAdmin(admin.ModelAdmin):
         """Show count of incomplete fields in list view."""
         missing = obj.get_incomplete_fields()
         if not missing:
-            return format_html('<span style="color: green;">✓ Complete</span>')
+            return mark_safe('<span style="color: green;">✓ Complete</span>')
         count = len(missing)
         return format_html('<span style="color: orange;">{} missing</span>', count)
     incomplete_fields_display.short_description = 'Incomplete Fields'
@@ -241,7 +241,7 @@ class TechnicianProfileAdmin(admin.ModelAdmin):
         """Show list of incomplete fields in detail view."""
         missing = obj.get_incomplete_fields()
         if not missing:
-            return format_html('<span style="color: green;">✓ All required fields completed</span>')
+            return mark_safe('<span style="color: green;">✓ All required fields completed</span>')
         fields_html = '<br>'.join([f'• {field}' for field in missing])
         return format_html('<span style="color: red;">{}</span>', fields_html)
     incomplete_fields_list.short_description = 'Missing Required Fields'
@@ -316,7 +316,7 @@ class ClientProfileAdmin(admin.ModelAdmin):
         """Show count of incomplete fields in list view."""
         missing = obj.get_incomplete_fields()
         if not missing:
-            return format_html('<span style="color: green;">✓ Complete</span>')
+            return mark_safe('<span style="color: green;">✓ Complete</span>')
         count = len(missing)
         return format_html('<span style="color: orange;">{} missing</span>', count)
     incomplete_fields_display.short_description = 'Incomplete Fields'
@@ -325,7 +325,7 @@ class ClientProfileAdmin(admin.ModelAdmin):
         """Show list of incomplete fields in detail view."""
         missing = obj.get_incomplete_fields()
         if not missing:
-            return format_html('<span style="color: green;">✓ All required fields completed</span>')
+            return mark_safe('<span style="color: green;">✓ All required fields completed</span>')
         fields_html = '<br>'.join([f'• {field}' for field in missing])
         return format_html('<span style="color: red;">{}</span>', fields_html)
     incomplete_fields_list.short_description = 'Missing Required Fields'
