@@ -256,7 +256,7 @@ class TechnicianProfileAdmin(admin.ModelAdmin):
         qs = super().get_queryset(request)
         return qs.select_related('user')
 
-    actions = ['approve_technicians', 'reject_technicians', 'mark_available', 'mark_unavailable']
+    actions = ['approve_technicians', 'reject_technicians', 'mark_available', 'mark_unavailable', 'recalculate_completion']
 
     def approve_technicians(self, request, queryset):
         updated = queryset.update(approved=True)
@@ -277,6 +277,15 @@ class TechnicianProfileAdmin(admin.ModelAdmin):
         updated = queryset.update(is_available=False)
         self.message_user(request, f'{updated} technician(s) marked as unavailable.')
     mark_unavailable.short_description = 'Mark as unavailable'
+
+    def recalculate_completion(self, request, queryset):
+        """Recalculate is_complete status for selected profiles."""
+        count = 0
+        for profile in queryset:
+            profile.save()  # Triggers completion calculation in save() hook
+            count += 1
+        self.message_user(request, f'{count} profile completion status(es) recalculated.')
+    recalculate_completion.short_description = 'Recalculate profile completion status'
 
 
 @admin.register(ClientProfile)
@@ -349,6 +358,17 @@ class ClientProfileAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         return qs.select_related('user')
+
+    actions = ['recalculate_completion']
+
+    def recalculate_completion(self, request, queryset):
+        """Recalculate is_complete status for selected profiles."""
+        count = 0
+        for profile in queryset:
+            profile.save()  # Triggers completion calculation in save() hook
+            count += 1
+        self.message_user(request, f'{count} profile completion status(es) recalculated.')
+    recalculate_completion.short_description = 'Recalculate profile completion status'
 
 
 @admin.register(AdminProfile)
