@@ -163,18 +163,18 @@ SIMPLE_JWT = {
     'BLACKLIST_AFTER_ROTATION': True,
 }
 
-# Email configuration for development (console backend)
-# In production, use your SMTP provider (SendGrid, AWS SES, etc.)
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = ''  # Set in .env for production
-EMAIL_HOST_PASSWORD = ''  # Set in .env for production
-DEFAULT_FROM_EMAIL = 'noreply@tiqani.com'
+#---------- Email Configuration ----------
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'premium86.web-hosting.com' 
+EMAIL_PORT = 465
+EMAIL_USE_SSL = True
+EMAIL_USE_TLS = False
+EMAIL_HOST_USER = 'info@iqtiqani.com'
+EMAIL_HOST_PASSWORD = '!QAZxsw2#EDCvfr4'
+DEFAULT_FROM_EMAIL = 'info@iqtiqani.com'
+SERVER_EMAIL = 'info@iqtiqani.com'
 
-# Registration and OTP configuration
-OTP_VALIDITY_SECONDS = 600  # OTPs valid for 10 minutes
-OTP_MAX_ATTEMPTS = 3  # Max attempts to verify OTP before regeneration needed
+OTP_VALIDITY_SECONDS = 600
+OTP_MAX_ATTEMPTS = 3
 REGISTRATION_VERIFICATION_REQUIRED = True
 
