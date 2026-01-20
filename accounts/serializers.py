@@ -13,55 +13,88 @@ from .email_utils import send_otp_email, send_welcome_email, send_password_reset
 class RegistrationSerializer(serializers.ModelSerializer):
     """
     Handles user registration and automatic profile creation.
-    Uses database transactions to ensure data integrity.
+    Uses database transactions to ensure data integrity and aligns with model fields.
     """
     password = serializers.CharField(write_only=True, validators=[validate_password])
-    password_confirm = serializers.CharField(write_only=True)
     role = serializers.ChoiceField(choices=[('client', 'Client'), ('technician', 'Technician')])
+
+    # CustomUser fields
+    phone_number = serializers.CharField(required=False, allow_blank=True)
+    governorate = serializers.CharField(required=False, allow_blank=True)
+    address = serializers.CharField(required=False, allow_blank=True)
+    gender = serializers.ChoiceField(choices=CustomUser.Gender.choices, required=False, allow_null=True)
+    date_of_birth = serializers.DateField(required=False, allow_null=True)
+    profile_image = serializers.ImageField(required=False, allow_null=True)
+
+    # TechnicianProfile fields (only used when role=technician)
+    job_title = serializers.CharField(required=False, allow_blank=True)
+    about = serializers.CharField(required=False, allow_blank=True)
+    years_of_expertise = serializers.IntegerField(required=False, min_value=0)
+    identification_documents = serializers.FileField(required=False, allow_null=True)
+    github = serializers.URLField(required=False, allow_null=True, allow_blank=True)
+    linkedin = serializers.URLField(required=False, allow_null=True, allow_blank=True)
 
     class Meta:
         model = CustomUser
-        fields = ('username', 'email', 'password', 'password_confirm', 'first_name', 'last_name', 'role')
+        fields = (
+            'username', 'email', 'password', 'first_name', 'last_name', 'role',
+            'phone_number', 'governorate', 'address', 'gender', 'date_of_birth', 'profile_image',
+            'job_title', 'about', 'years_of_expertise', 'identification_documents', 'github', 'linkedin'
+        )
 
     def validate(self, attrs):
-        if attrs['password'] != attrs['password_confirm']:
-            raise serializers.ValidationError({"password_confirm": "Passwords do not match."})
-        
-        if CustomUser.objects.filter(email=attrs['email']).exists():
+
+        email = attrs['email']
+        if CustomUser.objects.filter(email=email).exists():
             raise serializers.ValidationError({"email": "This email is already registered."})
+
+        phone = attrs.get('phone_number')
+        if phone and CustomUser.objects.filter(phone_number=phone).exists():
+            raise serializers.ValidationError({"phone_number": "This phone number is already registered."})
+
+        if attrs.get('role') == 'technician':
+            required_tech_fields = ['job_title']
+            missing = [f for f in required_tech_fields if not attrs.get(f)]
+            if missing:
+                raise serializers.ValidationError({f: "This field is required for technicians." for f in missing})
         return attrs
 
     def create(self, validated_data):
-        validated_data.pop('password_confirm')
         password = validated_data.pop('password')
         role = validated_data.get('role')
 
-        with transaction.atomic():
-            # Create inactive user
-            user = CustomUser.objects.create_user(
-                password=password, 
-                is_active=False, 
-                **validated_data
-            )
+        user_fields = {
+            'username', 'email', 'first_name', 'last_name', 'role',
+            'phone_number', 'governorate', 'address', 'gender', 'date_of_birth', 'profile_image'
+        }
+        user_data = {k: v for k, v in validated_data.items() if k in user_fields}
 
-            # Create wallet for user
+        tech_fields = {
+            'job_title', 'about', 'years_of_expertise',
+            'identification_documents', 'github', 'linkedin'
+        }
+        tech_data = {k: v for k, v in validated_data.items() if k in tech_fields}
+
+        with transaction.atomic():
+            user = CustomUser.objects.create_user(
+                password=password,
+                is_active=False,
+                **user_data
+            )
+        
+
             Wallet.objects.create(user=user)
 
-            # Create specific profile based on role
             if role == 'technician':
-                TechnicianProfile.objects.create(user=user)
+                TechnicianProfile.objects.create(user=user, **tech_data)
             elif role == 'client':
                 ClientProfile.objects.create(user=user)
 
-            # Generate and Send OTP
             otp = OTPVerification.generate_otp(user)
             if not send_otp_email(user, otp.otp_code, otp.verification_id):
                 raise serializers.ValidationError("Email service failure. Please try again later.")
 
         return user
-
-
-# --- OTP & Verification ---
 
 class OTPBaseSerializer(serializers.Serializer):
     """Shared logic for OTP-based operations."""
@@ -126,11 +159,8 @@ class ForgotPasswordSerializer(serializers.Serializer):
 
 class ResetPasswordConfirmSerializer(OTPBaseSerializer):
     new_password = serializers.CharField(write_only=True, validators=[validate_password])
-    new_password_confirm = serializers.CharField(write_only=True)
 
     def validate(self, attrs):
-        if attrs['new_password'] != attrs['new_password_confirm']:
-            raise serializers.ValidationError("Passwords do not match.")
         
         user, otp = self.get_valid_otp(attrs, is_active_required=True)
         

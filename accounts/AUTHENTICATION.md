@@ -294,7 +294,6 @@ POST /api/auth/password-reset-confirm/
   "email": "string (required)",
   "otp_code": "string (required, 6-digit code)",
   "new_password": "string (required, min 8 chars, uppercase, number, special char)",
-  "new_password_confirm": "string (required, must match new_password)"
 }
 ```
 
