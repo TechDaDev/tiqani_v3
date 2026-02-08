@@ -11,21 +11,26 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 """
 
 from pathlib import Path
+import os
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load environment variables from .env file
+load_dotenv(BASE_DIR / '.env')
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-_%c+8a5d#0_@31e*bm3qyw&t5+_zus62vbuv9_w!de+pc1pb+s'
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-default-key-change-this')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',')
 
 
 # Application definition
@@ -37,6 +42,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'corsheaders',
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
@@ -51,6 +57,7 @@ AUTH_USER_MODEL = 'accounts.CustomUser'
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -152,29 +159,42 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle'
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': os.getenv('THROTTLE_ANON', '10/minute'),
+        'user': os.getenv('THROTTLE_USER', '10/minute'),
+    }
 }
 
 # SimpleJWT configuration (defaults are fine for dev; tune in prod)
 from datetime import timedelta
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=120),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
     'ROTATE_REFRESH_TOKENS': False,
     'BLACKLIST_AFTER_ROTATION': True,
 }
 
-# Email configuration for development (console backend)
-# In production, use your SMTP provider (SendGrid, AWS SES, etc.)
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = ''  # Set in .env for production
-EMAIL_HOST_PASSWORD = ''  # Set in .env for production
-DEFAULT_FROM_EMAIL = 'noreply@tiqani.com'
+#---------- Email Configuration ----------
+EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'premium86.web-hosting.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '465'))
+EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL', 'True') == 'True'
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'False') == 'True'
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'info@iqtiqani.com')
+SERVER_EMAIL = os.getenv('SERVER_EMAIL', 'info@iqtiqani.com')
 
-# Registration and OTP configuration
-OTP_VALIDITY_SECONDS = 600  # OTPs valid for 10 minutes
-OTP_MAX_ATTEMPTS = 3  # Max attempts to verify OTP before regeneration needed
-REGISTRATION_VERIFICATION_REQUIRED = True
+OTP_VALIDITY_SECONDS = int(os.getenv('OTP_VALIDITY_SECONDS', '600'))
+OTP_MAX_ATTEMPTS = int(os.getenv('OTP_MAX_ATTEMPTS', '3'))
+REGISTRATION_VERIFICATION_REQUIRED = os.getenv('REGISTRATION_VERIFICATION_REQUIRED', 'True') == 'True'
+
+#---------- CORS Configuration ----------
+CORS_ALLOW_ALL_ORIGINS = os.getenv('CORS_ALLOW_ALL_ORIGINS', 'False') == 'True'
+CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', '').split(',') if os.getenv('CORS_ALLOWED_ORIGINS') else []
+CORS_ALLOW_CREDENTIALS = os.getenv('CORS_ALLOW_CREDENTIALS', 'True') == 'True'
 

@@ -28,8 +28,8 @@ class TechnicianProfileInline(admin.StackedInline):
     fields = (
         'is_available', 'approved', 'is_complete',
         'job_title', 'about', 'years_of_expertise', 'rate',
-        'identification_documents', 'url1', 'url2',
-        'skill_sets', 'last_active'
+        'identification_documents', 'github', 'linkedin',
+        'last_active'
     )
     readonly_fields = ('rate', 'is_complete', 'last_active')
 
@@ -210,10 +210,7 @@ class TechnicianProfileAdmin(admin.ModelAdmin):
             'fields': ('rate', 'last_active')
         }),
         ('Documents & Links', {
-            'fields': ('identification_documents', 'url1', 'url2')
-        }),
-        ('Skills', {
-            'fields': ('skill_sets',)
+            'fields': ('identification_documents', 'github', 'linkedin')
         }),
         ('System Info', {
             'fields': ('created_at', 'updated_at', 'is_delete'),
@@ -230,7 +227,7 @@ class TechnicianProfileAdmin(admin.ModelAdmin):
 
     def incomplete_fields_display(self, obj):
         """Show count of incomplete fields in list view."""
-        missing = obj.get_incomplete_fields()
+        missing = obj.get_missing_fields()
         if not missing:
             return mark_safe('<span style="color: green;">✓ Complete</span>')
         count = len(missing)
@@ -239,7 +236,7 @@ class TechnicianProfileAdmin(admin.ModelAdmin):
 
     def incomplete_fields_list(self, obj):
         """Show list of incomplete fields in detail view."""
-        missing = obj.get_incomplete_fields()
+        missing = obj.get_missing_fields()
         if not missing:
             return mark_safe('<span style="color: green;">✓ All required fields completed</span>')
         fields_html = '<br>'.join([f'• {field}' for field in missing])
@@ -323,7 +320,7 @@ class ClientProfileAdmin(admin.ModelAdmin):
 
     def incomplete_fields_display(self, obj):
         """Show count of incomplete fields in list view."""
-        missing = obj.get_incomplete_fields()
+        missing = obj.get_missing_fields()
         if not missing:
             return mark_safe('<span style="color: green;">✓ Complete</span>')
         count = len(missing)
@@ -332,7 +329,7 @@ class ClientProfileAdmin(admin.ModelAdmin):
 
     def incomplete_fields_list(self, obj):
         """Show list of incomplete fields in detail view."""
-        missing = obj.get_incomplete_fields()
+        missing = obj.get_missing_fields()
         if not missing:
             return mark_safe('<span style="color: green;">✓ All required fields completed</span>')
         fields_html = '<br>'.join([f'• {field}' for field in missing])
