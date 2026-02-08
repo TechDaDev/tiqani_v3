@@ -165,6 +165,13 @@ class ClientProfile(BaseProfile):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='client_profile')
     REQ_USER_FIELDS = BaseProfile.REQ_USER_FIELDS + ['gender', 'date_of_birth']
 
+    class Meta(BaseProfile.Meta):
+        ordering = ['-created_at']
+
+    def __str__(self):
+        name = self.user.get_full_name() or self.user.username
+        return f"{name} (client)"
+
     def calculate_completion(self):
         # Custom logic hook for Client-specific age requirement
         basic_complete = super().calculate_completion()
