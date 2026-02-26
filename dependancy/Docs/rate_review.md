@@ -1,165 +1,159 @@
-# Rate & Review API Documentation
+# RateReview App Documentation
+
+Last updated: 2026-02-26
+
+This document reflects the current implementation in `ratereview/`.
 
 ## Table of Contents
-- [Overview](#overview)
-- [Endpoints](#endpoints)
-  - [Create Review](#create-review)
-- [Review Data in Technician Profile](#review-data-in-technician-profile)
+
+- [Current Implementation Status](#current-implementation-status)
 - [Features](#features)
-- [Frontend Implementation Guidelines](#frontend-implementation-guidelines)
-  - [Implementation Status](#implementation-status)
-  - [Integration Points](#integration-points)
-  - [UI/UX Best Practices](#uiux-best-practices)
+- [API Availability](#api-availability)
+- [Data Model: Review](#data-model-review)
+- [Business Logic in Model](#business-logic-in-model)
+- [Constraints, Ordering, and Indexes](#constraints-ordering-and-indexes)
+- [Admin Panel (ratereviewadminpy)](#admin-panel-ratereviewadminpy)
+- [Integration Notes](#integration-notes)
+- [Frontend Notes](#frontend-notes)
+- [Frontend Implementation Guideline](#frontend-implementation-guideline)
 
-## Overview
-The Rate & Review system allows clients to rate and review technicians they've worked with. Each review includes a rating (1-5 stars) and optional review text. The technician's overall rating is automatically calculated as the average of all their reviews.
+## Current Implementation Status
 
-## Endpoints
-
-### Create Review
-- **URL**: `/api/technician/<uuid:pk>/review/`
-- **Method**: `POST`
-- **Description**: Create a new review for a technician
-- **Authentication**: Required (Client only)
-- **Request Body**:
-```json
-{
-    "rating": "integer(1-5)",
-    "review_text": "string|null"
-}
-```
-- **Response**:
-  - Success (201):
-```json
-{
-    "id": "integer",
-    "client": {
-        "id": "uuid",
-        "full_name": "string",
-        "profile_image": "url|null"
-    },
-    "technician": "uuid",
-    "rating": "integer",
-    "review_text": "string|null",
-    "created_at": "datetime"
-}
-```
-  - Error (400): Invalid rating value
-  - Error (403): Not authorized to review this technician
-
-## Review Data in Technician Profile
-
-Reviews are included in the technician's profile data when fetching technician details through these endpoints:
-- `/api/accounts/technician/<uuid:pk>/` (GET)
-- `/api/technicians/` (GET - only for listing)
-
-Example response showing review data in a technician profile:
-
-```json
-{
-    "id": "uuid",
-    "user": {
-        "username": "string",
-        "first_name": "string",
-        "last_name": "string"
-    },
-    "rate": "decimal",  // Average rating (1-5)
-    "reviews": [
-        {
-            "id": "integer",
-            "client": {
-                "id": "uuid",
-                "full_name": "string",
-                "profile_image": "url|null"
-            },
-            "rating": "integer",
-            "review_text": "string|null",
-            "created_at": "datetime"
-        }
-    ]
-}
-```
+- `Review` model is fully implemented with validation, moderation fields, and rating recalculation hooks.
+- Django Admin for `Review` is implemented with moderation actions.
+- `ratereview/views.py` contains no API views yet.
+- Project routing (`tiqani_v3/urls.py`) does not currently include a `ratereview` URL module.
 
 ## Features
 
-1. **Rating System**:
-   - Scale: 1 to 5 stars
-   - Automatically calculates average rating for technician
-   - Updates technician's rate field after each new review
+- Rich review model with overall + category-specific rating fields
+- Visibility and verification controls (`is_public`, `is_verified`)
+- Moderation counters and flagging metadata
+- Automatic technician rating refresh on review save
+- Admin moderation actions (publish/hide/verify/unverify)
+- Contract-linked uniqueness enforcement for reviewer submissions
 
-2. **Review Text**:
-   - Optional text feedback
-   - Allows clients to provide detailed feedback
+## API Availability
 
-3. **Automatic Updates**:
-   - Technician's average rating is updated automatically when:
-     - New review is created
-     - Review is modified (not currently implemented)
-     - Review is deleted (not currently implemented)
+There are currently **no active RateReview REST endpoints** mounted in this project version.
 
-4. **Access Control**:
-   - Only authenticated clients can create reviews
-   - Clients can only review technicians they've worked with on completed contracts
-   - Reviews are publicly visible in technician profiles 
+That means endpoint examples such as creating reviews via public API are not available until URL wiring + DRF views/serializers are added.
 
-## Frontend Implementation Guidelines
+---
 
-### Implementation Status
-1. **Client-Technician Relationship Validation**: ✅ Implemented
-   - The backend validates that clients can only review technicians they've worked with on completed contracts
-   - The API returns a 403 error if a client tries to review a technician they haven't worked with
-   - Frontend should only show review options for technicians with completed contracts
+## Data Model: `Review`
 
-2. **Rating Validation**: ✅ Implemented
-   - The backend validates that rating values are between 1-5
-   - Frontend should enforce this range in the UI before submission
+Model location: `ratereview/models.py`
 
-3. **Review Response Structure**: ✅ Confirmed
-   - The API response includes client details with profile_image
-   - The response format matches the documentation
+### Core fields
+- `id` (UUID primary key)
+- `contract` (optional FK to `contract.Contract`, nullable, `SET_NULL`)
+- `reviewer` (FK to user, `related_name='reviews_made'`)
+- `technician` (FK to `accounts.TechnicianProfile`, `related_name='reviews_received'`)
+- `rating` (1..5)
 
-4. **Review Modification/Deletion**: ❌ Not Implemented
-   - Currently no endpoints exist for updating or deleting reviews
-   - If needed, frontend should request these endpoints to be added to the API
+### Detailed rating fields (optional)
+- `work_quality_rating` (1..5)
+- `communication_rating` (1..5)
+- `timeliness_rating` (1..5)
+- `professionalism_rating` (1..5)
 
-### Integration Points
-1. **Technician Profile**: 
-   - Reviews appear in serializers through the following paths:
-     - `TechnicianProfileSerializer`: Access via `reviewed_technicians` related name
-     - `TechnicianInfoForClientSerializer`: Similar access pattern
-   - The review data is consistent across different endpoints
+### Content fields
+- `title` (max 150, optional)
+- `comment` (optional)
+- `technician_response` (optional)
 
-2. **Rating Display**: 
-   - Technician's average rating is stored in the `rate` field (decimal, max 3 digits with 2 decimal places)
-   - The rate field is automatically updated whenever a new review is created
-   - Frontend should display this value prominently in technician profiles and listings
+### Moderation/visibility fields
+- `is_public` (default `True`)
+- `is_verified` (default `False`, auto-true when linked to contract)
+- `helpful_count` (default `0`)
+- `reported_count` (default `0`)
+- `flagged_at` (nullable datetime)
 
-3. **Review Form Implementation**:
-   - Implement a form with a star rating component (1-5) and optional text input
-   - POST to `/api/technician/<uuid:pk>/review/` endpoint with the technician's UUID
-   - Handle both success and error responses appropriately
-   - Show relevant error messages for 403 errors (not worked with technician) and 400 errors (invalid rating)
+### Timestamps
+- `created_at`
+- `updated_at`
 
-### UI/UX Best Practices
-1. **Rating Display**:
-   - Use visual star representations for ratings (filled/empty stars)
-   - Display average rating prominently on technician profile cards
-   - Consider showing total number of reviews alongside average rating
-   - Use consistent color-coding for ratings (e.g., green for high ratings)
+---
 
-2. **Review Listing**:
-   - Sort reviews chronologically (newest first)
-   - Paginate reviews if there are many
-   - Display review date in a human-readable format
-   - Highlight client names and profile images for better recognition
+## Business Logic in Model
 
-3. **Review Form**:
-   - Implement interactive star selection (hover effects, clear selection)
-   - Add character counter for review text
-   - Provide clear submission feedback (success/error messages)
-   - Consider adding placeholder text for the review input
+### `compute_overall_rating()`
+- If detailed rating fields are present, `rating` is recalculated as rounded average of provided sub-scores.
+- If no sub-scores are provided, falls back to existing `rating`.
 
-4. **Conditional UI Elements**:
-   - Only show "Add Review" button for completed contracts
-   - Display appropriate messages when user cannot review (not a client, no completed contract)
-   - Consider showing previous review if the client has already reviewed the technician 
+### `save()` behavior
+- Auto sets `is_verified=True` when `contract` is attached.
+- Normalizes `rating` using `compute_overall_rating()`.
+- After save, calls `technician.update_rating()` (if available) to refresh technician aggregate score.
+
+### Moderation helper methods
+- `publish()` → sets `is_public=True`
+- `hide()` → sets `is_public=False`
+- `mark_helpful()` → atomic increment of `helpful_count`
+- `flag()` → atomic increment of `reported_count` and sets `flagged_at=Now()`
+
+---
+
+## Constraints, Ordering, and Indexes
+
+### Constraint
+- Unique review per reviewer+contract when contract is present:
+  - `UniqueConstraint(fields=['reviewer', 'contract'], condition=Q(contract__isnull=False), name='unique_reviewer_contract_review')`
+
+### Ordering
+- Default ordering: newest first (`-created_at`)
+
+### Indexes
+- `(technician, created_at)`
+- `rating`
+- `is_public`
+- `is_verified`
+- `(contract, technician)`
+
+---
+
+## Admin Panel (`ratereview/admin.py`)
+
+### Registered model
+- `Review` is registered with a custom `ReviewAdmin`.
+
+### Admin features
+- List display includes key moderation fields and timestamps.
+- Filters for visibility, verification, rating, created/flagged times.
+- Search across technician username, reviewer username, title/comment, and contract reference.
+- Read-only fields include counters and timestamps.
+
+### Admin actions
+- Publish selected reviews
+- Hide selected reviews
+- Verify selected reviews
+- Unverify selected reviews
+
+---
+
+## Integration Notes
+
+- `accounts.TechnicianProfile.update_rating()` is used to maintain technician average score from related reviews.
+- `contract.Contract` can be linked to a review for engagement verification and uniqueness enforcement.
+
+---
+
+## Frontend Notes
+
+- Frontend should not depend on public RateReview APIs yet; they are not routed.
+- Review data can still exist in DB/admin and may be surfaced indirectly if other serializers expose `reviews_received`.
+- To support client-side create/list/update/delete flows, backend still needs:
+  1. DRF serializers for `Review`
+  2. API views/viewsets in `ratereview/views.py`
+  3. URL config (e.g., `ratereview/urls.py`) and inclusion in project routes
+
+---
+
+## Frontend Implementation Guideline
+
+- Gate review UI behind a feature flag until API endpoints are exposed.
+- If displaying review-derived ratings, treat them as read-only and source from existing account/technician payloads.
+- Avoid hardcoding non-existent endpoints; centralize API paths in one config module.
+- Prepare forms/components for future review APIs but keep submit actions disabled in production until backend routing is added.
+- Add clear UX messaging: "Review service not yet available" where applicable.
