@@ -303,7 +303,7 @@ class Contract(TimestampedModel):
 		if not self.agreed_amount or self.escrow_amount:
 			return
 
-		from accounts.models import (
+		from wallet.models import (
 			WalletTransaction,
 			PlatformWallet,
 			PlatformWalletTransaction,
@@ -464,7 +464,7 @@ class Contract(TimestampedModel):
 		
 		# Create cancellation transaction (refund escrow)
 		if self.escrow_amount > 0:
-			from accounts.models import WalletTransaction
+			from wallet.models import WalletTransaction
 			client_wallet = self.client.user.wallet
 			client_wallet.balance += self.escrow_amount
 			client_wallet.save(update_fields=['balance', 'updated_at'])
@@ -577,7 +577,7 @@ class ContractStage(TimestampedModel):
 			self.is_approved_by_client = True
 			
 			# Create payment release transaction
-			from accounts.models import WalletTransaction
+			from wallet.models import WalletTransaction
 			technician_wallet = self.contract.technician.user.wallet
 			technician_wallet.balance += self.amount
 			technician_wallet.save(update_fields=['balance', 'updated_at'])

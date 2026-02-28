@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'category',
     'contract',
     'ratereview',
+    'wallet',
 ]
 
 AUTH_USER_MODEL = 'accounts.CustomUser'
