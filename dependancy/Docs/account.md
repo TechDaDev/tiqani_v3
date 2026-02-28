@@ -31,7 +31,7 @@ All accounts endpoints are mounted under:
 - Profile completion tracking by role
 - Technician-specific APIs (skills, portfolio images, availability, ratings summary)
 - Client-specific profile management APIs
-- Wallet auto-creation during registration
+- User wallet auto-created during registration (managed by the `wallet` app — see [wallet.md](wallet.md))
 
 ---
 
@@ -42,7 +42,7 @@ All accounts endpoints are mounted under:
 - **Auth**: Not required
 - **Behavior**:
   - Creates user with `is_active=False`
-  - Auto-creates wallet
+  - Auto-creates a `Wallet` (see [wallet.md](wallet.md))
   - Creates role profile (`ClientProfile` or `TechnicianProfile`)
   - Generates OTP and sends verification email
 
@@ -341,8 +341,7 @@ All endpoints below require authenticated user role = `client`.
 - `TechnicianProfile` (one-to-one with user)
 - `AdminProfile` (one-to-one with user)
 
-### Wallet
-- One wallet per user, created at registration
+> Wallet models live in the `wallet` app. See [wallet.md](wallet.md) for the full financial domain model.
 
 ### OTPVerification
 - 6-digit OTP

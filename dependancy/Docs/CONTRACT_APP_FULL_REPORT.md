@@ -52,8 +52,8 @@ Most critical business rules are centralized in model methods and serializer upd
 
 ### External dependencies used by this app
 - `accounts.ClientProfile`, `accounts.TechnicianProfile`
-- `accounts.WalletTransaction`
-- `accounts.Wallet`
+- `wallet.WalletTransaction`, `wallet.Wallet` (financial domain — see [wallet.md](wallet.md))
+- `wallet.PlatformWallet`, `wallet.PlatformWalletTransaction`
 - Django REST Framework (`APIView`, serializers)
 
 ---

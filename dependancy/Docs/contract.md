@@ -38,7 +38,7 @@ All contract endpoints are mounted under:
 
 - Role-based contract creation and updates (client/technician)
 - Multi-stage contract workflow with automatic stage generation
-- Escrow and staged release payment flow hooks
+- Escrow and staged release payment flow (via `wallet` app — see [wallet.md](wallet.md))
 - Time-extension request lifecycle (request/respond/distribute)
 - Contract completion and technician availability toggling
 - Soft-delete-safe contract querying
@@ -94,11 +94,11 @@ Role-based update logic:
 
 - **Client** can only set:
   - `client_accepted: true`
-  - if client accepts, contract must be in `pending_acceptance` and wallet balance must cover `agreed_amount`
+  - if client accepts, contract must be in `pending_acceptance` and the client's wallet must cover `agreed_amount + 10% platform fee` (see [wallet.md](wallet.md))
 
 **Common validation errors**
 - cannot modify `completed` or `canceled` contracts
-- insufficient wallet balance on client acceptance
+- insufficient wallet balance on client acceptance (handled by `wallet` app — see [wallet.md](wallet.md))
 - incomplete acceptance prerequisites
 
 ---
@@ -260,6 +260,7 @@ Distribution logic:
 ### ContractStage
 - `contract`, `stage_number`, `stage_description`, `amount`, `deadline`
 - approval/payment: `is_approved_by_client`, `completed_at`, `transaction`
+- `transaction` is a `OneToOneField → wallet.WalletTransaction` (see [wallet.md](wallet.md))
 
 ### TimeExtensionRequest
 - `contract`, `requested_by`, `requested_days`, `reason`
@@ -270,8 +271,8 @@ Distribution logic:
 ## Implementation Notes
 
 - Contract list/detail serializers expose basic profile info only for contract parties (`user_id`, `username`, `full_name`, `profile_image`, and technician `job_title`).
-- Stage approval triggers payment release transaction and updates contract `total_paid`.
-- `Contract.cancel()` supports escrow refund transaction and sets technician available again.
+- Stage approval triggers a `release` wallet transaction to the technician and updates contract `total_paid` (see [wallet.md](wallet.md)).
+- `Contract.cancel()` refunds the escrow amount to the client via a `refund` wallet transaction and sets the technician available again.
 
 ---
 
@@ -281,7 +282,7 @@ Distribution logic:
 - Surface `can_be_accepted` and `incomplete_fields` to guide users before acceptance.
 - Do not expose stage edit controls unless contract status is `in_progress`.
 - For extension requests, keep separate queues for technician-submitted and client-actionable items.
-- Expect backend validation errors for wallet insufficiency and invalid status transitions.
+- Expect backend validation errors for insufficient wallet balance (see [wallet.md](wallet.md)) and invalid status transitions.
 
 ---
 
