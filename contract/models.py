@@ -520,7 +520,7 @@ class ContractStage(TimestampedModel):
 		help_text="When technician marked this stage as complete"
 	)
 	transaction = models.OneToOneField(
-		'accounts.WalletTransaction',
+		'wallet.WalletTransaction',
 		null=True,
 		blank=True,
 		on_delete=models.SET_NULL,

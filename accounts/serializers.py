@@ -3,7 +3,8 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
 
-from .models import CustomUser, TechnicianProfile, ClientProfile, OTPVerification, Wallet
+from .models import CustomUser, TechnicianProfile, ClientProfile, OTPVerification
+from wallet.models import Wallet
 from .email_utils import send_otp_email, send_welcome_email, send_password_reset_email
 
 

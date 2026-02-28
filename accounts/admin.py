@@ -10,14 +10,11 @@ from .models import (
     TechnicianProfile, 
     ClientProfile, 
     AdminProfile,
-    Wallet,
-    WalletTransaction,
-    PlatformWallet,
-    PlatformWalletTransaction,
     OTPVerification,
     TechnicianSkillSet,
     TechnicianImage
 )
+from wallet.models import Wallet, WalletTransaction, PlatformWallet, PlatformWalletTransaction
 
 
 # --- Inline Admins ---
@@ -138,7 +135,7 @@ class CustomUserAdmin(BaseUserAdmin):
         if not obj:
             return []
         
-        inlines = [WalletInline, OTPVerificationInline]
+        inlines = [OTPVerificationInline]
         
         if obj.role == 'technician':
             inlines.insert(0, TechnicianProfileInline)
