@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 
 
@@ -76,6 +76,8 @@ class Contract(TimestampedModel):
 	)
 	
 	# Financial Fields (All in IQD - Iraqi Dinar)
+	PLATFORM_FEE_RATE = Decimal('0.10')
+
 	agreed_amount = models.DecimalField(
 		max_digits=15,
 		decimal_places=2,
@@ -89,13 +91,6 @@ class Contract(TimestampedModel):
 		null=True,
 		blank=True,
 		help_text="USD equivalent for reference only"
-	)
-	exchange_rate = models.DecimalField(
-		max_digits=10,
-		decimal_places=2,
-		null=True,
-		blank=True,
-		help_text="Exchange rate (IQD to USD) recorded at contract creation"
 	)
 	currency = models.CharField(
 		max_length=3,
@@ -114,12 +109,34 @@ class Contract(TimestampedModel):
 		default=Decimal('0.00'),
 		help_text="Total amount paid to technician so far in IQD"
 	)
+	client_platform_fee = models.DecimalField(
+		max_digits=15,
+		decimal_places=2,
+		default=Decimal('0.00'),
+		help_text="Non-refundable client platform fee charged on contract activation"
+	)
+	technician_platform_fee = models.DecimalField(
+		max_digits=15,
+		decimal_places=2,
+		default=Decimal('0.00'),
+		help_text="Non-refundable technician platform fee charged on contract activation"
+	)
 	
 	# Timeline
+	start_date = models.DateField(
+		null=True,
+		blank=True,
+		help_text="Project start date provided by technician"
+	)
+	duration_days = models.PositiveIntegerField(
+		null=True,
+		blank=True,
+		help_text="Number of days for the project duration"
+	)
 	contract_duration = models.DateField(
 		null=True,
 		blank=True,
-		help_text="Expected completion date"
+		help_text="Calculated deadline date (start_date + duration_days)"
 	)
 	
 	# Workflow & Status
@@ -184,7 +201,11 @@ class Contract(TimestampedModel):
 		# Generate contract reference if not present
 		if not self.contract_reference:
 			self.contract_reference = self.generate_contract_reference()
-		
+
+		# Calculate deadline if start_date and duration are provided
+		if self.start_date and self.duration_days:
+			self.contract_duration = self.start_date + timedelta(days=self.duration_days)
+
 		# Get old status for transition logic
 		old_status = None
 		if self.pk:
@@ -192,12 +213,12 @@ class Contract(TimestampedModel):
 				old_status = Contract.objects.get(pk=self.pk).status
 			except Contract.DoesNotExist:
 				pass
-		
+
 		# Auto-transition to pending_acceptance when all required fields are filled
 		if (self.status == 'draft' and
 			all([self.agreed_amount, self.stage_number, self.work_description, self.contract_duration])):
 			self.status = 'pending_acceptance'
-		
+
 		# Validate required fields for pending_acceptance
 		if self.status == 'pending_acceptance':
 			if not all([self.agreed_amount, self.stage_number, self.work_description, self.contract_duration]):
@@ -211,19 +232,27 @@ class Contract(TimestampedModel):
 			# Setup escrow if transitioning from pending_acceptance
 			if old_status == 'pending_acceptance':
 				try:
-					self._setup_contract_escrow()
-					# Set technician as unavailable during active contract
-					self.technician.is_available = False
-					self.technician.save(update_fields=['is_available'])
+					with transaction.atomic():
+						self._setup_contract_escrow()
+						# Set technician as unavailable during active contract
+						self.technician.is_available = False
+						self.technician.save(update_fields=['is_available'])
 				except Exception as e:
 					# Revert status if escrow setup fails
 					self.status = 'pending_acceptance'
 					raise e
 		
 		super().save(*args, **kwargs)
-		
-		# Create stages after contract is saved (ensures contract has an ID)
-		if (self.status == 'in_progress' and old_status == 'pending_acceptance'):
+
+		# Create stages once all required fields are present (even in draft/pending)
+		requirements_ready = all([
+			self.agreed_amount,
+			self.stage_number,
+			self.start_date,
+			self.duration_days,
+			self.contract_duration
+		])
+		if requirements_ready and self.stages.count() == 0:
 			self._create_contract_stages()
 
 	def generate_contract_reference(self):
@@ -257,8 +286,12 @@ class Contract(TimestampedModel):
 			incomplete.append('Stage Number')
 		if not self.work_description:
 			incomplete.append('Work Description')
+		if not self.start_date:
+			incomplete.append('Start Date')
+		if not self.duration_days:
+			incomplete.append('Duration Days')
 		if not self.contract_duration:
-			incomplete.append('Contract Duration')
+			incomplete.append('Contract Deadline')
 		return incomplete
 
 	def _setup_contract_escrow(self):
@@ -267,40 +300,142 @@ class Contract(TimestampedModel):
 		Called when contract moves to in_progress status.
 		Locks agreed_amount in client's wallet.
 		"""
-		if self.agreed_amount and not self.escrow_amount:
-			# Set escrow amount (typically equals agreed amount)
-			self.escrow_amount = self.agreed_amount
-			
-			# Create escrow transaction in client's wallet
-			from accounts.models import WalletTransaction
-			WalletTransaction.objects.create(
-				wallet=self.client.user.wallet,
-				contract=self,
-				transaction_type='escrow',
-				amount=self.escrow_amount,
-				amount_usd=self.amount_usd,
-				exchange_rate=self.exchange_rate,
-				description=f"Escrow for contract {self.contract_reference}"
+		if not self.agreed_amount or self.escrow_amount:
+			return
+
+		from accounts.models import (
+			WalletTransaction,
+			PlatformWallet,
+			PlatformWalletTransaction,
+		)
+
+		client_wallet = self.client.user.wallet
+		technician_wallet = self.technician.user.wallet
+		platform_wallet = PlatformWallet.get_global_wallet()
+
+		client_fee = (self.agreed_amount * self.PLATFORM_FEE_RATE).quantize(Decimal('0.01'))
+		technician_fee = (self.agreed_amount * self.PLATFORM_FEE_RATE).quantize(Decimal('0.01'))
+		required_client_amount = self.agreed_amount + client_fee
+
+		if client_wallet.balance < required_client_amount:
+			shortfall = required_client_amount - client_wallet.balance
+			raise ValueError(
+				f"Insufficient client funds for activation. Client needs {required_client_amount} IQD "
+				f"(including {client_fee} IQD platform fee), short by {shortfall} IQD."
 			)
+
+		if technician_wallet.balance < technician_fee:
+			shortfall = technician_fee - technician_wallet.balance
+			raise ValueError(
+				f"Insufficient technician funds for activation fee. Technician needs {technician_fee} IQD, "
+				f"short by {shortfall} IQD."
+			)
+
+		# Deduct non-refundable platform fees and client escrow funding
+		client_wallet.balance -= required_client_amount
+		technician_wallet.balance -= technician_fee
+		client_wallet.save(update_fields=['balance', 'updated_at'])
+		technician_wallet.save(update_fields=['balance', 'updated_at'])
+
+		self.escrow_amount = self.agreed_amount
+		self.client_platform_fee = client_fee
+		self.technician_platform_fee = technician_fee
+
+		WalletTransaction.objects.create(
+			wallet=client_wallet,
+			contract=self,
+			transaction_type=WalletTransaction.Type.ESCROW,
+			amount=self.escrow_amount,
+			amount_usd=self.amount_usd,
+			description=f"Escrow for contract {self.contract_reference}"
+		)
+
+		WalletTransaction.objects.create(
+			wallet=client_wallet,
+			contract=self,
+			transaction_type=WalletTransaction.Type.PLATFORM_FEE,
+			amount=client_fee,
+			description=f"Non-refundable client platform fee for contract {self.contract_reference}"
+		)
+
+		WalletTransaction.objects.create(
+			wallet=technician_wallet,
+			contract=self,
+			transaction_type=WalletTransaction.Type.PLATFORM_FEE,
+			amount=technician_fee,
+			description=f"Non-refundable technician platform fee for contract {self.contract_reference}"
+		)
+
+		balance_before = platform_wallet.balance
+		balance_after_client_fee = balance_before + client_fee
+		balance_after_technician_fee = balance_after_client_fee + technician_fee
+
+		platform_wallet.balance = balance_after_technician_fee
+		platform_wallet.total_fees_collected += (client_fee + technician_fee)
+		platform_wallet.total_client_fees += client_fee
+		platform_wallet.total_technician_fees += technician_fee
+		platform_wallet.save(update_fields=['balance', 'total_fees_collected', 'total_client_fees', 'total_technician_fees', 'updated_at'])
+
+		PlatformWalletTransaction.objects.create(
+			platform_wallet=platform_wallet,
+			contract=self,
+			source_user=self.client.user,
+			source_wallet=client_wallet,
+			source_type=PlatformWalletTransaction.SourceType.CLIENT,
+			amount=client_fee,
+			balance_after=balance_after_client_fee,
+			description=f"Client non-refundable platform fee collected for contract {self.contract_reference}"
+		)
+
+		PlatformWalletTransaction.objects.create(
+			platform_wallet=platform_wallet,
+			contract=self,
+			source_user=self.technician.user,
+			source_wallet=technician_wallet,
+			source_type=PlatformWalletTransaction.SourceType.TECHNICIAN,
+			amount=technician_fee,
+			balance_after=balance_after_technician_fee,
+			description=f"Technician non-refundable platform fee collected for contract {self.contract_reference}"
+		)
 
 	def _create_contract_stages(self):
 		"""
 		Create stage entries for the contract.
-		Divides total amount equally among stages.
-		Called when contract transitions to in_progress.
+		Divides total amount and duration across stages (remainder goes to last stage).
 		"""
-		if not self.stage_number or not self.agreed_amount:
+		if not all([self.stage_number, self.agreed_amount, self.start_date, self.duration_days]):
 			return
-		
-		# Calculate amount per stage
-		amount_per_stage = self.agreed_amount / self.stage_number
-		
-		# Create stages
+
+		# Avoid duplicate creation
+		if self.stages.exists():
+			return
+
+		# Amount distribution
+		base_amount = (self.agreed_amount / self.stage_number).quantize(Decimal('0.01'))
+		total_assigned = base_amount * (self.stage_number - 1)
+		last_amount = self.agreed_amount - total_assigned
+
+		# Duration distribution
+		days_base = self.duration_days // self.stage_number
+		days_remainder = self.duration_days % self.stage_number
+
+		running_days = 0
 		for stage_num in range(1, self.stage_number + 1):
+			stage_days = days_base
+			if stage_num == self.stage_number:
+				stage_days += days_remainder
+
+			# Deadline inclusive of the allocated days for this stage
+			running_days += stage_days
+			stage_deadline = self.start_date + timedelta(days=running_days - 1)
+
+			amount = last_amount if stage_num == self.stage_number else base_amount
+
 			ContractStage.objects.create(
 				contract=self,
 				stage_number=stage_num,
-				amount=amount_per_stage,
+				amount=amount,
+				deadline=stage_deadline,
 			)
 
 	def mark_completed(self):
@@ -330,13 +465,18 @@ class Contract(TimestampedModel):
 		# Create cancellation transaction (refund escrow)
 		if self.escrow_amount > 0:
 			from accounts.models import WalletTransaction
+			client_wallet = self.client.user.wallet
+			client_wallet.balance += self.escrow_amount
+			client_wallet.save(update_fields=['balance', 'updated_at'])
 			WalletTransaction.objects.create(
-				wallet=self.client.user.wallet,
+				wallet=client_wallet,
 				contract=self,
-				transaction_type='refund',
+				transaction_type=WalletTransaction.Type.REFUND,
 				amount=self.escrow_amount,
 				description=f"Escrow refund for canceled contract {self.contract_reference}. Reason: {reason}"
 			)
+			self.escrow_amount = Decimal('0.00')
+			self.save(update_fields=['escrow_amount'])
 
 
 class ContractStage(TimestampedModel):
@@ -433,24 +573,29 @@ class ContractStage(TimestampedModel):
 		if self.is_approved_by_client:
 			raise ValueError("This stage has already been approved")
 		
-		self.is_approved_by_client = True
-		
-		# Create payment release transaction
-		from accounts.models import WalletTransaction
-		transaction = WalletTransaction.objects.create(
-			wallet=self.contract.technician.user.wallet,
-			contract=self.contract,
-			transaction_type='release',
-			amount=self.amount,
-			description=f"Payment release for stage {self.stage_number} of contract {self.contract.contract_reference}"
-		)
-		
-		self.transaction = transaction
-		self.save(update_fields=['is_approved_by_client', 'transaction'])
-		
-		# Update contract total_paid
-		self.contract.total_paid += self.amount
-		self.contract.save(update_fields=['total_paid'])
+		with transaction.atomic():
+			self.is_approved_by_client = True
+			
+			# Create payment release transaction
+			from accounts.models import WalletTransaction
+			technician_wallet = self.contract.technician.user.wallet
+			technician_wallet.balance += self.amount
+			technician_wallet.save(update_fields=['balance', 'updated_at'])
+
+			transaction = WalletTransaction.objects.create(
+				wallet=technician_wallet,
+				contract=self.contract,
+				transaction_type=WalletTransaction.Type.RELEASE,
+				amount=self.amount,
+				description=f"Payment release for stage {self.stage_number} of contract {self.contract.contract_reference}"
+			)
+			
+			self.transaction = transaction
+			self.save(update_fields=['is_approved_by_client', 'transaction'])
+			
+			# Update contract total_paid
+			self.contract.total_paid += self.amount
+			self.contract.save(update_fields=['total_paid'])
 
 
 class TimeExtensionRequest(TimestampedModel):

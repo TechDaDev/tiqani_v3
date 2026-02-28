@@ -18,10 +18,10 @@ urlpatterns = [
     
     # --- Contract Stages ---
     path('contracts/<uuid:contract_id>/stages/', ContractStageListView.as_view(), name='contract_stages_list'),
-    path('stages/<int:stage_id>/', ContractStageDetailView.as_view(), name='contract_stage_detail'),
+    path('stages/<uuid:stage_id>/', ContractStageDetailView.as_view(), name='contract_stage_detail'),
     
     # --- Time Extension Requests ---
     path('extension-requests/', TimeExtensionRequestListCreateView.as_view(), name='extension_requests_list'),
-    path('extension-requests/<int:request_id>/respond/', TimeExtensionRequestRespondView.as_view(), name='extension_request_respond'),
-    path('extension-requests/<int:request_id>/distribute_days/', TimeExtensionDistributeView.as_view(), name='extension_distribute'),
+    path('extension-requests/<uuid:request_id>/respond/', TimeExtensionRequestRespondView.as_view(), name='extension_request_respond'),
+    path('extension-requests/<uuid:request_id>/distribute_days/', TimeExtensionDistributeView.as_view(), name='extension_distribute'),
 ]

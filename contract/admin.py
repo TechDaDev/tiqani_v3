@@ -26,10 +26,10 @@ class ContractAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('Parties', {'fields': ('client', 'technician')}),
-        ('Contract Details', {'fields': ('contract_reference', 'work_description', 'contract_duration', 'stage_number')}),
-        ('Financial', {'fields': ('agreed_amount', 'amount_usd', 'exchange_rate', 'escrow_amount', 'total_paid')}),
+        ('Contract Details', {'fields': ('contract_reference', 'work_description', 'start_date', 'duration_days', 'contract_duration', 'stage_number')}),
+        ('Financial', {'fields': ('agreed_amount', 'amount_usd', 'escrow_amount', 'total_paid')}),
         ('Status', {'fields': ('status', 'client_accepted', 'technician_accepted')}),
-        ('System', {'fields': ('id', 'is_deleted', 'created_at', 'updated_at')}),
+        ('System', {'fields': ('id', 'is_delete', 'created_at', 'updated_at')}),
     )
     
     actions = ['mark_completed', 'cancel_contracts']

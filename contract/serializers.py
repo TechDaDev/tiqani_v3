@@ -2,6 +2,7 @@
 
 from rest_framework import serializers
 from django.conf import settings
+from django.utils import timezone
 from decimal import Decimal
 
 from .models import Contract, ContractStage, TimeExtensionRequest
@@ -100,14 +101,14 @@ class ContractListSerializer(serializers.ModelSerializer):
         model = Contract
         fields = (
             'id', 'contract_reference', 'client', 'technician', 'work_description',
-            'agreed_amount', 'amount_usd', 'exchange_rate', 'currency',
-            'escrow_amount', 'total_paid', 'contract_duration', 'stage_number',
+            'agreed_amount', 'amount_usd', 'currency',
+            'escrow_amount', 'total_paid', 'start_date', 'duration_days', 'contract_duration', 'stage_number',
             'status', 'client_accepted', 'technician_accepted', 'created_at',
             'updated_at', 'can_be_accepted'
         )
         read_only_fields = (
             'id', 'contract_reference', 'client', 'technician', 'amount_usd',
-            'exchange_rate', 'currency', 'escrow_amount', 'total_paid',
+            'currency', 'escrow_amount', 'total_paid', 'contract_duration',
             'created_at', 'updated_at'
         )
     
@@ -128,15 +129,15 @@ class ContractDetailSerializer(serializers.ModelSerializer):
         model = Contract
         fields = (
             'id', 'contract_reference', 'client', 'technician', 'work_description',
-            'agreed_amount', 'amount_usd', 'exchange_rate', 'currency',
-            'escrow_amount', 'total_paid', 'contract_duration', 'stage_number',
+            'agreed_amount', 'amount_usd', 'currency',
+            'escrow_amount', 'total_paid', 'start_date', 'duration_days', 'contract_duration', 'stage_number',
             'status', 'client_accepted', 'technician_accepted', 'stages',
             'created_at', 'updated_at', 'can_be_accepted', 'incomplete_fields'
         )
         read_only_fields = (
             'id', 'contract_reference', 'client', 'technician', 'stages',
-            'amount_usd', 'exchange_rate', 'currency', 'escrow_amount',
-            'total_paid', 'created_at', 'updated_at'
+            'amount_usd', 'currency', 'escrow_amount',
+            'total_paid', 'contract_duration', 'created_at', 'updated_at'
         )
     
     def get_can_be_accepted(self, obj):
@@ -154,7 +155,6 @@ class ContractCreateSerializer(serializers.Serializer):
     
     technician_id = serializers.UUIDField()
     work_description = serializers.CharField(max_length=2000)
-    contract_duration = serializers.DateField()
     
     def validate_technician_id(self, value):
         try:
@@ -177,7 +177,6 @@ class ContractCreateSerializer(serializers.Serializer):
             client=client,
             technician=technician,
             work_description=validated_data['work_description'],
-            contract_duration=validated_data['contract_duration'],
             status='draft'
         )
         
@@ -190,9 +189,10 @@ class ContractUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Contract
         fields = (
-            'work_description', 'agreed_amount', 'stage_number', 'contract_duration',
+            'work_description', 'agreed_amount', 'stage_number', 'start_date', 'duration_days', 'contract_duration',
             'client_accepted', 'technician_accepted'
         )
+        read_only_fields = ('contract_duration',)
     
     def validate_stage_number(self, value):
         """Ensure stage_number is between 2 and 5."""
@@ -205,6 +205,12 @@ class ContractUpdateSerializer(serializers.ModelSerializer):
         if value <= 0:
             raise serializers.ValidationError("Agreed amount must be greater than zero.")
         return value
+
+    def validate_duration_days(self, value):
+        """Ensure duration_days is positive."""
+        if value is not None and value <= 0:
+            raise serializers.ValidationError("Duration days must be greater than zero.")
+        return value
     
     def update(self, instance, validated_data):
         """Update contract with role-based validation."""
@@ -214,12 +220,18 @@ class ContractUpdateSerializer(serializers.ModelSerializer):
         # Get the user's role
         is_technician = hasattr(user, 'technician_profile')
         is_client = hasattr(user, 'client_profile')
+
+        # Handle timeline fields (must be provided together)
+        start_date = validated_data.get('start_date')
+        duration_days = validated_data.get('duration_days')
+        if (start_date is not None) ^ (duration_days is not None):
+            raise serializers.ValidationError("start_date and duration_days must be provided together.")
         
         # Prevent updates to completed contracts
         if instance.status in ['completed', 'canceled']:
             raise serializers.ValidationError(f"Cannot modify a {instance.status} contract.")
         
-        # Technician can only set amount and stage_number
+        # Technician can only set amount, stage_number, and timeline
         if is_technician:
             if 'client_accepted' in validated_data or 'technician_accepted' in validated_data:
                 # Technician can only set their own acceptance
@@ -233,6 +245,10 @@ class ContractUpdateSerializer(serializers.ModelSerializer):
             if ('agreed_amount' in validated_data) or ('stage_number' in validated_data):
                 if not all(k in validated_data or getattr(instance, k, None) for k in ['agreed_amount', 'stage_number']):
                     raise serializers.ValidationError("Both agreed amount and stage number are required.")
+
+            # Require start_date and duration_days together for timeline updates
+            if (start_date is not None) and (duration_days is not None):
+                validated_data['contract_duration'] = start_date + timezone.timedelta(days=duration_days)
         
         # Client can only accept
         if is_client:
@@ -250,11 +266,14 @@ class ContractUpdateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("Contract must be in pending_acceptance status.")
             
             client_wallet = user.wallet
-            if client_wallet.balance < instance.agreed_amount:
-                shortfall = instance.agreed_amount - client_wallet.balance
+            client_fee = (instance.agreed_amount * instance.PLATFORM_FEE_RATE).quantize(Decimal('0.01'))
+            required_total = instance.agreed_amount + client_fee
+
+            if client_wallet.balance < required_total:
+                shortfall = required_total - client_wallet.balance
                 raise serializers.ValidationError(
                     f"Insufficient funds in wallet. You have {client_wallet.balance} IQD but need "
-                    f"{instance.agreed_amount} IQD to initiate this contract. Please recharge your wallet "
+                    f"{required_total} IQD to initiate this contract (including non-refundable client platform fee of {client_fee} IQD). Please recharge your wallet "
                     f"with at least {shortfall} IQD more."
                 )
         

@@ -56,10 +56,11 @@ For Clients:
         "work_description": "Build a responsive e-commerce website...",
         "agreed_amount": "2000000.00",
         "amount_usd": "1370.00",
-        "exchange_rate": "1460.00",
         "currency": "IQD",
         "escrow_amount": "2000000.00",
         "total_paid": "500000.00",
+        "start_date": "2026-02-01",
+        "duration_days": 27,
         "contract_duration": "2026-02-28",
         "stage_number": 4,
         "status": "in_progress",
@@ -76,10 +77,12 @@ For Clients:
 - `contract_reference` (string): Auto-generated unique reference (e.g., `#A1B2C3D4E5F6`)
 - `agreed_amount` (decimal): Total agreed amount in IQD (Iraqi Dinar)
 - `amount_usd` (decimal): USD equivalent for reference only
-- `exchange_rate` (decimal): IQD to USD exchange rate recorded at contract creation
 - `currency` (string): Always "IQD" for this system
 - `escrow_amount` (decimal): Amount held in escrow (equal to agreed_amount when activated)
 - `total_paid` (decimal): Total amount paid to technician so far
+- `start_date` (date): Project start date set by technician
+- `duration_days` (integer): Duration of project in days set by technician
+- `contract_duration` (date): Calculated deadline (start_date + duration_days)
 - `can_be_accepted` (boolean): Whether all required fields are filled for acceptance
 - `status` (enum): One of `draft`, `pending_acceptance`, `in_progress`, `completed`, `canceled`
 
@@ -100,8 +103,7 @@ POST /api/contract/contracts/
 ```json
 {
     "technician_id": "uuid",
-    "work_description": "string (required, max 2000 chars)",
-    "contract_duration": "date (YYYY-MM-DD, required)"
+    "work_description": "string (required, max 2000 chars)"
 }
 ```
 
@@ -126,11 +128,12 @@ POST /api/contract/contracts/
     "work_description": "Build a responsive e-commerce website...",
     "agreed_amount": null,
     "amount_usd": null,
-    "exchange_rate": null,
     "currency": "IQD",
     "escrow_amount": "0.00",
     "total_paid": "0.00",
-    "contract_duration": "2026-02-28",
+    "start_date": null,
+    "duration_days": null,
+    "contract_duration": null,
     "stage_number": null,
     "status": "draft",
     "client_accepted": false,
@@ -174,7 +177,7 @@ POST /api/contract/contracts/
 - Contract is created in `draft` status
 - Technician must be available (`is_available=true`)
 - Awaiting technician to complete contract details (amount, stages)
-- Initial exchange rate is recorded at this time
+- Technician sets `start_date` and `duration_days`; the system computes `contract_duration` (deadline)
 
 ---
 
@@ -210,10 +213,11 @@ GET /api/contract/contracts/<uuid:contract_id>/
     "work_description": "Build a responsive e-commerce website with shopping cart, payment integration...",
     "agreed_amount": "2000000.00",
     "amount_usd": "1370.00",
-    "exchange_rate": "1460.00",
     "currency": "IQD",
     "escrow_amount": "2000000.00",
     "total_paid": "500000.00",
+    "start_date": "2026-02-01",
+    "duration_days": 27,
     "contract_duration": "2026-02-28",
     "stage_number": 4,
     "status": "in_progress",
@@ -282,7 +286,8 @@ PATCH /api/contract/contracts/<uuid:contract_id>/
     "work_description": "Detailed description of work...",
     "agreed_amount": 2000000,
     "stage_number": 4,
-    "contract_duration": "2026-02-28"
+    "start_date": "2026-02-01",
+    "duration_days": 27
 }
 ```
 
@@ -302,6 +307,11 @@ PATCH /api/contract/contracts/<uuid:contract_id>/
 
 **Success Response (200 OK)**
 Same as Get Contract Detail response.
+
+**Stage Generation Rules**
+- Once `agreed_amount`, `stage_number`, `start_date`, and `duration_days` are set, stages are auto-created even while the contract is still in `draft` or `pending_acceptance` so both parties can view timelines and amounts early.
+- Amounts are split evenly across stages; any fractional remainder is added to the last stage.
+- Duration is split evenly across stages; any leftover days are added to the last stage. Each stage deadline is cumulative from the `start_date`.
 
 **Error Responses**
 

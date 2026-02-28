@@ -12,6 +12,8 @@ from .models import (
     AdminProfile,
     Wallet,
     WalletTransaction,
+    PlatformWallet,
+    PlatformWalletTransaction,
     OTPVerification,
     TechnicianSkillSet,
     TechnicianImage
@@ -500,6 +502,50 @@ class WalletTransactionAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         return qs.select_related('wallet__user', 'contract')
+
+
+@admin.register(PlatformWallet)
+class PlatformWalletAdmin(admin.ModelAdmin):
+    list_display = (
+        'key', 'currency', 'balance', 'total_fees_collected',
+        'total_client_fees', 'total_technician_fees', 'updated_at'
+    )
+    readonly_fields = (
+        'key', 'currency', 'balance', 'total_fees_collected',
+        'total_client_fees', 'total_technician_fees', 'created_at', 'updated_at'
+    )
+
+    def has_add_permission(self, request):
+        return not PlatformWallet.objects.exists()
+
+
+@admin.register(PlatformWalletTransaction)
+class PlatformWalletTransactionAdmin(admin.ModelAdmin):
+    list_display = (
+        'source_type', 'amount', 'balance_after',
+        'contract_link', 'source_user_display', 'created_at'
+    )
+    list_filter = ('source_type', 'created_at')
+    search_fields = ('description', 'contract__contract_reference', 'source_user__username')
+    ordering = ('-created_at',)
+    readonly_fields = (
+        'platform_wallet', 'contract', 'source_user', 'source_wallet', 'source_type',
+        'amount', 'balance_after', 'description', 'created_at', 'updated_at', 'is_delete'
+    )
+
+    def source_user_display(self, obj):
+        return obj.source_user.username if obj.source_user else '-'
+    source_user_display.short_description = 'Source User'
+
+    def contract_link(self, obj):
+        if obj.contract:
+            return format_html(
+                '<a href="{}">{}</a>',
+                reverse('admin:contract_contract_change', args=[obj.contract.id]),
+                obj.contract.contract_reference
+            )
+        return '-'
+    contract_link.short_description = 'Contract'
 
 
 @admin.register(OTPVerification)
