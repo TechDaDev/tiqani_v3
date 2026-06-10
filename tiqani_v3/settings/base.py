@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
+    "django_filters",
     # Local apps
     "accounts",
     "category",
@@ -168,6 +169,13 @@ REST_FRAMEWORK = {
         "anon": env("THROTTLE_ANON", default="10/minute"),
         "user": env("THROTTLE_USER", default="60/minute"),
     },
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 20,
+    "DEFAULT_FILTER_BACKENDS": [
+        "django_filters.rest_framework.DjangoFilterBackend",
+        "rest_framework.filters.SearchFilter",
+        "rest_framework.filters.OrderingFilter",
+    ],
 }
 
 # ---------------------------------------------------------------------------

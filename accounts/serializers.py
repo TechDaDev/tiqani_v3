@@ -179,3 +179,71 @@ class ResetPasswordConfirmSerializer(OTPBaseSerializer):
             otp.is_used = True
             otp.save()
         return user
+
+
+class CurrentUserSerializer(serializers.ModelSerializer):
+    """Public-safe serializer for the currently authenticated user."""
+
+    profile_type = serializers.SerializerMethodField()
+    is_complete = serializers.SerializerMethodField()
+    wallet_balance = serializers.SerializerMethodField()
+    wallet_transaction_id = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CustomUser
+        fields = (
+            "id",
+            "username",
+            "email",
+            "first_name",
+            "last_name",
+            "role",
+            "phone_number",
+            "governorate",
+            "address",
+            "gender",
+            "date_of_birth",
+            "profile_image",
+            "is_active",
+            "is_staff",
+            "profile_type",
+            "is_complete",
+            "wallet_balance",
+            "wallet_transaction_id",
+        )
+        read_only_fields = (
+            "id",
+            "username",
+            "email",
+            "role",
+            "is_active",
+            "is_staff",
+            "profile_type",
+            "is_complete",
+            "wallet_balance",
+            "wallet_transaction_id",
+        )
+
+    def get_profile_type(self, obj):
+        if hasattr(obj, "client_profile"):
+            return "client"
+        if hasattr(obj, "technician_profile"):
+            return "technician"
+        if hasattr(obj, "admin_profile"):
+            return "admin"
+        return None
+
+    def get_is_complete(self, obj):
+        if hasattr(obj, "client_profile"):
+            return obj.client_profile.is_complete
+        if hasattr(obj, "technician_profile"):
+            return obj.technician_profile.is_complete
+        return None
+
+    def get_wallet_balance(self, obj):
+        wallet = getattr(obj, "wallet", None)
+        return str(wallet.balance) if wallet else None
+
+    def get_wallet_transaction_id(self, obj):
+        wallet = getattr(obj, "wallet", None)
+        return wallet.transaction_id if wallet else None

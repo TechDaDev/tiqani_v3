@@ -22,11 +22,27 @@ from .views import health
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    # Auth
     path('api/auth/', include('accounts.urls')),
-    path('api/category/', include('category.urls')),
+    # Current user / account
+    path('api/accounts/', include('accounts.api_urls')),
+    # Categories
+    path('api/categories/', include('category.urls')),
+    # Technicians
+    path('api/technicians/', include('accounts.technician_urls')),
+    # Clients
+    path('api/clients/', include('accounts.client_urls')),
+    # Public reviews
+    path('api/reviews/', include('ratereview.urls')),
+    # Contracts
     path('api/contract/', include('contract.urls')),
+    # Health
     path('api/health/', health),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

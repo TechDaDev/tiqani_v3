@@ -1,7 +1,7 @@
 from django.core.cache import cache
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
@@ -9,11 +9,11 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import CustomUser
 from .serializers import (
-
-    RegistrationSerializer, 
+    RegistrationSerializer,
     OTPVerificationSerializer,
-    ForgotPasswordSerializer, 
-    ResetPasswordConfirmSerializer
+    ForgotPasswordSerializer,
+    ResetPasswordConfirmSerializer,
+    CurrentUserSerializer,
 )
 from .email_utils import send_otp_email
 from .models import OTPVerification
@@ -262,3 +262,52 @@ class ResetPasswordConfirmView(APIView):
         return Response({
             "detail": "Password has been reset successfully."
         }, status=status.HTTP_200_OK)
+
+class CurrentUserView(APIView):
+    """
+    GET /api/accounts/me/ — return the current user's profile.
+    PATCH /api/accounts/me/ — update safe user fields.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        serializer = CurrentUserSerializer(request.user, context={"request": request})
+        return Response(serializer.data)
+
+    def patch(self, request):
+        user = request.user
+        allowed_fields = {
+            "first_name",
+            "last_name",
+            "phone_number",
+            "governorate",
+            "address",
+            "gender",
+            "date_of_birth",
+            "profile_image",
+        }
+        # Prevent role/staff/active changes
+        for field in ("role", "is_staff", "is_superuser", "is_active"):
+            if field in request.data:
+                return Response(
+                    {field: "This field cannot be changed via this endpoint."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+        updated = False
+        for field in allowed_fields:
+            if field in request.data:
+                setattr(user, field, request.data[field])
+                updated = True
+
+        if updated:
+            user.save()
+
+            # Recalculate profile completion
+            for profile_attr in ("client_profile", "technician_profile"):
+                profile = getattr(user, profile_attr, None)
+                if profile:
+                    profile.save()
+
+        serializer = CurrentUserSerializer(user, context={"request": request})
+        return Response(serializer.data)

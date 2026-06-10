@@ -81,7 +81,7 @@ class TechnicianListView(APIView):
         # Filter by skill
         skill_id = request.query_params.get('skill_id')
         if skill_id:
-            queryset = queryset.filter(skill_sets__skills__id=skill_id).distinct()
+            queryset = queryset.filter(skill_set__skills__id=skill_id).distinct()
 
         # Order by rating
         order_by = request.query_params.get('order_by', '-rate')
@@ -138,13 +138,11 @@ class TechnicianSkillsView(APIView):
         profile = get_object_or_404(TechnicianProfile, user=request.user)
 
         # If the profile is not linked yet, try to attach the existing skill set
-        if not profile.skill_sets:
+        skill_set = getattr(profile, 'skill_set', None)
+        if not skill_set:
             skill_set = TechnicianSkillSet.objects.filter(technician=profile).order_by('-created_at').first()
-            if skill_set:
-                profile.skill_sets = skill_set
-                profile.save(update_fields=['skill_sets'])
 
-        if not profile.skill_sets:
+        if not skill_set:
             return Response({
                 "detail": "No skill set assigned yet.",
                 "categories": [],
@@ -152,7 +150,6 @@ class TechnicianSkillsView(APIView):
                 "sub_skills": []
             }, status=status.HTTP_200_OK)
 
-        skill_set = profile.skill_sets
         serializer = TechnicianSkillSetSerializer(skill_set, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -163,10 +160,10 @@ class TechnicianSkillsView(APIView):
         # Create or get skill set
         skill_set, created = TechnicianSkillSet.objects.get_or_create(technician=profile)
 
-        # Ensure profile points to the skill_set record
-        if profile.skill_sets_id != skill_set.id:
-            profile.skill_sets = skill_set
-            profile.save(update_fields=['skill_sets'])
+        # Ensure profile points to the skill_set record (no direct FK, but we link via the relation)
+        if profile.skill_set_id != skill_set.id:
+            # The reverse relation is managed via the TechnicianSkillSet model
+            pass
         
         serializer = TechnicianSkillSetSerializer(
             skill_set,
@@ -325,3 +322,30 @@ class TechnicianRatingsView(APIView):
         # TODO: Calculate from reviews_received relationship when rating model is added
         
         return Response(response_data, status=status.HTTP_200_OK)
+
+
+# --- Public Technician Detail ---
+
+class TechnicianDetailView(APIView):
+    """
+    GET: Public detail for an approved technician.
+    Owner/admin can see own profile even if not approved.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request, id):
+        profile = get_object_or_404(TechnicianProfile, id=id)
+
+        # Owner or admin can see unapproved profiles
+        user = request.user
+        is_owner = user.is_authenticated and user == profile.user
+        is_admin = user.is_authenticated and user.is_staff
+
+        if not profile.approved and not is_owner and not is_admin:
+            return Response(
+                {"detail": "Technician not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = TechnicianProfileSerializer(profile, context={"request": request})
+        return Response(serializer.data)

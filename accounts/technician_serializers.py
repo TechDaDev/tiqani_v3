@@ -177,10 +177,10 @@ class TechnicianProfileSerializer(serializers.ModelSerializer):
         return obj.user.date_of_birth if self._can_view_sensitive(obj) else None
 
     def get_url1(self, obj):
-        return obj.url1 if self._can_view_sensitive(obj) else None
+        return obj.github if self._can_view_sensitive(obj) else None
 
     def get_url2(self, obj):
-        return obj.url2 if self._can_view_sensitive(obj) else None
+        return obj.linkedin if self._can_view_sensitive(obj) else None
 
     def get_identification_documents(self, obj):
         if self._can_view_sensitive(obj) and obj.identification_documents:
@@ -212,7 +212,8 @@ class TechnicianProfileSerializer(serializers.ModelSerializer):
         return None
 
     def get_skill_sets(self, obj):
-        if not obj.skill_sets:
+        skill_set = getattr(obj, 'skill_set', None)
+        if not skill_set:
             return {
                 "detail": "No skill set assigned yet.",
                 "categories": [],
@@ -223,7 +224,7 @@ class TechnicianProfileSerializer(serializers.ModelSerializer):
                 "sub_skills_detail": [],
                 "created_at": None,
             }
-        return TechnicianSkillSetSerializer(obj.skill_sets, context=self.context).data
+        return TechnicianSkillSetSerializer(skill_set, context=self.context).data
 
 
 class TechnicianAvailabilitySerializer(serializers.ModelSerializer):
