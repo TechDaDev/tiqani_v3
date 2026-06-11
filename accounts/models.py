@@ -244,10 +244,10 @@ class TechnicianProfile(BaseProfile):
         return f"{self.user.get_full_name() or self.user.username} (Tech)"
 
     def update_rating(self):
-        """Recalculates average rating from reviews."""
-        # Note: 'reviews_received' must be defined as related_name in the Review model
+        """Recalculates average rating from public + verified reviews."""
         if hasattr(self, 'reviews_received'):
-            avg = self.reviews_received.aggregate(models.Avg('rating'))['rating__avg']
+            qs = self.reviews_received.filter(is_public=True, is_verified=True)
+            avg = qs.aggregate(models.Avg('rating'))['rating__avg']
             self.rate = round(avg, 2) if avg else Decimal('0.00')
             self.save(update_fields=['rate'])
 

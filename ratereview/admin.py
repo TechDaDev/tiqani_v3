@@ -1,12 +1,12 @@
 from django.contrib import admin
-from .models import Review
+from .models import Review, ReviewHelpful, ReviewReport
 
 
 @admin.register(Review)
 class ReviewAdmin(admin.ModelAdmin):
-    list_display = ('technician', 'reviewer', 'rating', 'is_verified', 'is_public', 'helpful_count', 'reported_count', 'created_at')
-    list_filter = ('is_public', 'is_verified', 'rating', 'created_at', 'flagged_at')
-    search_fields = ('technician__user__username', 'reviewer__username', 'title', 'comment', 'contract__contract_reference')
+    list_display = ('technician', 'reviewer', 'rating', 'is_verified', 'is_public', 'helpful_count', 'reported_count', 'flagged_at', 'created_at')
+    list_filter = ('is_public', 'is_verified', 'rating', 'flagged_at')
+    search_fields = ('reviewer__username', 'reviewer__email', 'technician__user__username', 'technician__user__email', 'title', 'comment')
     readonly_fields = ('id', 'rating', 'helpful_count', 'reported_count', 'flagged_at', 'created_at', 'updated_at')
     
     fieldsets = (
@@ -37,3 +37,16 @@ class ReviewAdmin(admin.ModelAdmin):
     def unverify_reviews(self, request, queryset):
         queryset.update(is_verified=False)
     unverify_reviews.short_description = "Unverify selected reviews"
+
+
+@admin.register(ReviewHelpful)
+class ReviewHelpfulAdmin(admin.ModelAdmin):
+    list_display = ('review', 'user', 'created_at')
+    search_fields = ('review__title', 'user__username')
+
+
+@admin.register(ReviewReport)
+class ReviewReportAdmin(admin.ModelAdmin):
+    list_display = ('review', 'reporter', 'reason', 'created_at')
+    list_filter = ('reason',)
+    search_fields = ('review__title', 'reporter__username')

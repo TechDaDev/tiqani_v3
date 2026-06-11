@@ -6,6 +6,7 @@ from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Q
+from decimal import Decimal
 
 
 class Review(models.Model):
@@ -137,9 +138,62 @@ class Review(models.Model):
         return self.helpful_count
 
     def flag(self):
-        """Increment reported count and mark flagged timestamp."""
+        """Increment reported count (does NOT set flagged_at — caller decides threshold)."""
         self.reported_count = models.F('reported_count') + 1
-        self.flagged_at = models.functions.Now()
-        self.save(update_fields=['reported_count', 'flagged_at'])
-        self.refresh_from_db(fields=['reported_count', 'flagged_at'])
+        self.save(update_fields=['reported_count'])
+        self.refresh_from_db(fields=['reported_count'])
         return self.reported_count
+
+
+class ReviewHelpful(models.Model):
+    """Tracks which users marked a review as helpful — prevents duplicate votes."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    review = models.ForeignKey(
+        Review, on_delete=models.CASCADE, related_name='helpful_votes'
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='helpful_votes',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['review', 'user'],
+                name='unique_review_helpful_vote',
+            ),
+        ]
+
+
+class ReviewReport(models.Model):
+    """Tracks reports against a review — prevents duplicate reports."""
+
+    REASON_CHOICES = [
+        ('spam', 'Spam'),
+        ('abuse', 'Abusive or harmful'),
+        ('fake', 'Fake or fraudulent'),
+        ('inappropriate', 'Inappropriate content'),
+        ('other', 'Other'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    review = models.ForeignKey(
+        Review, on_delete=models.CASCADE, related_name='reports'
+    )
+    reporter = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='review_reports',
+    )
+    reason = models.CharField(max_length=20, choices=REASON_CHOICES, default='other')
+    comment = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['review', 'reporter'],
+                name='unique_review_report',
+            ),
+        ]
