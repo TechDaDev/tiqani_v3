@@ -7,9 +7,32 @@ Usage:
 """
 
 import os
+import re
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.urls import URLResolver, URLPattern
+
+SKIP_PREFIXES = ('admin/', '^media/', '^static/')
+
+
+def _clean_route_path(path):
+    """Clean up router-generated regex patterns into readable paths."""
+    path = path.replace('^', '').replace('$', '')
+    path = re.sub(r'\(\?P<\w+>\[\.\^/\]\+\+\)', '{id}', path)
+    path = re.sub(r'\(\?P<\w+>\[\./\w\]\+\)', '{id}', path)
+    path = re.sub(r'\(\?P<\w+>\[/\.\]\+\)', '{id}', path)
+    path = re.sub(r'\(\?P<\w+>\.\*\)', '{path}', path)
+    path = re.sub(r'\(\?P<pk>\[\.\^/\]\+\)', '{id}', path)
+    path = re.sub(r'\(\?P<pk>\[/\.\]\+\)', '{id}', path)
+    path = path.replace('//', '/')
+    return path
+
+
+def _should_skip(route):
+    for prefix in SKIP_PREFIXES:
+        if route.startswith(prefix):
+            return True
+    return False
 
 
 class Command(BaseCommand):
@@ -23,26 +46,35 @@ class Command(BaseCommand):
             routes = []
         for pattern in urlpatterns:
             if isinstance(pattern, URLResolver):
-                # Recurse into included URL confs
                 new_prefix = prefix + str(pattern.pattern)
                 self._collect_routes(pattern.url_patterns, new_prefix, routes)
             elif isinstance(pattern, URLPattern):
                 route = str(pattern.pattern)
+                full_path = prefix + route
+                if _should_skip(full_path):
+                    continue
                 name = pattern.name or ''
-                # Try to get the view name
-                view_cls = ''
-                if hasattr(pattern.callback, 'cls'):
-                    view_cls = f"{pattern.callback.cls.__module__}.{pattern.callback.cls.__name__}"
-                elif hasattr(pattern.callback, 'view_class'):
-                    view_cls = f"{pattern.callback.view_class.__module__}.{pattern.callback.view_class.__name__}"
-                elif hasattr(pattern.callback, '__name__'):
-                    view_cls = pattern.callback.__name__
-                else:
-                    view_cls = str(pattern.callback)[:80]
+                method_hint = ''
+                if hasattr(pattern.callback, 'view_class'):
+                    view_cls = pattern.callback.view_class
+                    raw = getattr(view_cls, 'http_method_names', [])
+                    if hasattr(view_cls, 'allowed_methods'):
+                        try:
+                            am = view_cls.allowed_methods
+                            if am:
+                                method_hint = ', '.join(am)
+                        except Exception:
+                            pass
+                    if not method_hint and raw:
+                        irrelevant = {'head', 'options', 'trace'}
+                        http = [m.upper() for m in raw if m not in irrelevant]
+                        if http and len(http) < 4:
+                            method_hint = ', '.join(http)
+                clean_path = _clean_route_path(full_path)
                 routes.append({
-                    'route': prefix + route,
+                    'route': clean_path,
                     'name': name,
-                    'view': view_cls,
+                    'methods': method_hint,
                 })
         return routes
 
@@ -54,12 +86,13 @@ class Command(BaseCommand):
 
         if output_path:
             lines = []
-            lines.append("# API Routes — tiqani_v3 (auto-generated)\n")
-            lines.append(f"Total routes: {len(routes)}\n")
-            lines.append("| # | Route | Name | View |")
-            lines.append("|---|-------|------|------|")
+            lines.append("# API Routes - tiqani_v3 (auto-generated)\n\n")
+            lines.append(f"**{len(routes)} API routes** (Django admin, static/media excluded)\n\n")
+            lines.append("| # | Method | Route | Name |")
+            lines.append("|---|--------|-------|------|")
             for i, r in enumerate(routes, 1):
-                lines.append(f"| {i} | `{r['route']}` | {r['name']} | `{r['view']}` |")
+                methods = r['methods'] or 'varies'
+                lines.append(f"| {i} | {methods} | `{r['route']}` | {r['name']} |")
             content = '\n'.join(lines) + '\n'
 
             os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else '.', exist_ok=True)
@@ -68,8 +101,9 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS(f"Routes written to {output_path}"))
         else:
             self.stdout.write(self.style.MIGRATE_HEADING(f"API Routes ({len(routes)} total)"))
-            fmt = "{:<5} {:<60} {:<30} {:<60}"
-            self.stdout.write(fmt.format("#", "Route", "Name", "View"))
-            self.stdout.write("-" * 155)
+            fmt = "{:<5} {:<10} {:<65} {:<30}"
+            self.stdout.write(fmt.format("#", "Method", "Route", "Name"))
+            self.stdout.write("-" * 110)
             for i, r in enumerate(routes, 1):
-                self.stdout.write(fmt.format(str(i), r['route'], r['name'][:28], r['view'][:58]))
+                methods = r['methods'] or 'varies'
+                self.stdout.write(fmt.format(str(i), methods, r['route'][:63], r['name'][:28]))

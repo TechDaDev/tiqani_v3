@@ -24,7 +24,7 @@ class ExportApiRoutesTest(TestCase):
             with open(temp_path) as f:
                 content = f.read()
             self.assertIn('# API Routes', content)
-            self.assertIn('Total routes:', content)
+            self.assertIn('API routes', content)
         finally:
             if os.path.isfile(temp_path):
                 os.unlink(temp_path)
