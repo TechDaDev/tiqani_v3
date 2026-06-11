@@ -26,10 +26,16 @@ DATABASES = {
 }
 
 # ---------------------------------------------------------------------------
-# Email — SMTP required in production
+# Email — SMTP required in production; overrides from env
 # ---------------------------------------------------------------------------
-# EMAIL_BACKEND, EMAIL_HOST, etc. are inherited from base.py and can be
-# overridden via environment variables.
+EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")  # noqa: F405
+EMAIL_HOST = env("EMAIL_HOST", default="")  # noqa: F405
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)  # noqa: F405
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)  # noqa: F405
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")  # noqa: F405
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")  # noqa: F405
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@example.com")  # noqa: F405
+SERVER_EMAIL = env("SERVER_EMAIL", default="noreply@example.com")  # noqa: F405
 
 # ---------------------------------------------------------------------------
 # Security headers & cookies
@@ -47,6 +53,10 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_BROWSER_XSS_FILTER = True
 X_FRAME_OPTIONS = "DENY"
 
+# Proxy support — set USE_X_FORWARDED_HOST=True if behind a reverse proxy
+USE_X_FORWARDED_HOST = env.bool("USE_X_FORWARDED_HOST", default=False)  # noqa: F405
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 # ---------------------------------------------------------------------------
 # Static files – whitenoise
 # ---------------------------------------------------------------------------
@@ -61,7 +71,7 @@ STORAGES = {
 # CORS & CSRF — from environment
 # ---------------------------------------------------------------------------
 CORS_ALLOW_ALL_ORIGINS = False
-CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS")  # noqa: F405
+CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS")  # noqa: F405 — will raise if not set
 CORS_ALLOW_CREDENTIALS = True
 
-CSRF_TRUSTED_ORIGINS = env("CSRF_TRUSTED_ORIGINS")  # noqa: F405
+CSRF_TRUSTED_ORIGINS = env("CSRF_TRUSTED_ORIGINS")  # noqa: F405 — will raise if not set

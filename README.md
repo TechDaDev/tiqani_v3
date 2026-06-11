@@ -1,125 +1,162 @@
 # tiqani_v3 — Backend API
 
-Django REST Framework backend for the Tiqani platform.
+Django REST Framework backend for the Tiqani platform — a service marketplace connecting clients with technicians.
 
 ## Tech Stack
 
 - **Framework:** Django 5.2 + Django REST Framework
 - **Database:** SQLite (dev) / PostgreSQL (prod)
 - **Auth:** JWT (SimpleJWT)
+- **Server:** Gunicorn + WhiteNoise
 - **Python:** 3.12+
+- **Container:** Docker / Docker Compose
 
----
+## Current Backend Features
 
-## Quick Start (Development)
+- User registration, JWT authentication, OTP verification, password reset
+- Client & technician profiles with skill management
+- Service categories, skills, and sub-skills
+- Contract lifecycle (draft → proposal → acceptance → stages → completion)
+- Wallet system with balance, transactions, withdrawals, and escrow
+- Platform fee engine (automatic fee calculation per contract)
+- Payment intent preparation (funding, release, refund)
+- Post-contract rating and review system (with verification and moderation)
+- Notification system (per-user notifications + admin activity feed)
+- Admin dashboard with user, technician, contract, review, and finance management
+- Role-based admin access (system_admin, account_manager, finance_admin, content_moderator)
+- Security hardening: object-level permissions, unsafe field protection, rate limiting, audit trails
 
-### 1. Clone & enter the project
+## Quick Start
+
+### Local (venv)
 
 ```bash
+# Clone & enter
 cd tiqani_v3
-```
 
-### 2. Create and activate a virtual environment
+# Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
 
-```bash
-python -m venv .venv
-source .venv/bin/activate    # Linux/macOS
-# .venv\Scripts\activate     # Windows
-```
-
-### 3. Install dependencies
-
-```bash
+# Install dependencies
 pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+
+# Run migrations
+.venv/bin/python manage.py migrate
+
+# Seed platform fees
+.venv/bin/python manage.py seed_platform_fees
+
+# Start server
+.venv/bin/python manage.py runserver
 ```
 
-### 4. Configure environment
+### Docker (development)
 
 ```bash
 cp .env.example .env
+docker compose up --build
 ```
 
-Edit `.env` if needed. The defaults are suitable for local development.
-
-### 5. Run migrations
+### Docker (production-like)
 
 ```bash
-python manage.py migrate
+cp .env.production.example .env
+# Edit .env with real values
+docker compose -f docker-compose.prod.yml up --build -d
 ```
 
-### 6. Create a superuser (optional)
+## Environment Files
 
-```bash
-python manage.py createsuperuser
-```
+| File | Purpose |
+|---|---|
+| `.env.example` | Development environment template |
+| `.env.production.example` | Production environment template |
+| `.env` | Actual environment (gitignored) |
 
-### 7. Start the development server
+## Important Commands
 
-```bash
-python manage.py runserver
-```
+| Command | Description |
+|---|---|
+| `python manage.py migrate` | Apply pending migrations |
+| `python manage.py makemigrations --check --dry-run` | Verify no pending migrations |
+| `python manage.py check` | Run Django system checks |
+| `python manage.py test --verbosity=1` | Run full test suite |
+| `python manage.py seed_platform_fees` | Seed default platform fee config (idempotent) |
+| `python manage.py check_deployment_ready` | Deployment readiness check |
+| `python manage.py createsuperuser` | Create admin user |
+| `python manage.py collectstatic --noinput` | Collect static files for production |
+| `gunicorn tiqani_v3.wsgi:application --bind 0.0.0.0:8000` | Start production server |
 
-### 8. Test the health endpoint
+## API Route Groups
 
-```bash
-curl http://127.0.0.1:8000/api/health/
-```
+| Group | Base Path | Auth |
+|---|---|---|
+| Health | `GET /api/health/` | No |
+| Auth | `/api/auth/` | Mixed |
+| Accounts | `/api/accounts/` | Yes |
+| Categories | `/api/categories/` | Mixed |
+| Technicians | `/api/technicians/` | Mixed |
+| Clients | `/api/clients/` | Yes |
+| Contracts | `/api/contracts/` | Yes |
+| Wallet | `/api/wallet/` | Yes |
+| Reviews | `/api/reviews/` | Mixed |
+| Notifications | `/api/notifications/` | Yes |
+| Admin | `/api/admin/` | Admin |
 
-Expected response:
-
-```json
-{
-  "status": "ok",
-  "service": "tiqani_v3",
-  "database": "ok",
-  "debug": true
-}
-```
-
----
+See `docs/API_OVERVIEW.md` for detailed route documentation.
 
 ## Project Structure
 
 ```
 tiqani_v3/
-├── tiqani_v3/
+├── tiqani_v3/                    # Project config
 │   ├── settings/
-│   │   ├── __init__.py
-│   │   ├── base.py          # Shared settings (all environments)
-│   │   ├── dev.py           # Development overrides
-│   │   └── prod.py          # Production overrides
-│   ├── urls.py
-│   ├── views.py             # Health check endpoint
-│   ├── wsgi.py
-│   └── asgi.py
-├── accounts/                # User authentication & profiles
-├── category/                # Service categories
-├── contract/                # Contracts & agreements
-├── ratereview/              # Ratings & reviews
-├── wallet/                  # Wallet & transactions
-├── manage.py
+│   │   ├── base.py               # Shared settings (all environments)
+│   │   ├── dev.py                # Development overrides
+│   │   ├── prod.py               # Production overrides (secure defaults)
+│   │   └── test.py               # Test settings (high throttles)
+│   ├── urls.py                   # Root URL configuration
+│   ├── views.py                  # Health check endpoint
+│   ├── wsgi.py                   # WSGI entry point
+│   └── asgi.py                   # ASGI entry point
+├── accounts/                     # User auth, profiles, roles
+├── category/                     # Service categories & skills
+├── contract/                     # Contract lifecycle
+├── ratereview/                   # Ratings & reviews
+├── wallet/                       # Wallet, transactions, fees
+├── notification/                 # Notifications & activity feed
+├── dashboard/                    # Admin dashboard APIs
+├── postman/                      # Postman collections
+├── scripts/                      # Utility scripts (entrypoint)
+├── docs/                         # Documentation
+├── .github/workflows/            # CI pipeline
+├── Dockerfile                    # Production container image
+├── docker-compose.yml            # Dev compose (Postgres + Redis + Django)
+├── docker-compose.prod.yml       # Production-like compose
 ├── requirements.txt
-├── .env.example
-└── README.md
+└── .env.example
 ```
 
 ## Settings Modules
 
-| Module                        | Environment | Usage                       |
-|-------------------------------|-------------|-----------------------------|
-| `tiqani_v3.settings.dev`      | dev         | `python manage.py runserver` (default) |
-| `tiqani_v3.settings.prod`     | prod        | `gunicorn` or production WSGI |
+| Module | Environment | Usage |
+|---|---|---|
+| `tiqani_v3.settings.dev` | Dev | `python manage.py runserver` (default) |
+| `tiqani_v3.settings.prod` | Prod | Gunicorn / production WSGI |
+| `tiqani_v3.settings.test` | CI | Test suite (high throttle limits) |
 
-Override via the `DJANGO_SETTINGS_MODULE` environment variable.
+Override via `DJANGO_SETTINGS_MODULE` environment variable.
 
-## Production Checklist
+## Deployment
 
-- [ ] Set `DJANGO_SETTINGS_MODULE=tiqani_v3.settings.prod`
-- [ ] Set a strong `SECRET_KEY`
-- [ ] Set `DEBUG=False`
-- [ ] Set `ALLOWED_HOSTS` to your domain(s)
-- [ ] Set `DATABASE_URL` to your PostgreSQL connection string
-- [ ] Set `CORS_ALLOWED_ORIGINS` and `CSRF_TRUSTED_ORIGINS`
-- [ ] Configure a real SMTP `EMAIL_BACKEND`
-- [ ] Run `python manage.py collectstatic`
-- [ ] Use `gunicorn` behind a reverse proxy (nginx, Caddy, etc.)
+See:
+
+- `docs/DEPLOYMENT.md` — Full deployment guide (venv, Docker, production)
+- `docs/PRODUCTION_CHECKLIST.md` — Pre-deployment verification checklist
+- `docs/API_OVERVIEW.md` — Complete API route documentation
+- `docs/MAINTENANCE.md` — Backup, restore, and maintenance procedures
+- `docs/POSTMAN.md` — Postman collection import and usage guide

@@ -1,3 +1,5 @@
+import os
+
 from django.conf import settings
 from django.db import connections, DEFAULT_DB_ALIAS
 from django.http import JsonResponse
@@ -24,5 +26,6 @@ def health(request):
         "service": "tiqani_v3",
         "database": db_status,
         "debug": settings.DEBUG,
+        "version": os.environ.get("APP_VERSION", ""),
     }
     return JsonResponse(response, status=status_code)

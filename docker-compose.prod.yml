@@ -1,0 +1,73 @@
+# =============================================================================
+# tiqani_v3 — Production-like Docker Compose
+# =============================================================================
+# WARNING: This is NOT a complete cloud production deployment.
+# It is suitable for staging, preview, or production-like local testing.
+# For true production, use Docker Swarm, Kubernetes, or a PaaS (Heroku, etc.).
+#
+# Start with:
+#   cp .env.production.example .env
+#   # Edit .env with real values
+#   docker compose -f docker-compose.prod.yml up --build -d
+# =============================================================================
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: tiqani_db
+      POSTGRES_USER: tiqani_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tiqani_user -d tiqani_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+  web:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DJANGO_SETTINGS_MODULE: tiqani_v3.settings.prod
+      RUN_MIGRATIONS: "true"
+      RUN_COLLECTSTATIC: "true"
+      SEED_PLATFORM_FEES: "true"
+    volumes:
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    ports:
+      - "8000:8000"
+    command: ["gunicorn", "tiqani_v3.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "4", "--timeout", "120"]
+
+  # Optional Nginx reverse proxy — uncomment for local HTTPS testing
+  # nginx:
+  #   image: nginx:alpine
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+  #     - static_volume:/static:ro
+  #     - media_volume:/media:ro
+  #   ports:
+  #     - "80:80"
+  #   depends_on:
+  #     - web
+
+volumes:
+  postgres_data_prod:
+  redis_data:
+  static_volume:
+  media_volume:
