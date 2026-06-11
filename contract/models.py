@@ -582,7 +582,7 @@ class ContractStage(TimestampedModel):
 			technician_wallet.balance += self.amount
 			technician_wallet.save(update_fields=['balance', 'updated_at'])
 
-			transaction = WalletTransaction.objects.create(
+			txn = WalletTransaction.objects.create(
 				wallet=technician_wallet,
 				contract=self.contract,
 				transaction_type=WalletTransaction.Type.RELEASE,
@@ -590,7 +590,7 @@ class ContractStage(TimestampedModel):
 				description=f"Payment release for stage {self.stage_number} of contract {self.contract.contract_reference}"
 			)
 			
-			self.transaction = transaction
+			self.transaction = txn
 			self.save(update_fields=['is_approved_by_client', 'transaction'])
 			
 			# Update contract total_paid

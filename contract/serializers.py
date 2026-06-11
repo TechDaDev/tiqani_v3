@@ -124,30 +124,73 @@ class ContractDetailSerializer(serializers.ModelSerializer):
     stages = ContractStageSerializer(many=True, read_only=True)
     can_be_accepted = serializers.SerializerMethodField()
     incomplete_fields = serializers.SerializerMethodField()
+    allowed_actions = serializers.SerializerMethodField()
+    extension_requests = serializers.SerializerMethodField()
+    platform_fee_rate = serializers.SerializerMethodField()
     
     class Meta:
         model = Contract
         fields = (
             'id', 'contract_reference', 'client', 'technician', 'work_description',
-            'agreed_amount', 'amount_usd', 'currency',
+            'agreed_amount', 'amount_usd', 'currency', 'client_platform_fee', 'technician_platform_fee',
             'escrow_amount', 'total_paid', 'start_date', 'duration_days', 'contract_duration', 'stage_number',
-            'status', 'client_accepted', 'technician_accepted', 'stages',
-            'created_at', 'updated_at', 'can_be_accepted', 'incomplete_fields'
+            'status', 'client_accepted', 'technician_accepted', 'stages', 'extension_requests',
+            'created_at', 'updated_at', 'can_be_accepted', 'incomplete_fields', 'allowed_actions',
+            'platform_fee_rate',
         )
         read_only_fields = (
-            'id', 'contract_reference', 'client', 'technician', 'stages',
-            'amount_usd', 'currency', 'escrow_amount',
-            'total_paid', 'contract_duration', 'created_at', 'updated_at'
+            'id', 'contract_reference', 'client', 'technician', 'stages', 'extension_requests',
+            'amount_usd', 'currency', 'escrow_amount', 'client_platform_fee', 'technician_platform_fee',
+            'total_paid', 'contract_duration', 'created_at', 'updated_at',
+            'can_be_accepted', 'incomplete_fields', 'allowed_actions', 'platform_fee_rate',
         )
     
     def get_can_be_accepted(self, obj):
         return obj.can_be_accepted()
     
     def get_incomplete_fields(self, obj):
-        """Return list of incomplete fields for contract acceptance."""
         if obj.status == 'draft':
             return obj.get_incomplete_fields()
         return []
+
+    def get_platform_fee_rate(self, obj):
+        return float(obj.PLATFORM_FEE_RATE)
+
+    def get_extension_requests(self, obj):
+        qs = obj.extension_requests.all()
+        return TimeExtensionRequestSerializer(qs, many=True).data
+
+    def get_allowed_actions(self, obj):
+        """Return list of allowed actions for the requesting user."""
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            return []
+        user = request.user
+        actions = []
+        is_client = hasattr(user, "client_profile") and obj.client.user == user
+        is_technician = hasattr(user, "technician_profile") and obj.technician.user == user
+        is_admin = user.is_staff
+
+        if obj.status == "draft":
+            if is_technician:
+                actions.append("submit_proposal")
+            if is_client or is_admin:
+                actions.append("cancel")
+        elif obj.status == "pending_acceptance":
+            if is_client and not obj.client_accepted:
+                actions.append("accept")
+            if is_technician and not obj.technician_accepted:
+                actions.append("accept")
+            if (is_client or is_technician) or is_admin:
+                actions.append("cancel")
+        elif obj.status == "in_progress":
+            if is_technician:
+                actions.append("request_extension")
+            if is_admin:
+                actions.append("cancel")
+        elif obj.status in ("completed", "canceled"):
+            pass
+        return actions
 
 
 class ContractCreateSerializer(serializers.Serializer):
@@ -283,3 +326,35 @@ class ContractUpdateSerializer(serializers.ModelSerializer):
         
         instance.save()
         return instance
+
+
+class ContractProposalSerializer(serializers.Serializer):
+    """Technician fills proposal fields on a draft contract."""
+    work_description = serializers.CharField(required=False)
+    agreed_amount = serializers.DecimalField(max_digits=15, decimal_places=2, required=False)
+    amount_usd = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    duration_days = serializers.IntegerField(required=False, min_value=1)
+    start_date = serializers.DateField(required=False)
+    stage_number = serializers.ChoiceField(choices=Contract.STAGE_CHOICES, required=False)
+
+
+class ContractAcceptSerializer(serializers.Serializer):
+    """Accept a contract. No required body fields; status derived from auth."""
+    pass
+
+
+class ContractCancelSerializer(serializers.Serializer):
+    """Cancel a contract with optional reason."""
+    reason = serializers.CharField(required=False, allow_blank=True, max_length=2000)
+
+
+class TimeExtensionCreateSerializer(serializers.Serializer):
+    """Technician creates a time extension request."""
+    requested_days = serializers.IntegerField(min_value=1, max_value=30)
+    reason = serializers.CharField(max_length=2000, required=False, allow_blank=True)
+
+
+class ExtensionRespondSerializer(serializers.Serializer):
+    """Client responds to an extension request."""
+    approve = serializers.BooleanField(default=True)
+    client_response = serializers.CharField(required=False, allow_blank=True, max_length=2000)

@@ -35,7 +35,7 @@ urlpatterns = [
     # Public reviews
     path('api/reviews/', include('ratereview.urls')),
     # Contracts
-    path('api/contract/', include('contract.urls')),
+    path('api/contracts/', include('contract.urls')),
     # Health
     path('api/health/', health),
 ]

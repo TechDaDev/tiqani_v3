@@ -4,24 +4,31 @@ from django.urls import path
 from .views import (
     ContractListCreateView,
     ContractDetailView,
+    ContractAcceptView,
+    ContractCancelView,
     ContractStageListView,
     ContractStageDetailView,
-    TimeExtensionRequestListCreateView,
-    TimeExtensionRequestRespondView,
-    TimeExtensionDistributeView,
+    ContractStageSubmitView,
+    ContractStageApproveView,
+    ContractExtensionListView,
+    ContractExtensionCreateView,
+    ContractExtensionRespondView,
 )
 
 urlpatterns = [
-    # --- Contract Management ---
-    path('contracts/', ContractListCreateView.as_view(), name='contract_list_create'),
-    path('contracts/<uuid:contract_id>/', ContractDetailView.as_view(), name='contract_detail'),
-    
-    # --- Contract Stages ---
-    path('contracts/<uuid:contract_id>/stages/', ContractStageListView.as_view(), name='contract_stages_list'),
-    path('stages/<uuid:stage_id>/', ContractStageDetailView.as_view(), name='contract_stage_detail'),
-    
-    # --- Time Extension Requests ---
-    path('extension-requests/', TimeExtensionRequestListCreateView.as_view(), name='extension_requests_list'),
-    path('extension-requests/<uuid:request_id>/respond/', TimeExtensionRequestRespondView.as_view(), name='extension_request_respond'),
-    path('extension-requests/<uuid:request_id>/distribute_days/', TimeExtensionDistributeView.as_view(), name='extension_distribute'),
+    # --- Contract CRUD & Actions ---
+    path("", ContractListCreateView.as_view(), name="contract-list"),
+    path("<uuid:contract_id>/", ContractDetailView.as_view(), name="contract-detail"),
+    path("<uuid:contract_id>/accept/", ContractAcceptView.as_view(), name="contract-accept"),
+    path("<uuid:contract_id>/cancel/", ContractCancelView.as_view(), name="contract-cancel"),
+    # --- Stages ---
+    path("<uuid:contract_id>/stages/", ContractStageListView.as_view(), name="contract-stage-list"),
+    path("<uuid:contract_id>/stages/<uuid:stage_id>/", ContractStageDetailView.as_view(), name="contract-stage-detail"),
+    path("<uuid:contract_id>/stages/<uuid:stage_id>/submit/", ContractStageSubmitView.as_view(), name="contract-stage-submit"),
+    path("<uuid:contract_id>/stages/<uuid:stage_id>/approve/", ContractStageApproveView.as_view(), name="contract-stage-approve"),
+    # --- Extension Requests ---
+    path("<uuid:contract_id>/extension-requests/", ContractExtensionListView.as_view(), name="contract-extension-list"),
+    path("<uuid:contract_id>/extension-requests/create/", ContractExtensionCreateView.as_view(), name="contract-extension-create"),
+    path("<uuid:contract_id>/extension-requests/<uuid:request_id>/approve/", ContractExtensionRespondView.as_view(), name="contract-extension-approve"),
+    path("<uuid:contract_id>/extension-requests/<uuid:request_id>/reject/", ContractExtensionRespondView.as_view(), name="contract-extension-reject"),
 ]
