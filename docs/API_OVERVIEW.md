@@ -148,3 +148,23 @@ Authentication: JWT Bearer token (`Authorization: Bearer <token>`)
 | `account_manager` | User & technician management, no finance |
 | `finance_admin` | Finance & withdrawal management, no technician approval |
 | `content_moderator` | Review moderation only, no finance |
+
+---
+
+## Frontend Integration Order
+
+Recommended order for integrating frontend screens with the backend:
+
+1. **Health** — Verify the API is reachable
+2. **Auth** — Login, register, token management
+3. **Categories** — Load service categories for registration/forms
+4. **Current User (Accounts)** — Profile management
+5. **Technician List/Detail** — Public browsing of technicians
+6. **Client/Technician Profile** — Profile completion and editing
+7. **Contract Lifecycle** — Create, view, manage contracts and stages
+8. **Wallet / Payment Preparation** — Balance, transactions, withdrawals
+9. **Reviews** — View and create reviews
+10. **Notifications** — View and manage notifications
+11. **Admin Dashboard** — Platform management (admin users only)
+
+See `docs/FRONTEND_HANDOFF.md` for detailed frontend integration guide including auth flow, role model, route guards, and demo accounts.

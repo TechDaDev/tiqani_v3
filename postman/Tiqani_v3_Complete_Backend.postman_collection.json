@@ -1,0 +1,120 @@
+{
+  "info": {
+    "name": "Tiqani v3 — Complete Backend API",
+    "description": "## Tiqani v3 - Complete Backend API\n\n### All API groups for frontend integration and QA testing.\n\n1. Run `python manage.py seed_demo_data` on the backend\n2. Set `base_url` to your server URL (e.g. `http://127.0.0.1:8000`)\n3. Login with demo users to get tokens\n4. Execute requests by folder",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://127.0.0.1:8000" },
+    { "key": "access_token", "value": "" },
+    { "key": "refresh_token", "value": "" },
+    { "key": "client_token", "value": "" },
+    { "key": "technician_token", "value": "" },
+    { "key": "admin_token", "value": "" },
+    { "key": "finance_token", "value": "" },
+    { "key": "moderator_token", "value": "" },
+    { "key": "account_manager_token", "value": "" },
+    { "key": "user_id", "value": "" },
+    { "key": "technician_id", "value": "" },
+    { "key": "category_id", "value": "" },
+    { "key": "skill_id", "value": "" },
+    { "key": "contract_id", "value": "" },
+    { "key": "stage_id", "value": "" },
+    { "key": "review_id", "value": "" },
+    { "key": "notification_id", "value": "" },
+    { "key": "withdrawal_id", "value": "" },
+    { "key": "payment_intent_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        { "name": "GET /api/health/", "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/health/", "host": ["{{base_url}}"], "path": ["api","health"] }, "header": [] } }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        { "name": "POST Register Client", "request": { "method": "POST", "url": { "raw": "{{base_url}}/api/auth/register/", "host": ["{{base_url}}"], "path": ["api","auth","register"] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"username\": \"new_client\", \"email\": \"new@test.com\", \"password\": \"Test12345!\", \"password2\": \"Test12345!\", \"role\": \"client\"}" } } },
+        { "name": "POST Register Technician", "request": { "method": "POST", "url": { "raw": "{{base_url}}/api/auth/register/", "host": ["{{base_url}}"], "path": ["api","auth","register"] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"username\": \"new_tech\", \"email\": \"tech@test.com\", \"password\": \"Test12345!\", \"password2\": \"Test12345!\", \"role\": \"technician\"}" } } },
+        { "name": "POST Login", "request": { "method": "POST", "url": { "raw": "{{base_url}}/api/auth/login/", "host": ["{{base_url}}"], "path": ["api","auth","login"] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"username\": \"client_demo\", \"password\": \"ClientDemo123!\"}" } } },
+        { "name": "POST Login (admin)", "request": { "method": "POST", "url": { "raw": "{{base_url}}/api/auth/login/", "host": ["{{base_url}}"], "path": ["api","auth","login"] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"username\": \"admin_demo\", \"password\": \"AdminDemo123!\"}" } } },
+        { "name": "POST Token Refresh", "request": { "method": "POST", "url": { "raw": "{{base_url}}/api/auth/token/refresh/", "host": ["{{base_url}}"], "path": ["api","auth","token","refresh"] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"refresh\": \"{{refresh_token}}\"}" } } }
+      ]
+    },
+    {
+      "name": "Accounts",
+      "item": [
+        { "name": "GET /me", "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/accounts/me/", "host": ["{{base_url}}"], "path": ["api","accounts","me"] }, "header": [{ "key": "Authorization", "value": "Bearer {{client_token}}" }] } },
+        { "name": "PATCH /me", "request": { "method": "PATCH", "url": { "raw": "{{base_url}}/api/accounts/me/", "host": ["{{base_url}}"], "path": ["api","accounts","me"] }, "header": [{ "key": "Authorization", "value": "Bearer {{client_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"first_name\": \"Demo\", \"address\": \"Updated Address\"}" } } }
+      ]
+    },
+    {
+      "name": "Categories",
+      "item": [
+        { "name": "GET Categories", "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/categories/", "host": ["{{base_url}}"], "path": ["api","categories"] }, "header": [] } },
+        { "name": "GET Category Detail", "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/categories/{{category_id}}/", "host": ["{{base_url}}"], "path": ["api","categories","{{category_id}}"] }, "header": [] } }
+      ]
+    },
+    {
+      "name": "Technicians",
+      "item": [
+        { "name": "GET Public Technicians", "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/technicians/", "host": ["{{base_url}}"], "path": ["api","technicians"] }, "header": [] } },
+        { "name": "GET Technician Detail", "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/technicians/{{technician_id}}/", "host": ["{{base_url}}"], "path": ["api","technicians","{{technician_id}}"] }, "header": [] } }
+      ]
+    },
+    {
+      "name": "Clients",
+      "item": [
+        { "name": "GET Client Profile", "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/clients/me/", "host": ["{{base_url}}"], "path": ["api","clients","me"] }, "header": [{ "key": "Authorization", "value": "Bearer {{client_token}}" }] } }
+      ]
+    },
+    {
+      "name": "Contracts",
+      "item": [
+        { "name": "GET Contracts", "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/contracts/", "host": ["{{base_url}}"], "path": ["api","contracts"] }, "header": [{ "key": "Authorization", "value": "Bearer {{client_token}}" }] } },
+        { "name": "GET Contract Detail", "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/contracts/{{contract_id}}/", "host": ["{{base_url}}"], "path": ["api","contracts","{{contract_id}}"] }, "header": [{ "key": "Authorization", "value": "Bearer {{client_token}}" }] } },
+        { "name": "POST Create Draft", "request": { "method": "POST", "url": { "raw": "{{base_url}}/api/contracts/", "host": ["{{base_url}}"], "path": ["api","contracts"] }, "header": [{ "key": "Authorization", "value": "Bearer {{client_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"technician_id\": \"{{technician_id}}\", \"work_description\": \"Fix leaking pipe in kitchen\", \"agreed_amount\": \"75000\", \"stage_number\": 2, \"start_date\": \"2026-06-15\", \"duration_days\": 7}" } } },
+        { "name": "GET Stages", "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/contracts/{{contract_id}}/stages/", "host": ["{{base_url}}"], "path": ["api","contracts","{{contract_id}}","stages"] }, "header": [{ "key": "Authorization", "value": "Bearer {{client_token}}" }] } }
+      ]
+    },
+    {
+      "name": "Wallet",
+      "item": [
+        { "name": "GET Wallet /me", "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/wallet/me/", "host": ["{{base_url}}"], "path": ["api","wallet","me"] }, "header": [{ "key": "Authorization", "value": "Bearer {{client_token}}" }] } },
+        { "name": "GET Transactions", "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/wallet/transactions/", "host": ["{{base_url}}"], "path": ["api","wallet","transactions"] }, "header": [{ "key": "Authorization", "value": "Bearer {{client_token}}" }] } },
+        { "name": "GET Withdrawals", "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/wallet/withdrawals/", "host": ["{{base_url}}"], "path": ["api","wallet","withdrawals"] }, "header": [{ "key": "Authorization", "value": "Bearer {{client_token}}" }] } },
+        { "name": "POST Create Withdrawal", "request": { "method": "POST", "url": { "raw": "{{base_url}}/api/wallet/withdrawals/", "host": ["{{base_url}}"], "path": ["api","wallet","withdrawals"] }, "header": [{ "key": "Authorization", "value": "Bearer {{client_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"amount\": \"10000\", \"requested_method\": \"bank\", \"notes\": \"Test withdrawal\"}" } } },
+        { "name": "GET Payment Intents", "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/wallet/payment-intents/", "host": ["{{base_url}}"], "path": ["api","wallet","payment-intents"] }, "header": [{ "key": "Authorization", "value": "Bearer {{client_token}}" }] } }
+      ]
+    },
+    {
+      "name": "Reviews",
+      "item": [
+        { "name": "GET Technician Reviews (public)", "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/reviews/technician/{{technician_id}}/", "host": ["{{base_url}}"], "path": ["api","reviews","technician","{{technician_id}}"] }, "header": [] } },
+        { "name": "POST Mark Helpful", "request": { "method": "POST", "url": { "raw": "{{base_url}}/api/reviews/{{review_id}}/helpful/", "host": ["{{base_url}}"], "path": ["api","reviews","{{review_id}}","helpful"] }, "header": [{ "key": "Authorization", "value": "Bearer {{client_token}}" }] } }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        { "name": "GET Notifications", "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/notifications/", "host": ["{{base_url}}"], "path": ["api","notifications"] }, "header": [{ "key": "Authorization", "value": "Bearer {{client_token}}" }] } },
+        { "name": "GET Unread Count", "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/notifications/unread-count/", "host": ["{{base_url}}"], "path": ["api","notifications","unread-count"] }, "header": [{ "key": "Authorization", "value": "Bearer {{client_token}}" }] } },
+        { "name": "POST Mark All Read", "request": { "method": "POST", "url": { "raw": "{{base_url}}/api/notifications/mark-all-read/", "host": ["{{base_url}}"], "path": ["api","notifications","mark-all-read"] }, "header": [{ "key": "Authorization", "value": "Bearer {{client_token}}" }] } }
+      ]
+    },
+    {
+      "name": "Admin Dashboard",
+      "item": [
+        { "name": "GET Dashboard Summary", "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/admin/dashboard/summary/", "host": ["{{base_url}}"], "path": ["api","admin","dashboard","summary"] }, "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }] } },
+        { "name": "GET Users", "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/admin/users/", "host": ["{{base_url}}"], "path": ["api","admin","users"] }, "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }] } },
+        { "name": "GET Technicians", "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/admin/technicians/", "host": ["{{base_url}}"], "path": ["api","admin","technicians"] }, "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }] } },
+        { "name": "GET Pending Technicians", "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/admin/technicians/pending/", "host": ["{{base_url}}"], "path": ["api","admin","technicians","pending"] }, "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }] } },
+        { "name": "GET Contracts", "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/admin/contracts/", "host": ["{{base_url}}"], "path": ["api","admin","contracts"] }, "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }] } },
+        { "name": "GET Reviews (admin)", "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/admin/reviews/", "host": ["{{base_url}}"], "path": ["api","admin","reviews"] }, "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }] } },
+        { "name": "GET Finance Summary", "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/admin/finance/summary/", "host": ["{{base_url}}"], "path": ["api","admin","finance","summary"] }, "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }] } },
+        { "name": "GET Activity Feed", "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/admin/activity/", "host": ["{{base_url}}"], "path": ["api","admin","activity"] }, "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }] } }
+      ]
+    }
+  ]
+}

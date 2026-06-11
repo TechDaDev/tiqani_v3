@@ -151,12 +151,46 @@ tiqani_v3/
 
 Override via `DJANGO_SETTINGS_MODULE` environment variable.
 
+## Seed Demo Data
+
+```bash
+.venv/bin/python manage.py seed_demo_data
+```
+
+Creates 7 demo users with different roles, categories and skills, 3 demo contracts, a verified review, and demo notifications. Idempotent — safe to run multiple times.
+
+## Final QA Check
+
+```bash
+.venv/bin/python manage.py final_backend_qa
+```
+
+Runs a quick deployment readiness checklist on the console.
+
+## Frontend Integration
+
+See `docs/FRONTEND_HANDOFF.md` for:
+- Auth flow (login, register, token refresh)
+- Role model and admin sub-roles
+- Frontend route guards by role
+- API response patterns and error codes
+- Demo accounts table with credentials
+- Known limitations (no chat, no real payments, no WebSockets)
+
+## Postman
+
+Complete collection at `postman/Tiqani_v3_Complete_Backend.postman_collection.json` — covers all API groups with variable-based token management.
+
+See `docs/POSTMAN.md` for import and usage guide.
+
 ## Deployment
 
 See:
 
 - `docs/DEPLOYMENT.md` — Full deployment guide (venv, Docker, production)
 - `docs/PRODUCTION_CHECKLIST.md` — Pre-deployment verification checklist
+- `docs/QA_CHECKLIST.md` — Comprehensive QA testing checklist
+- `docs/RELEASE_NOTES_PHASE_1_TO_10.md` — Full release history
 - `docs/API_OVERVIEW.md` — Complete API route documentation
 - `docs/MAINTENANCE.md` — Backup, restore, and maintenance procedures
 - `docs/POSTMAN.md` — Postman collection import and usage guide
