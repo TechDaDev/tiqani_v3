@@ -36,30 +36,54 @@ Authentication: JWT Bearer token (`Authorization: Bearer <token>`)
 |---|---|---|
 | POST | `/api/auth/register/` | Register new user |
 | POST | `/api/auth/login/` | JWT login (returns access + refresh tokens) |
-| POST | `/api/auth/token/refresh/` | Refresh access token |
-| POST | `/api/auth/verify-otp/` | Verify OTP code |
+| POST | `/api/auth/refresh/` | Refresh access token |
+| POST | `/api/auth/logout/` | Logout (blacklist refresh token) |
+| POST | `/api/auth/verify-email/` | Verify email / OTP code |
 | POST | `/api/auth/resend-otp/` | Resend OTP code |
 | POST | `/api/auth/forgot-password/` | Request password reset |
-| POST | `/api/auth/reset-password/` | Confirm password reset |
+| POST | `/api/auth/password-reset-confirm/` | Confirm password reset |
 
 ### Accounts (`/api/accounts/`)
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/accounts/me/` | Get current user profile |
-| PATCH | `/api/accounts/me/` | Update current user profile |
-| PUT | `/api/accounts/me/` | Full update current user profile |
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/api/accounts/me/` | Any | Get current user profile |
+| PATCH | `/api/accounts/me/` | Any | Update current user profile |
+| PUT | `/api/accounts/me/` | Any | Full update current user profile |
+
+### Clients (`/api/clients/`)
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/api/clients/me/` | Client | Get client profile |
+| PATCH | `/api/clients/me/` | Client | Update client profile fields (phone, address, etc.) |
 
 ### Categories (`/api/categories/`)
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/categories/` | List all categories (public) |
-| GET | `/api/categories/<id>/` | Category detail with skills and sub-skills |
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/api/categories/` | Public | List all categories |
+| POST | `/api/categories/` | Admin | Create category |
+| GET | `/api/categories/<id>/` | Public | Category detail with skills and sub-skills |
+| PUT | `/api/categories/<id>/` | Admin | Update category |
+| PATCH | `/api/categories/<id>/` | Admin | Partial update category |
+| DELETE | `/api/categories/<id>/` | Admin | Delete category |
+| GET | `/api/categories/skills/` | Public | List all skills |
+| GET | `/api/categories/sub-skills/` | Public | List all sub-skills |
 
 ### Technicians (`/api/technicians/`)
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/technicians/` | List public technicians (filterable) |
-| GET | `/api/technicians/<id>/` | Technician detail with skills and reviews |
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/api/technicians/` | Public | List public technicians (filterable) |
+| GET | `/api/technicians/<id>/` | Public | Technician detail with skills and reviews |
+| GET | `/api/technicians/me/` | Technician | Get own technician profile |
+| PATCH | `/api/technicians/me/` | Technician | Update own technician profile |
+| GET | `/api/technicians/me/skills/` | Technician | Get own skills |
+| PUT | `/api/technicians/me/skills/` | Technician | Update own skills |
+| GET | `/api/technicians/me/images/` | Technician | List own portfolio images |
+| POST | `/api/technicians/me/images/` | Technician | Upload portfolio image |
+| GET | `/api/technicians/me/images/<id>/` | Technician | Portfolio image detail |
+| DELETE | `/api/technicians/me/images/<id>/` | Technician | Delete portfolio image |
+| GET | `/api/technicians/me/availability/` | Technician | Get availability status |
+| POST | `/api/technicians/me/availability/` | Technician | Toggle availability |
+| GET | `/api/technicians/me/ratings/` | Technician | Get own rating stats |
 
 ### Contracts (`/api/contracts/`)
 | Method | Path | Description |
@@ -70,31 +94,44 @@ Authentication: JWT Bearer token (`Authorization: Bearer <token>`)
 | POST | `/api/contracts/<id>/accept/` | Accept contract |
 | POST | `/api/contracts/<id>/cancel/` | Cancel contract |
 | GET | `/api/contracts/<id>/stages/` | List contract stages |
+| GET | `/api/contracts/<id>/stages/<sid>/` | Stage detail |
 | POST | `/api/contracts/<id>/stages/<sid>/submit/` | Submit stage (technician) |
 | POST | `/api/contracts/<id>/stages/<sid>/approve/` | Approve stage (client) |
-| GET/POST | `/api/contracts/<id>/extension-requests/` | Extension requests |
+| GET | `/api/contracts/<id>/extension-requests/` | List extension requests |
+| POST | `/api/contracts/<id>/extension-requests/create/` | Create extension request |
+| POST | `/api/contracts/<id>/extension-requests/<rid>/approve/` | Approve extension |
+| POST | `/api/contracts/<id>/extension-requests/<rid>/reject/` | Reject extension |
 
 ### Wallet (`/api/wallet/`)
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/wallet/me/` | Get own wallet + recent transactions |
-| GET | `/api/wallet/transactions/` | List own transactions |
-| GET | `/api/wallet/withdrawals/` | List withdrawal requests |
-| POST | `/api/wallet/withdrawals/` | Create withdrawal request |
-| GET | `/api/wallet/withdrawals/<id>/` | Withdrawal detail |
-| GET | `/api/wallet/payment-intents/` | List payment intents |
-| GET | `/api/wallet/payment-intents/<id>/` | Payment intent detail |
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/api/wallet/me/` | Any | Get own wallet + recent transactions |
+| GET | `/api/wallet/transactions/` | Any | List own transactions |
+| GET | `/api/wallet/withdrawals/` | Any | List withdrawal requests |
+| POST | `/api/wallet/withdrawals/` | Any | Create withdrawal request |
+| GET | `/api/wallet/withdrawals/<id>/` | Any | Withdrawal detail |
+| POST | `/api/wallet/withdrawals/<id>/approve/` | Admin | Approve withdrawal |
+| POST | `/api/wallet/withdrawals/<id>/reject/` | Admin | Reject withdrawal |
+| GET | `/api/wallet/payment-intents/` | Any | List payment intents |
+| GET | `/api/wallet/payment-intents/<id>/` | Any | Payment intent detail |
+| POST | `/api/wallet/payment-intents/<id>/mark-paid/` | Admin | Mark payment intent paid |
+| GET | `/api/wallet/fee-config/` | Any | List platform fee configs |
+| GET | `/api/wallet/contracts/<id>/breakdown/` | Any | Get contract payment breakdown |
 
 ### Reviews (`/api/reviews/`)
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/reviews/technician/<id>/` | Public reviews for a technician |
-| POST | `/api/reviews/` | Create review |
-| GET | `/api/reviews/<id>/` | Public review detail |
-| PATCH | `/api/reviews/<id>/` | Update own review |
-| POST | `/api/reviews/<id>/respond/` | Technician responds to review |
-| POST | `/api/reviews/<id>/helpful/` | Mark review as helpful |
-| POST | `/api/reviews/<id>/report/` | Report review |
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/api/reviews/technician/<id>/` | Public | Public reviews for a technician |
+| POST | `/api/reviews/` | Client | Create review |
+| GET | `/api/reviews/<id>/` | Public | Public review detail |
+| PATCH | `/api/reviews/<id>/` | Reviewer | Update own review |
+| POST | `/api/reviews/<id>/respond/` | Technician | Technician responds to review |
+| POST | `/api/reviews/<id>/helpful/` | Any | Mark review as helpful |
+| POST | `/api/reviews/<id>/report/` | Any | Report review |
+| POST | `/api/reviews/<id>/moderate/publish/` | Moderator | Publish a hidden review |
+| POST | `/api/reviews/<id>/moderate/hide/` | Moderator | Hide a review |
+| POST | `/api/reviews/<id>/moderate/verify/` | Moderator | Verify a review |
+| POST | `/api/reviews/<id>/moderate/unverify/` | Moderator | Unverify a review |
 
 ### Notifications (`/api/notifications/`)
 | Method | Path | Description |
