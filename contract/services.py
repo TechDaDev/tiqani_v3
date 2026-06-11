@@ -65,6 +65,13 @@ def accept_contract(contract, user):
     # Save triggers status transition + escrow + stage creation if both accepted
     contract.save()
     contract.refresh_from_db()
+
+    # Phase 4: if contract moved to in_progress, create fee breakdown & payment intent
+    if contract.status == "in_progress":
+        from wallet.services import ensure_contract_payment_breakdown, create_contract_funding_intent
+        ensure_contract_payment_breakdown(contract)
+        create_contract_funding_intent(contract, contract.client.user)
+
     return contract
 
 
@@ -130,7 +137,9 @@ def approve_stage(stage, client_profile):
     if not stage.completed_at:
         raise ValueError("Stage must be submitted before approval.")
 
-    stage.approve_by_client()
+    # Phase 4: use fee-aware stage release
+    from wallet.services import record_stage_release_with_fees
+    stage = record_stage_release_with_fees(stage)
 
     # Check if all stages approved → complete contract
     all_approved = not stage.contract.stages.filter(is_approved_by_client=False).exists()

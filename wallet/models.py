@@ -150,3 +150,200 @@ class PlatformWalletTransaction(TimestampedModel):
 
     def __str__(self):
         return f"Platform fee {self.amount} from {self.source_type}"
+
+
+# ──────────────────────────────────────────────
+#  Phase 4 – Fee engine & payment prep models
+# ──────────────────────────────────────────────
+
+
+class PlatformFeeConfig(TimestampedModel):
+    """Configurable platform fee rates. Only one active at a time."""
+
+    name = models.CharField(max_length=128, help_text="Label for this fee config")
+    technician_commission_rate = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal("10.00"),
+        help_text="Percentage deducted from technician payout",
+    )
+    client_service_fee_rate = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal("5.00"),
+        help_text="Percentage added to client total as service/protection fee",
+    )
+    is_active = models.BooleanField(default=True, db_index=True)
+    effective_from = models.DateTimeField(null=True, blank=True)
+    effective_until = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Platform Fee Config"
+        verbose_name_plural = "Platform Fee Configs"
+
+    def __str__(self):
+        return f"{self.name} (tech={self.technician_commission_rate}% client={self.client_service_fee_rate}%)"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.technician_commission_rate < 0:
+            raise ValidationError("Technician commission rate cannot be negative.")
+        if self.client_service_fee_rate < 0:
+            raise ValidationError("Client service fee rate cannot be negative.")
+
+    @classmethod
+    def get_active_config(cls):
+        config = cls.objects.filter(is_active=True).order_by("-created_at").first()
+        if config is None:
+            config = cls.objects.create(
+                name="Default 15% Platform Fee",
+                technician_commission_rate=Decimal("10.00"),
+                client_service_fee_rate=Decimal("5.00"),
+            )
+        return config
+
+
+class ContractPaymentBreakdown(TimestampedModel):
+    """Snapshot of fee breakdown for a single contract at acceptance time."""
+
+    contract = models.OneToOneField(
+        "contract.Contract", on_delete=models.CASCADE,
+        related_name="payment_breakdown",
+    )
+    fee_config = models.ForeignKey(
+        PlatformFeeConfig, null=True, blank=True,
+        on_delete=models.SET_NULL,
+    )
+    contract_amount = models.DecimalField(max_digits=15, decimal_places=2)
+    technician_commission_rate = models.DecimalField(max_digits=5, decimal_places=2)
+    client_service_fee_rate = models.DecimalField(max_digits=5, decimal_places=2)
+    technician_commission_amount = models.DecimalField(max_digits=15, decimal_places=2)
+    client_service_fee_amount = models.DecimalField(max_digits=15, decimal_places=2)
+    total_platform_fee = models.DecimalField(max_digits=15, decimal_places=2)
+    client_total_amount = models.DecimalField(max_digits=15, decimal_places=2)
+    technician_net_amount = models.DecimalField(max_digits=15, decimal_places=2)
+    currency = models.CharField(max_length=3, default="IQD")
+
+    class Meta:
+        verbose_name = "Contract Payment Breakdown"
+        verbose_name_plural = "Contract Payment Breakdowns"
+
+    def __str__(self):
+        return f"Breakdown for {self.contract.contract_reference}: platform={self.total_platform_fee}"
+
+
+class PlatformEarning(TimestampedModel):
+    """Ledger record of platform revenue earned from contract/stage."""
+
+    class EarningType(models.TextChoices):
+        TECHNICIAN_COMMISSION = "technician_commission", "Technician Commission"
+        CLIENT_SERVICE_FEE = "client_service_fee", "Client Service Fee"
+        ADJUSTMENT = "adjustment", "Adjustment"
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        EARNED = "earned", "Earned"
+        REVERSED = "reversed", "Reversed"
+
+    contract = models.ForeignKey(
+        "contract.Contract", on_delete=models.CASCADE,
+        related_name="platform_earnings",
+    )
+    stage = models.ForeignKey(
+        "contract.ContractStage", null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="platform_earnings",
+    )
+    earning_type = models.CharField(max_length=30, choices=EarningType.choices, db_index=True)
+    amount = models.DecimalField(max_digits=15, decimal_places=2)
+    currency = models.CharField(max_length=3, default="IQD")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True)
+    wallet_transaction = models.ForeignKey(
+        "wallet.WalletTransaction", null=True, blank=True,
+        on_delete=models.SET_NULL,
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Platform Earning"
+        verbose_name_plural = "Platform Earnings"
+
+    def __str__(self):
+        return f"{self.get_earning_type_display()} {self.amount} – {self.get_status_display()}"
+
+
+class PaymentIntent(TimestampedModel):
+    """Placeholder for future external payment provider."""
+
+    class Purpose(models.TextChoices):
+        CONTRACT_FUNDING = "contract_funding", "Contract Funding"
+        WALLET_DEPOSIT = "wallet_deposit", "Wallet Deposit"
+        WITHDRAWAL = "withdrawal", "Withdrawal"
+
+    class Provider(models.TextChoices):
+        MANUAL = "manual", "Manual / Internal"
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        REQUIRES_ACTION = "requires_action", "Requires Action"
+        PAID = "paid", "Paid"
+        FAILED = "failed", "Failed"
+        CANCELED = "canceled", "Canceled"
+
+    contract = models.ForeignKey(
+        "contract.Contract", on_delete=models.CASCADE,
+        related_name="payment_intents",
+    )
+    user = models.ForeignKey(
+        "accounts.CustomUser", on_delete=models.CASCADE,
+        related_name="payment_intents",
+    )
+    amount = models.DecimalField(max_digits=15, decimal_places=2)
+    currency = models.CharField(max_length=3, default="IQD")
+    purpose = models.CharField(max_length=30, choices=Purpose.choices, default=Purpose.CONTRACT_FUNDING)
+    provider = models.CharField(max_length=30, choices=Provider.choices, default=Provider.MANUAL)
+    provider_reference = models.CharField(max_length=255, blank=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Payment Intent"
+        verbose_name_plural = "Payment Intents"
+
+    def __str__(self):
+        return f"{self.get_purpose_display()} {self.amount} – {self.get_status_display()}"
+
+
+class WithdrawalRequest(TimestampedModel):
+    """Technician/admin withdrawal preparation record."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+        PAID = "paid", "Paid"
+        CANCELED = "canceled", "Canceled"
+
+    user = models.ForeignKey(
+        "accounts.CustomUser", on_delete=models.CASCADE,
+        related_name="withdrawal_requests",
+    )
+    wallet = models.ForeignKey(
+        Wallet, on_delete=models.PROTECT,
+        related_name="withdrawal_requests",
+    )
+    amount = models.DecimalField(max_digits=15, decimal_places=2)
+    currency = models.CharField(max_length=3, default="IQD")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True)
+    requested_method = models.CharField(max_length=50, blank=True)
+    notes = models.TextField(blank=True)
+    admin_note = models.TextField(blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Withdrawal Request"
+        verbose_name_plural = "Withdrawal Requests"
+
+    def __str__(self):
+        return f"Withdrawal {self.amount} – {self.get_status_display()}"

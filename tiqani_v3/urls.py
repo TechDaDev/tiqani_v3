@@ -36,6 +36,8 @@ urlpatterns = [
     path('api/reviews/', include('ratereview.urls')),
     # Contracts
     path('api/contracts/', include('contract.urls')),
+    # Wallet / Fees / Payment Prep
+    path('api/wallet/', include('wallet.urls')),
     # Health
     path('api/health/', health),
 ]
