@@ -1,70 +1,57 @@
-"""Admin dashboard permission helpers."""
+"""Admin dashboard permission helpers.
 
-from rest_framework.permissions import BasePermission, SAFE_METHODS
+Now delegates to accounts.role_helpers for consistent checks.
+"""
 
-from accounts.models import AdminProfile
+from rest_framework.permissions import BasePermission
 
-
-def _get_admin_role(user):
-    """Return the admin_role string for a user, or None."""
-    if not user.is_authenticated:
-        return None
-    if user.is_superuser:
-        return 'superuser'
-    if hasattr(user, 'admin_profile') and user.admin_profile:
-        return user.admin_profile.role
-    return None
+from accounts.role_helpers import (
+    is_platform_admin,
+    is_system_admin,
+    is_finance_admin,
+    is_account_manager,
+    is_content_moderator,
+    is_admin_or_staff as _helpers_admin_or_staff,
+)
 
 
 class IsPlatformAdmin(BasePermission):
     """Any staff/superuser/admin user."""
 
     def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-        if request.user.is_superuser or request.user.is_staff:
-            return True
-        if request.user.role == 'admin':
-            return True
-        return False
+        return is_platform_admin(request.user)
 
 
 class IsSystemAdmin(BasePermission):
     """Superuser or system_admin role."""
 
     def has_permission(self, request, view):
-        role = _get_admin_role(request.user)
-        return role in ('superuser', 'system_admin')
+        return is_system_admin(request.user)
 
 
 class IsFinanceAdmin(BasePermission):
     """Superuser, system_admin, or finance_admin."""
 
     def has_permission(self, request, view):
-        role = _get_admin_role(request.user)
-        return role in ('superuser', 'system_admin', 'finance_admin')
+        return is_finance_admin(request.user)
 
 
 class IsAccountManager(BasePermission):
-    """Superuser, system_admin, or account_manager (if exists)."""
-    # The existing AdminProfile doesn't have account_manager, but we support it
+    """Superuser, system_admin, or account_manager."""
+
     def has_permission(self, request, view):
-        role = _get_admin_role(request.user)
-        return role in ('superuser', 'system_admin', 'account_manager')
+        return is_account_manager(request.user)
 
 
 class IsContentModerator(BasePermission):
     """Superuser, system_admin, or content_moderator."""
 
     def has_permission(self, request, view):
-        role = _get_admin_role(request.user)
-        return role in ('superuser', 'system_admin', 'content_moderator')
+        return is_content_moderator(request.user)
 
 
 class IsAdminOrStaff(BasePermission):
     """Broad admin access — any staff or admin user."""
 
     def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-        return bool(request.user.is_staff or request.user.is_superuser)
+        return _helpers_admin_or_staff(request.user)

@@ -287,6 +287,7 @@ class AdminProfile(BaseProfile):
         SYSTEM_ADMIN = 'system_admin', _('System Admin')
         MODERATOR = 'content_moderator', _('Moderator')
         FINANCE = 'finance_admin', _('Finance')
+        ACCOUNT_MANAGER = 'account_manager', _('Account Manager')
 
     user = models.OneToOneField(
         CustomUser, 

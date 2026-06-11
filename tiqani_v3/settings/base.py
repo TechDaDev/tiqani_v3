@@ -170,6 +170,9 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "anon": env("THROTTLE_ANON", default="10/minute"),
         "user": env("THROTTLE_USER", default="60/minute"),
+        "login": env("THROTTLE_LOGIN", default="5/minute"),
+        "password_reset": env("THROTTLE_PASSWORD_RESET", default="3/minute"),
+        "otp": env("THROTTLE_OTP", default="3/minute"),
     },
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
