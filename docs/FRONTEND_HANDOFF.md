@@ -232,6 +232,585 @@ Include this header in every request after login. The access token expires after
 
 ---
 
+## API Endpoints by Group
+
+### Accounts (`/api/accounts/`)
+
+**GET /api/accounts/me/** — Get current user profile
+```
+Authorization: Bearer <access_token>
+
+Response 200:
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "username": "john_doe",
+  "role": "client",
+  "first_name": "John",
+  "last_name": "Doe",
+  "email": "john@example.com",
+  "phone_number": "07701234567",
+  "governorate": "Baghdad",
+  "address": "123 Main St",
+  "gender": "male",
+  "date_of_birth": "1995-01-15",
+  "age": 31,
+  "profile_image": "http://127.0.0.1:8000/media/users/avatars/abc123.jpg",
+  "is_profile_complete": true,
+  "date_joined": "2026-01-10T12:00:00+03:00"
+}
+```
+
+**PATCH /api/accounts/me/** — Update current user profile
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+Request:
+{
+  "first_name": "John",
+  "last_name": "Updated",
+  "phone_number": "07701234567",
+  "governorate": "Basra",
+  "address": "456 New St",
+  "gender": "male",
+  "date_of_birth": "1995-01-15"
+}
+
+Response 200: (same shape as GET)
+```
+
+---
+
+### Clients (`/api/clients/`)
+
+**GET /api/clients/me/** — Get client profile with wallet data
+```
+Authorization: Bearer <access_token>
+
+Response 200:
+{
+  "user_id": "550e8400-e29b-41d4-a716-446655440000",
+  "username": "john_doe",
+  "full_name": "John Doe",
+  "email": "jo***@example.com",
+  "phone_number": "077****4567",
+  "governorate": "Baghdad",
+  "gender": "male",
+  "profile_image": "http://127.0.0.1:8000/media/users/avatars/abc123.jpg",
+  "age": 31,
+  "is_complete": true,
+  "wallet_id": "660e8400-e29b-41d4-a716-446655441111",
+  "balance": "500000.00",
+  "created_at": "2026-01-10T12:00:00+03:00"
+}
+```
+
+**PATCH /api/clients/me/** — Update client profile (same editable fields as accounts/me)
+
+---
+
+### Technicians (`/api/technicians/`)
+
+**GET /api/technicians/** — List public technicians (paginated)
+```
+Response 200:
+{
+  "count": 25,
+  "next": "http://127.0.0.1:8000/api/technicians/?page=2",
+  "previous": null,
+  "results": [
+    {
+      "user_id": "550e8400-e29b-41d4-a716-446655440001",
+      "username": "tech_demo",
+      "full_name": "Ahmed Ali",
+      "governorate": "Baghdad",
+      "profile_image": "http://127.0.0.1:8000/media/users/avatars/tech.jpg",
+      "job_title": "Electrician",
+      "about": "Expert electrician with 8+ years...",
+      "years_of_expertise": 8,
+      "is_available": true,
+      "rate": "4.50"
+    }
+  ]
+}
+
+Filters: ?governorate=Baghdad&is_available=true&skill_id=<uuid>&order_by=-rate
+```
+
+**GET /api/technicians/<id>/** — Technician detail with skills and reviews
+```
+Response 200:
+{
+  "user_id": "550e8400-...",
+  "username": "tech_demo",
+  "full_name": "Ahmed Ali",
+  "email": "te***@example.com",
+  "phone_number": "077****4567",
+  "governorate": "Baghdad",
+  "profile_image": "...",
+  "job_title": "Electrician",
+  "about": "Expert electrician...",
+  "years_of_expertise": 8,
+  "is_available": true,
+  "rate": "4.50",
+  "skills": {
+    "categories": [{"id": "...", "name": "Electrical"}],
+    "skills": [{"id": "...", "name": "Wiring"}],
+    "sub_skills": []
+  },
+  "portfolio_images": [
+    {"id": "...", "image": "...", "description": "Work sample"}
+  ],
+  "is_online": true,
+  "last_active": "2026-06-11T10:00:00+03:00"
+}
+```
+
+**GET /api/technicians/me/** — Get own technician profile (technician only)
+```
+Authorization: Bearer <access_token>
+
+Response 200: (same shape as detail above, plus private fields)
+```
+
+**PATCH /api/technicians/me/** — Update own technician profile
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+Request:
+{
+  "job_title": "Senior Electrician",
+  "about": "Updated bio text",
+  "years_of_expertise": 9
+}
+
+Response 200: (updated profile)
+```
+
+**GET|PUT /api/technicians/me/skills/** — Get/update own skill set
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+Response 200:
+{
+  "categories": ["<category_uuid>"],
+  "skills": ["<skill_uuid>"],
+  "sub_skills": []
+}
+
+PUT Request:
+{
+  "categories": ["<category_uuid>"],
+  "skills": ["<skill_uuid>"],
+  "sub_skills": []
+}
+```
+
+**POST /api/technicians/me/availability/** — Toggle availability
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+Request:
+{
+  "is_available": false
+}
+
+Response 200:
+{
+  "is_available": false
+}
+```
+
+---
+
+### Categories (`/api/categories/`)
+
+**GET /api/categories/** — List all categories
+```
+Response 200:
+{
+  "count": 5,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "id": "550e8400-...",
+      "name": "Electrical",
+      "description": "Electrical services",
+      "image": null,
+      "skills": [
+        {"id": "...", "name": "Wiring"},
+        {"id": "...", "name": "AC Repair"}
+      ]
+    }
+  ]
+}
+```
+
+**GET /api/categories/skills/** — List all skills
+**GET /api/categories/sub-skills/** — List all sub-skills
+
+---
+
+### Contracts (`/api/contracts/`)
+
+**GET /api/contracts/** — List user's contracts
+```
+Authorization: Bearer <access_token>
+
+Response 200:
+[
+  {
+    "id": "770e8400-...",
+    "contract_reference": "#A1B2C3D4E5F6",
+    "status": "in_progress",
+    "client": {"id": "...", "username": "client_demo"},
+    "technician": {"id": "...", "username": "tech_demo"},
+    "work_description": "Fix electrical wiring",
+    "agreed_amount": "75000.00",
+    "stage_number": 2,
+    "client_accepted": true,
+    "technician_accepted": true,
+    "created_at": "2026-06-01T10:00:00+03:00"
+  }
+]
+```
+
+**POST /api/contracts/** — Create draft contract (client only)
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+Request:
+{
+  "technician_id": "<technician_uuid>",
+  "work_description": "Fix electrical wiring in kitchen",
+  "agreed_amount": "75000.00",
+  "stage_number": 2,
+  "start_date": "2026-06-15",
+  "duration_days": 7
+}
+
+Response 201: (contract detail)
+```
+
+**POST /api/contracts/<id>/accept/** — Accept contract (client or technician)
+```
+Authorization: Bearer <access_token>
+
+Response 200:
+{
+  "status": "pending_acceptance",
+  "client_accepted": true,
+  "technician_accepted": false
+}
+```
+
+**POST /api/contracts/<id>/cancel/** — Cancel contract
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+Request:
+{
+  "reason": "Changed requirements"
+}
+
+Response 200:
+{
+  "status": "canceled",
+  "canceled_at": "..."
+}
+```
+
+**GET /api/contracts/<id>/stages/** — List stages
+```
+Response 200:
+[
+  {
+    "id": "880e8400-...",
+    "stage_number": 1,
+    "title": "Initial assessment",
+    "amount": "37500.00",
+    "status": "completed",
+    "is_approved_by_client": true,
+    "completed_at": "2026-06-08T15:00:00+03:00",
+    "created_at": "2026-06-01T10:00:00+03:00"
+  }
+]
+```
+
+**POST /api/contracts/<id>/stages/<sid>/submit/** — Submit stage (technician only)
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+Request:
+{
+  "description": "Work completed for this stage",
+  "attachment": null
+}
+
+Response 200: (updated stage)
+```
+
+**POST /api/contracts/<id>/stages/<sid>/approve/** — Approve stage (client only)
+```
+Authorization: Bearer <access_token>
+
+Response 200:
+{
+  "is_approved_by_client": true
+}
+```
+
+---
+
+### Wallet (`/api/wallet/`)
+
+**GET /api/wallet/me/** — Get own wallet + recent transactions
+```
+Authorization: Bearer <access_token>
+
+Response 200:
+{
+  "balance": "500000.00",
+  "transaction_id": "abc123...",
+  "recent_transactions": [
+    {
+      "id": "990e8400-...",
+      "transaction_type": "deposit",
+      "amount": "100000.00",
+      "description": "Wallet top-up",
+      "created_at": "2026-06-10T12:00:00+03:00"
+    }
+  ]
+}
+```
+
+**GET /api/wallet/transactions/** — List own transactions
+```
+Authorization: Bearer <access_token>
+
+Filters: ?transaction_type=deposit&created_after=2026-01-01
+
+Response 200: (array of transactions)
+```
+
+**GET /api/wallet/withdrawals/** — List withdrawal requests
+**POST /api/wallet/withdrawals/** — Create withdrawal request
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+Request:
+{
+  "amount": "50000.00",
+  "requested_method": "bank",
+  "notes": "Monthly withdrawal"
+}
+
+Response 201:
+{
+  "id": "...",
+  "amount": "50000.00",
+  "status": "pending",
+  "requested_method": "bank",
+  "created_at": "..."
+}
+```
+
+**GET /api/wallet/payment-intents/** — List payment intents
+```
+Authorization: Bearer <access_token>
+
+Response 200: (array of payment intents)
+```
+
+---
+
+### Reviews (`/api/reviews/`)
+
+**GET /api/reviews/technician/<id>/** — Public reviews for a technician
+```
+Response 200:
+{
+  "count": 5,
+  "results": [
+    {
+      "id": "aa0e8400-...",
+      "reviewer": {"id": "...", "username": "client_demo"},
+      "rating": 5,
+      "title": "Excellent work!",
+      "comment": "The technician completed all work on time.",
+      "technician_response": "Thank you!",
+      "is_verified": true,
+      "created_at": "2026-06-05T12:00:00+03:00"
+    }
+  ]
+}
+```
+
+**POST /api/reviews/** — Create review
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+Request:
+{
+  "contract_id": "<contract_uuid>",
+  "technician_id": "<technician_uuid>",
+  "rating": 5,
+  "title": "Great service",
+  "comment": "Very professional and on time."
+}
+
+Response 201: (created review)
+```
+
+**POST /api/reviews/<id>/helpful/** — Mark review as helpful
+```
+Authorization: Bearer <access_token>
+
+Response 200:
+{
+  "helpful_count": 3
+}
+```
+
+**POST /api/reviews/<id>/report/** — Report a review
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+Request:
+{
+  "reason": "Inappropriate content"
+}
+
+Response 201:
+{
+  "detail": "Review reported."
+}
+```
+
+---
+
+### Notifications (`/api/notifications/`)
+
+**GET /api/notifications/** — List own notifications
+```
+Authorization: Bearer <access_token>
+
+Response 200:
+{
+  "count": 10,
+  "results": [
+    {
+      "id": "bb0e8400-...",
+      "notification_type": "contract_completed",
+      "title": "Contract Completed",
+      "message": "Contract #A1B2C3 has been completed.",
+      "is_read": false,
+      "created_at": "2026-06-10T14:00:00+03:00"
+    }
+  ]
+}
+
+Filters: ?is_read=false&notification_type=contract_completed
+```
+
+**GET /api/notifications/unread-count/** — Unread count
+```
+Authorization: Bearer <access_token>
+
+Response 200:
+{
+  "unread_count": 3
+}
+```
+
+**POST /api/notifications/<id>/mark-read/** — Mark one as read
+```
+Authorization: Bearer <access_token>
+
+Response 200:
+{
+  "status": "ok",
+  "is_read": true
+}
+```
+
+**POST /api/notifications/mark-all-read/** — Mark all as read
+```
+Authorization: Bearer <access_token>
+
+Response 200:
+{
+  "status": "ok",
+  "updated": 3
+}
+```
+
+---
+
+### Admin Dashboard (`/api/admin/`)
+
+All admin endpoints require an admin role token and return 403 for non-admin users.
+
+**GET /api/admin/dashboard/summary/** — Aggregated platform stats
+```
+Authorization: Bearer <admin_token>
+
+Response 200:
+{
+  "users": {"total": 100, "clients": 60, "technicians": 35, "admins": 5, "active": 90, "inactive": 10},
+  "technicians": {"total": 35, "approved": 30, "pending": 3, "available": 25},
+  "contracts": {"total": 50, "draft": 5, "pending_acceptance": 3, "in_progress": 20, "completed": 18, "canceled": 4},
+  "finance": {"total_contract_value": "...", "platform_earnings_pending": "...", "platform_earnings_earned": "...", "payment_intents_pending": 5, "withdrawals_pending": 2},
+  "reviews": {"total": 40, "public": 35, "hidden": 5, "verified": 30, "flagged": 2},
+  "notifications": {"total": 200, "unread": 45, "activity_logs": 150}
+}
+```
+
+**GET /api/admin/users/** — List users (AccountManager+)
+```
+Authorization: Bearer <admin_token>
+
+Search: ?search=john
+Filters: ?role=client&is_active=true&governorate=Baghdad
+```
+
+**POST /api/admin/users/<id>/activate/** — Activate user (SystemAdmin)
+**POST /api/admin/users/<id>/deactivate/** — Deactivate user (SystemAdmin)
+
+**GET /api/admin/technicians/pending/** — Pending approvals (AccountManager+)
+**POST /api/admin/technicians/<id>/approve/** — Approve technician (SystemAdmin)
+**POST /api/admin/technicians/<id>/reject/** — Reject technician (SystemAdmin)
+
+**GET /api/admin/finance/summary/** — Finance summary (FinanceAdmin+)
+```
+Authorization: Bearer <finance_token>
+
+Response 200:
+{
+  "total_platform_earnings": "1500000.00",
+  "pending_platform_earnings": "500000.00",
+  "earned_platform_earnings": "1000000.00",
+  "payment_intents_pending": 5,
+  "payment_intents_paid": 10,
+  "withdrawals_pending": 2,
+  "withdrawals_approved": 8,
+  "withdrawals_paid": 6,
+  "total_wallet_balances": "5000000.00"
+}
+```
+
+---
+
 ## Role Model
 
 | Role | Description | Guard |
