@@ -45,7 +45,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='ContractStage',
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
                 ('stage_number', models.PositiveIntegerField(help_text='Sequential stage number (1, 2, 3, etc.)')),
                 ('stage_description', models.TextField(blank=True, help_text='Description of work for this stage')),
                 ('amount', models.DecimalField(decimal_places=2, help_text='Payment amount for this stage in IQD', max_digits=15)),
@@ -64,7 +64,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='TimeExtensionRequest',
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
                 ('requested_days', models.PositiveSmallIntegerField(help_text='Number of days requested (1-30)')),
                 ('reason', models.TextField(help_text='Reason for requesting the extension')),
                 ('status', models.CharField(choices=[('pending', 'Pending'), ('approved', 'Approved'), ('rejected', 'Rejected')], db_index=True, default='pending', help_text='Current status of the extension request', max_length=20)),
