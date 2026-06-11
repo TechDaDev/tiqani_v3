@@ -12,38 +12,223 @@ All API paths are prefixed with `/api/`.
 ## Auth Flow
 
 ### 1. Register
+Creates a new user account and sends an OTP verification email.
+
 ```
 POST /api/auth/register/
-Body: { "username", "email", "password", "password2", "role": "client|technician" }
-Response: 201 { "user": {...}, "tokens": { "access": "...", "refresh": "..." } }
+Content-Type: application/json
+
+Request:
+{
+  "username": "john_doe",
+  "email": "john@example.com",
+  "password": "StrongPass1!",
+  "password2": "StrongPass1!",
+  "role": "client",              # "client" | "technician"
+  "phone_number": "07701234567", # optional, 11 digits starting 075/077/078
+  "governorate": "Baghdad",      # optional
+  "address": "Address text",     # optional
+  "gender": "male",              # optional, "male" | "female"
+  "date_of_birth": "1995-01-15"  # optional, YYYY-MM-DD
+}
+
+Response 201:
+{
+  "detail": "Verification code sent to email.",
+  "email": "john@example.com"
+}
 ```
 
-### 2. Verify email / OTP
+### 2. Verify email (OTP)
+Activates the account using the OTP code sent via email. The `verification_id` is returned in the OTP email.
+
 ```
-POST /api/auth/verify-otp/
-Body: { "otp_code": "123456", "verification_id": "..." }
-Response: 200 { "status": "ok" }
+POST /api/auth/verify-email/
+Content-Type: application/json
+
+Request:
+{
+  "otp_code": "483921",
+  "verification_id": "a1b2c3d4e5f6..."
+}
+
+Response 200:
+{
+  "detail": "Account activated successfully.",
+  "username": "john_doe"
+}
+
+Response 400 (invalid/expired code):
+{
+  "otp_code": ["Invalid or expired verification code."]
+}
 ```
 
 ### 3. Login
+Returns JWT tokens plus user data. Rate limited to 5 failed attempts per IP per 5 minutes.
+
 ```
 POST /api/auth/login/
-Body: { "username": "...", "password": "..." }
-Response: 200 { "access": "...", "refresh": "...", "user": {...} }
+Content-Type: application/json
+
+Request:
+{
+  "username": "john_doe",
+  "password": "StrongPass1!"
+}
+
+Response 200:
+{
+  "refresh": "eyJ0eXAiOiJKV1Qi...",
+  "access": "eyJ0eXAiOiJKV1Qi...",
+  "userdata": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "username": "john_doe",
+    "role": "client",
+    "full_name": "",
+    "profile_image": null
+  }
+}
+
+# Technician userdata also includes:
+#   "job_title": "Electrician",
+#   "is_available": true,
+#   "rating": 4.5,
+#   "total_reviews": 12
+
+Response 401 (invalid credentials):
+{
+  "detail": "Invalid credentials.",
+  "attempts_remaining": 4
+}
+
+Response 403 (inactive account):
+{
+  "detail": "Account is inactive. Please verify your email."
+}
+
+Response 429 (rate limited):
+{
+  "detail": "Too many login attempts. Please try again later.",
+  "remaining_timeout": 180
+}
 ```
 
 ### 4. Refresh token
+Issues a new access token using a valid refresh token.
+
 ```
-POST /api/auth/token/refresh/
-Body: { "refresh": "..." }
-Response: 200 { "access": "...", "refresh": "..." }
+POST /api/auth/refresh/
+Content-Type: application/json
+
+Request:
+{
+  "refresh": "eyJ0eXAiOiJKV1Qi..."
+}
+
+Response 200:
+{
+  "access": "eyJ0eXAiOiJKV1Qi...",
+  "refresh": "eyJ0eXAiOiJKV1Qi..."
+}
 ```
 
-### 5. Send Bearer token
-All authenticated endpoints require:
+### 5. Logout
+Blacklists the refresh token so it cannot be reused.
+
+```
+POST /api/auth/logout/
+Content-Type: application/json
+Authorization: Bearer <access_token>    # optional
+
+Request:
+{
+  "refresh": "eyJ0eXAiOiJKV1Qi..."
+}
+
+Response 205: (no body)
+
+Response 400:
+{
+  "detail": "Invalid token."
+}
+```
+
+### 6. Resend OTP
+Requests a new verification code. Rate limited: 5-minute cooldown, max 5 resends per 24 hours.
+
+```
+POST /api/auth/resend-otp/
+Content-Type: application/json
+
+Request:
+{
+  "email": "john@example.com"
+}
+
+Response 200:
+{
+  "detail": "A new verification code has been sent to your email.",
+  "email": "john@example.com",
+  "resends_remaining": 4
+}
+
+Response 429 (cooldown):
+{
+  "detail": "Please wait before requesting another code.",
+  "remaining_seconds": 240,
+  "retry_after": "4 minutes"
+}
+```
+
+### 7. Forgot password
+Sends a password reset OTP to the user's email.
+
+```
+POST /api/auth/password-reset/
+Content-Type: application/json
+
+Request:
+{
+  "email": "john@example.com"
+}
+
+Response 200:
+{
+  "detail": "If an account exists with this email, a password reset link will be sent."
+}
+```
+
+### 8. Reset password
+Confirms the password reset with a new password and OTP.
+
+```
+POST /api/auth/password-reset-confirm/
+Content-Type: application/json
+
+Request:
+{
+  "email": "john@example.com",
+  "otp_code": "483921",
+  "verification_id": "a1b2c3d4e5f6...",
+  "password": "NewStrongPass1!",
+  "password2": "NewStrongPass1!"
+}
+
+Response 200:
+{
+  "detail": "Password has been reset successfully."
+}
+```
+
+### 9. Send Bearer token
+All authenticated endpoints require the following header:
+
 ```
 Authorization: Bearer <access_token>
 ```
+
+Include this header in every request after login. The access token expires after 120 minutes. Use the refresh endpoint to obtain a new one without re-authenticating.
 
 ---
 
