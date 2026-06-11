@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     "contract",
     "ratereview",
     "wallet",
+    "notification",
 ]
 
 AUTH_USER_MODEL = "accounts.CustomUser"

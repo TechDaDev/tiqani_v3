@@ -38,6 +38,8 @@ urlpatterns = [
     path('api/contracts/', include('contract.urls')),
     # Wallet / Fees / Payment Prep
     path('api/wallet/', include('wallet.urls')),
+    # Notifications / Activity
+    path('api/notifications/', include('notification.urls')),
     # Health
     path('api/health/', health),
 ]

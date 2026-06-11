@@ -55,6 +55,12 @@ class ReviewCreateView(CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         review = serializer.save()
+        # Notify technician
+        from notification.services import notify_review_created
+        try:
+            notify_review_created(review, request.user)
+        except Exception:
+            pass
         public_serializer = ReviewPublicSerializer(review)
         return Response(public_serializer.data, status=status.HTTP_201_CREATED)
 
@@ -115,6 +121,11 @@ class ReviewTechnicianResponseView(GenericAPIView):
         serializer = self.get_serializer(review, data=request.data, partial=False)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        from notification.services import notify_review_responded
+        try:
+            notify_review_responded(review, request.user)
+        except Exception:
+            pass
         return Response(ReviewPublicSerializer(review).data, status=status.HTTP_200_OK)
 
 
@@ -165,6 +176,11 @@ class ReviewReportView(GenericAPIView):
             if review.reported_count >= REPORT_THRESHOLD and not review.flagged_at:
                 review.flagged_at = timezone.now()
                 review.save(update_fields=['flagged_at'])
+            from notification.services import notify_review_reported
+            try:
+                notify_review_reported(review, request.user)
+            except Exception:
+                pass
 
         return Response({
             'reported': created,
@@ -184,6 +200,11 @@ class ReviewModeratePublishView(GenericAPIView):
     def post(self, request, *args, **kwargs):
         review = self.get_object()
         review.publish()
+        from notification.services import notify_review_moderated
+        try:
+            notify_review_moderated(review, request.user, 'published')
+        except Exception:
+            pass
         return Response(ReviewPublicSerializer(review).data)
 
 
@@ -197,6 +218,11 @@ class ReviewModerateHideView(GenericAPIView):
     def post(self, request, *args, **kwargs):
         review = self.get_object()
         review.hide()
+        from notification.services import notify_review_moderated
+        try:
+            notify_review_moderated(review, request.user, 'hidden')
+        except Exception:
+            pass
         return Response(ReviewPublicSerializer(review).data)
 
 
@@ -211,6 +237,11 @@ class ReviewModerateVerifyView(GenericAPIView):
         review = self.get_object()
         review.is_verified = True
         review.save(update_fields=['is_verified', 'updated_at'])
+        from notification.services import notify_review_moderated
+        try:
+            notify_review_moderated(review, request.user, 'verified')
+        except Exception:
+            pass
         return Response(ReviewPublicSerializer(review).data)
 
 
@@ -225,4 +256,9 @@ class ReviewModerateUnverifyView(GenericAPIView):
         review = self.get_object()
         review.is_verified = False
         review.save(update_fields=['is_verified', 'updated_at'])
+        from notification.services import notify_review_moderated
+        try:
+            notify_review_moderated(review, request.user, 'unverified')
+        except Exception:
+            pass
         return Response(ReviewPublicSerializer(review).data)

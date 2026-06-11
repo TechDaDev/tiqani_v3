@@ -17,6 +17,14 @@ def create_contract(client_profile, technician_profile, data):
         work_description=data.get("work_description", ""),
     )
     contract.save()
+
+    # Notify technician
+    from notification.services import notify_contract_created
+    try:
+        notify_contract_created(contract, client_profile.user)
+    except Exception:
+        pass
+
     return contract
 
 
@@ -37,6 +45,14 @@ def update_contract_proposal(contract, technician_profile, data):
         raise ValueError(f"stage_number must be one of {list(dict(Contract.STAGE_CHOICES).keys())}")
 
     contract.save()  # save() handles auto-transition to pending_acceptance
+
+    # Notify client of proposal
+    from notification.services import notify_contract_proposal_submitted
+    try:
+        notify_contract_proposal_submitted(contract, technician_profile.user)
+    except Exception:
+        pass
+
     return contract
 
 
@@ -72,6 +88,18 @@ def accept_contract(contract, user):
         ensure_contract_payment_breakdown(contract)
         create_contract_funding_intent(contract, contract.client.user)
 
+    # Phase 6: notifications
+    from notification.services import notify_contract_accepted, notify_contract_in_progress
+    try:
+        if is_client:
+            notify_contract_accepted(contract, user, contract.technician.user)
+        if is_technician:
+            notify_contract_accepted(contract, user, contract.client.user)
+        if contract.status == "in_progress":
+            notify_contract_in_progress(contract)
+    except Exception:
+        pass
+
     return contract
 
 
@@ -97,6 +125,19 @@ def cancel_contract(contract, user, reason=""):
 
     contract.cancel(reason=reason)
     contract.refresh_from_db()
+
+    # Notify other participant
+    from notification.services import notify_contract_canceled
+    try:
+        other = None
+        if is_client:
+            other = contract.technician.user
+        elif is_technician:
+            other = contract.client.user
+        notify_contract_canceled(contract, user, other_participant=other, reason=reason)
+    except Exception:
+        pass
+
     return contract
 
 
@@ -125,6 +166,14 @@ def submit_stage(stage, technician_profile):
         raise ValueError("Stage has already been submitted.")
 
     stage.mark_complete()
+
+    # Notify client
+    from notification.services import notify_stage_submitted
+    try:
+        notify_stage_submitted(stage, technician_profile.user)
+    except Exception:
+        pass
+
     return stage
 
 
@@ -146,6 +195,15 @@ def approve_stage(stage, client_profile):
     if all_approved:
         stage.contract.mark_completed()
 
+    # Notifications
+    from notification.services import notify_stage_approved, notify_contract_completed
+    try:
+        notify_stage_approved(stage, client_profile.user)
+        if all_approved:
+            notify_contract_completed(stage.contract, actor=client_profile.user)
+    except Exception:
+        pass
+
     return stage
 
 
@@ -163,6 +221,14 @@ def create_extension_request(contract, technician_profile, data):
     )
     ext.full_clean()
     ext.save()
+
+    # Notify client
+    from notification.services import notify_extension_requested
+    try:
+        notify_extension_requested(ext, technician_profile.user)
+    except Exception:
+        pass
+
     return ext
 
 
@@ -177,7 +243,17 @@ def respond_extension_request(ext_request, client_profile, approve, response_tex
 
     if approve:
         ext_request.approve(response_text)
+        from notification.services import notify_extension_approved
+        try:
+            notify_extension_approved(ext_request, client_profile.user)
+        except Exception:
+            pass
     else:
         ext_request.reject(response_text)
+        from notification.services import notify_extension_rejected
+        try:
+            notify_extension_rejected(ext_request, client_profile.user)
+        except Exception:
+            pass
 
     return ext_request

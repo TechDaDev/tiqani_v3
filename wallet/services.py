@@ -125,13 +125,22 @@ def mark_payment_intent_paid(payment_intent):
     wallet.balance += payment_intent.amount
     wallet.save(update_fields=["balance"])
 
-    WalletTransaction.objects.create(
+    txn = WalletTransaction.objects.create(
         wallet=wallet,
         contract=payment_intent.contract,
         transaction_type=WalletTransaction.Type.DEPOSIT,
         amount=payment_intent.amount,
         description=f"Deposit via {payment_intent.get_purpose_display()} – {payment_intent.id}",
     )
+
+    # Notify
+    from notification.services import notify_payment_intent_paid, notify_wallet_transaction
+    try:
+        notify_payment_intent_paid(payment_intent)
+        notify_wallet_transaction(txn)
+    except Exception:
+        pass
+
     return payment_intent
 
 
@@ -228,6 +237,14 @@ def create_withdrawal_request(user, amount, method="", notes=""):
         requested_method=method,
         notes=notes,
     )
+
+    # Notify admins
+    from notification.services import notify_withdrawal_requested
+    try:
+        notify_withdrawal_requested(req, user)
+    except Exception:
+        pass
+
     return req
 
 
@@ -256,6 +273,13 @@ def approve_withdrawal_request(withdrawal_request, admin_user, note=""):
     withdrawal_request.reviewed_at = timezone.now()
     withdrawal_request.save(update_fields=["status", "admin_note", "reviewed_at"])
 
+    # Notify
+    from notification.services import notify_withdrawal_approved, notify_wallet_transaction
+    try:
+        notify_withdrawal_approved(withdrawal_request, admin_user)
+    except Exception:
+        pass
+
     return withdrawal_request
 
 
@@ -269,5 +293,12 @@ def reject_withdrawal_request(withdrawal_request, admin_user, note=""):
     withdrawal_request.admin_note = note
     withdrawal_request.reviewed_at = timezone.now()
     withdrawal_request.save(update_fields=["status", "admin_note", "reviewed_at"])
+
+    # Notify
+    from notification.services import notify_withdrawal_rejected
+    try:
+        notify_withdrawal_rejected(withdrawal_request, admin_user)
+    except Exception:
+        pass
 
     return withdrawal_request
