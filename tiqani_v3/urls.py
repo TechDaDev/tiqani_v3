@@ -42,6 +42,8 @@ urlpatterns = [
     path('api/notifications/', include('notification.urls')),
     # Dealership
     path('api/dealership/', include('dealership.urls')),
+    # Chat
+    path('api/chat/', include('chat.urls')),
     # Admin Dashboard
     path('api/admin/', include('dashboard.urls')),
     # Health

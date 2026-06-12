@@ -1,0 +1,364 @@
+{
+	"info": {
+		"name": "Tiqani v3 — Phase 18: Chat / Messaging",
+		"description": "Client-technician pre-contract chat and messaging system. Includes room management, messages, attachments, price offers, contract linking, and WebSocket realtime chat.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://127.0.0.1:8000"
+		},
+		{
+			"key": "ws_base_url",
+			"value": "ws://127.0.0.1:8000"
+		},
+		{
+			"key": "access_token",
+			"value": ""
+		},
+		{
+			"key": "technician_id",
+			"value": ""
+		},
+		{
+			"key": "room_id",
+			"value": ""
+		},
+		{
+			"key": "message_id",
+			"value": ""
+		},
+		{
+			"key": "contract_id",
+			"value": ""
+		}
+	],
+	"item": [
+		{
+			"name": "1. Auth",
+			"item": [
+				{
+					"name": "Login (Client)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"client1\",\n    \"password\": \"your_password\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = JSON.parse(responseBody);",
+									"if (jsonData.access) {",
+									"    pm.collectionVariables.set('access_token', jsonData.access);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					]
+				},
+				{
+					"name": "Login (Technician)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"tech1\",\n    \"password\": \"your_password\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "2. Rooms",
+			"item": [
+				{
+					"name": "List My Rooms",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{access_token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/chat/rooms/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "chat", "rooms"]
+						}
+					}
+				},
+				{
+					"name": "Create Room (Client only)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{access_token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"technician_id\": \"{{technician_id}}\",\n    \"initial_message\": \"Hello! I need your services for a project.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/chat/rooms/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "chat", "rooms"]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = JSON.parse(responseBody);",
+									"if (jsonData.id) {",
+									"    pm.collectionVariables.set('room_id', jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					]
+				},
+				{
+					"name": "Get Room Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{access_token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/chat/rooms/{{room_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "chat", "rooms", "{{room_id}}"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "3. Messages",
+			"item": [
+				{
+					"name": "List Messages",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{access_token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/chat/rooms/{{room_id}}/messages/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "chat", "rooms", "{{room_id}}", "messages"]
+						}
+					}
+				},
+				{
+					"name": "Send Text Message",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{access_token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"body\": \"Thank you for your response! Let me know the timeline.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/chat/rooms/{{room_id}}/messages/send/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "chat", "rooms", "{{room_id}}", "messages", "send"]
+						}
+					}
+				},
+				{
+					"name": "Upload Attachment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{access_token}}" }
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": ""
+								},
+								{
+									"key": "body",
+									"value": "Here is the requested document"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/chat/rooms/{{room_id}}/attachments/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "chat", "rooms", "{{room_id}}", "attachments"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "4. Price Offers",
+			"item": [
+				{
+					"name": "Send Price Offer (Technician only)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{access_token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"amount\": \"75000.00\",\n    \"currency\": \"IQD\",\n    \"description\": \"Complete project installation and setup\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/chat/rooms/{{room_id}}/price-offers/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "chat", "rooms", "{{room_id}}", "price-offers"]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = JSON.parse(responseBody);",
+									"if (jsonData.id) {",
+									"    pm.collectionVariables.set('message_id', jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					]
+				},
+				{
+					"name": "Accept Price Offer (Client only)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{access_token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/chat/rooms/{{room_id}}/price-offers/{{message_id}}/accept/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "chat", "rooms", "{{room_id}}", "price-offers", "{{message_id}}", "accept"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "5. Room Actions",
+			"item": [
+				{
+					"name": "Mark Room Read",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{access_token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/chat/rooms/{{room_id}}/mark-read/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "chat", "rooms", "{{room_id}}", "mark-read"]
+						}
+					}
+				},
+				{
+					"name": "Link Contract to Room",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{access_token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"contract_id\": \"{{contract_id}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/chat/rooms/{{room_id}}/link-contract/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "chat", "rooms", "{{room_id}}", "link-contract"]
+						}
+					}
+				},
+				{
+					"name": "Close Room",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{access_token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"reason\": \"Project completed\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/chat/rooms/{{room_id}}/close/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "chat", "rooms", "{{room_id}}", "close"]
+						}
+					}
+				},
+				{
+					"name": "Unread Summary",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{access_token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/chat/rooms/unread-summary/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "chat", "rooms", "unread-summary"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "6. WebSocket Notes",
+			"description": "Connect to the chat WebSocket using a WebSocket client:\n\n{{ws_base_url}}/ws/chat/rooms/{{room_id}}/?token={{access_token}}\n\nClient-to-Server messages:\n- {\"type\": \"ping\"}\n- {\"type\": \"chat.message.send\", \"body\": \"Hello!\"}\n- {\"type\": \"chat.typing.start\"}\n- {\"type\": \"chat.typing.stop\"}\n- {\"type\": \"chat.read\", \"message_id\": \"...\"}\n- {\"type\": \"chat.price_offer.send\", \"amount\": \"75000\", \"currency\": \"IQD\", \"description\": \"My offer\"}\n\nServer-to-Client events:\n- chat.connection.accepted\n- chat.message.created\n- chat.typing\n- chat.read\n- chat.price_offer.created\n- chat.price_accepted\n- chat.contract_linked\n- chat.room.closed\n- pong\n- error\n\nNote: File uploads are NOT supported via WebSocket. Use the REST multipart endpoint at POST /api/chat/rooms/{room_id}/attachments/.\n\nPrice offers sent via WebSocket will be saved to the database and notified.",
+			"item": []
+		}
+	]
+}

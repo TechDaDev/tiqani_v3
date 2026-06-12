@@ -27,6 +27,9 @@ REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {  # type: ignore[name-defined]  # no
     "wallet_finance": "100000/hour",
     "reviews": "100000/hour",
     "notifications": "100000/hour",
+    "chat_message": "100000/hour",
+    "chat_attachment": "100000/hour",
+    "chat_price_offer": "100000/hour",
     "schema": "100000/hour",
 }
 

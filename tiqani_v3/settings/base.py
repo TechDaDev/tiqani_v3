@@ -117,6 +117,7 @@ INSTALLED_APPS = [
     "notification",
     "dashboard",
     "dealership",
+    "chat",
 ]
 
 AUTH_USER_MODEL = "accounts.CustomUser"
@@ -267,6 +268,9 @@ REST_FRAMEWORK = {
         "wallet_finance": env("THROTTLE_WALLET_FINANCE_RATE", default="30/minute"),
         "reviews": env("THROTTLE_REVIEWS_RATE", default="60/minute"),
         "notifications": env("THROTTLE_NOTIFICATIONS_RATE", default="120/minute"),
+        "chat_message": env("THROTTLE_CHAT_MESSAGE_RATE", default="60/minute"),
+        "chat_attachment": env("THROTTLE_CHAT_ATTACHMENT_RATE", default="10/minute"),
+        "chat_price_offer": env("THROTTLE_CHAT_PRICE_OFFER_RATE", default="10/minute"),
         "schema": env("THROTTLE_SCHEMA_RATE", default="20/minute"),
     },
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",

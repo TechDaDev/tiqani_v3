@@ -11,9 +11,11 @@ from channels.routing import ProtocolTypeRouter, URLRouter
 
 from tiqani_v3.ws_auth import JWTAuthMiddlewareStack
 from notification.consumers import NotificationConsumer
+from chat.consumers import ServiceChatConsumer
 
 websocket_urlpatterns = [
     re_path(r"ws/notifications/$", NotificationConsumer.as_asgi()),
+    re_path(r"ws/chat/rooms/(?P<room_id>[a-f0-9\-]+)/$", ServiceChatConsumer.as_asgi()),
 ]
 
 application = ProtocolTypeRouter(

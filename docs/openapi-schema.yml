@@ -2444,6 +2444,333 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/chat/rooms/:
+    get:
+      operationId: chat_rooms_list
+      description: Returns chat rooms where the current user is a participant.
+      summary: List chat rooms
+      tags:
+      - Chat
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RoomList'
+          description: ''
+    post:
+      operationId: chat_rooms_create
+      description: Client starts a conversation with a technician.
+      summary: Create chat room
+      tags:
+      - Chat
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoomCreateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Room'
+          description: ''
+        '400':
+          description: Bad request
+  /api/chat/rooms/{room_id}/:
+    get:
+      operationId: chat_rooms_retrieve
+      description: 'GET: Retrieve a single chat room with full details.'
+      summary: Get chat room details
+      parameters:
+      - in: path
+        name: room_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Chat
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Room'
+          description: ''
+  /api/chat/rooms/{room_id}/attachments/:
+    post:
+      operationId: chat_rooms_attachments_create
+      description: Upload a file as a chat message (multipart).
+      summary: Upload attachment
+      parameters:
+      - in: path
+        name: room_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Chat
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AttachmentUploadRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+          description: ''
+  /api/chat/rooms/{room_id}/close/:
+    post:
+      operationId: chat_rooms_close_create
+      description: 'POST: Close a chat room.'
+      summary: Close chat room
+      parameters:
+      - in: path
+        name: room_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Chat
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoomCloseRequest'
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Room'
+          description: ''
+  /api/chat/rooms/{room_id}/link-contract/:
+    post:
+      operationId: chat_rooms_link_contract_create
+      description: 'POST: Link an existing contract to the room.'
+      summary: Link contract to room
+      parameters:
+      - in: path
+        name: room_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Chat
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LinkContractRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Room'
+          description: ''
+  /api/chat/rooms/{room_id}/mark-read/:
+    post:
+      operationId: chat_rooms_mark_read_create
+      description: 'POST: Mark all messages in a room as read.'
+      summary: Mark room as read
+      parameters:
+      - in: path
+        name: room_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Chat
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Read state updated
+  /api/chat/rooms/{room_id}/messages/:
+    get:
+      operationId: chat_rooms_messages_list
+      description: Returns paginated messages (oldest first). Supports ?before=<id>
+        and ?after=<id>.
+      summary: List chat messages
+      parameters:
+      - in: query
+        name: after
+        schema:
+          type: string
+          format: uuid
+        description: Get messages after this ID
+      - in: query
+        name: before
+        schema:
+          type: string
+          format: uuid
+        description: Get messages before this ID
+      - in: query
+        name: page
+        schema:
+          type: integer
+        description: Page number
+      - in: path
+        name: room_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Chat
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Message'
+          description: ''
+  /api/chat/rooms/{room_id}/messages/send/:
+    post:
+      operationId: chat_rooms_messages_send_create
+      description: 'POST: Send a text message via REST fallback.'
+      summary: Send a text message
+      parameters:
+      - in: path
+        name: room_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Chat
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageCreateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+          description: ''
+  /api/chat/rooms/{room_id}/price-offers/:
+    post:
+      operationId: chat_rooms_price_offers_create
+      description: Technician sends a price offer to the client.
+      summary: Send price offer
+      parameters:
+      - in: path
+        name: room_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Chat
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PriceOfferRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+          description: ''
+  /api/chat/rooms/{room_id}/price-offers/{message_id}/accept/:
+    post:
+      operationId: chat_rooms_price_offers_accept_create
+      description: Client accepts a price offer in the room.
+      summary: Accept price offer
+      parameters:
+      - in: path
+        name: message_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: room_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Chat
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+          description: ''
+  /api/chat/rooms/unread-summary/:
+    get:
+      operationId: chat_rooms_unread_summary_retrieve
+      description: Get total unread count and per-room breakdown.
+      summary: Get unread chat summary
+      tags:
+      - Chat
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnreadSummary'
+          description: ''
   /api/clients/me/:
     get:
       operationId: clients_me_retrieve
@@ -5416,6 +5743,19 @@ components:
         * `rejected` - Rejected
         * `paid` - Paid
         * `canceled` - Canceled
+    AttachmentUploadRequest:
+      type: object
+      description: Upload a file attachment message.
+      properties:
+        file:
+          type: string
+          format: binary
+        body:
+          type: string
+          default: ''
+          maxLength: 2000
+      required:
+      - file
     AudienceEnum:
       enum:
       - user
@@ -5610,6 +5950,31 @@ components:
           description: Display order in listings
       required:
       - name
+    ChatUser:
+      type: object
+      description: Lightweight user representation for chat context.
+      properties:
+        id:
+          type: string
+          readOnly: true
+        username:
+          type: string
+          readOnly: true
+        full_name:
+          type: string
+          readOnly: true
+        profile_image:
+          type: string
+          readOnly: true
+        role:
+          type: string
+          readOnly: true
+      required:
+      - full_name
+      - id
+      - profile_image
+      - role
+      - username
     DifficultyLevelEnum:
       enum:
       - beginner
@@ -5700,6 +6065,121 @@ components:
         * `Salah al-Din` - صلاح الدين
         * `Diyala` - ديالى
         * `Halabja` - حلبجة
+    LinkContractRequest:
+      type: object
+      description: Link an existing contract to the room.
+      properties:
+        contract_id:
+          type: string
+          format: uuid
+      required:
+      - contract_id
+    Message:
+      type: object
+      description: Full message serializer for read operations.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        room_id:
+          type: string
+          format: uuid
+          readOnly: true
+        sender:
+          type: string
+          format: uuid
+          readOnly: true
+        sender_info:
+          allOf:
+          - $ref: '#/components/schemas/ChatUser'
+          readOnly: true
+        message_type:
+          $ref: '#/components/schemas/MessageTypeEnum'
+        body:
+          type: string
+          title: Message Body
+          maxLength: 2000
+        safe_body:
+          type: string
+          readOnly: true
+        attachment:
+          type: string
+          format: uri
+          nullable: true
+        attachment_name:
+          type: string
+          maxLength: 255
+        attachment_size:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+          title: Attachment Size (bytes)
+        attachment_content_type:
+          type: string
+          maxLength: 100
+        price_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,13}(?:\.\d{0,2})?$
+          nullable: true
+        price_currency:
+          type: string
+          maxLength: 3
+        metadata: {}
+        is_deleted:
+          type: boolean
+          readOnly: true
+        edited_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - edited_at
+      - id
+      - is_deleted
+      - room_id
+      - safe_body
+      - sender
+      - sender_info
+      - updated_at
+    MessageCreateRequest:
+      type: object
+      description: Create a text message in a room.
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 2000
+      required:
+      - body
+    MessageTypeEnum:
+      enum:
+      - TEXT
+      - FILE
+      - SYSTEM
+      - PRICE_OFFER
+      - PRICE_ACCEPTED
+      - CONTRACT_LINKED
+      type: string
+      description: |-
+        * `TEXT` - Text
+        * `FILE` - File
+        * `SYSTEM` - System
+        * `PRICE_OFFER` - Price Offer
+        * `PRICE_ACCEPTED` - Price Accepted
+        * `CONTRACT_LINKED` - Contract Linked
     Notification:
       type: object
       description: Detail/list serializer for user notifications.
@@ -6467,6 +6947,25 @@ components:
           maximum: 2147483647
           minimum: 0
           description: Display order within skill
+    PriceOfferRequest:
+      type: object
+      description: Technician sends a price offer.
+      properties:
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,13}(?:\.\d{0,2})?$
+        currency:
+          type: string
+          minLength: 1
+          default: IQD
+          maxLength: 3
+        description:
+          type: string
+          default: ''
+          maxLength: 2000
+      required:
+      - amount
     ProviderEnum:
       enum:
       - manual
@@ -6867,6 +7366,167 @@ components:
         * `technician` - Technician
         * `dealership` - Dealership
         * `admin` - Admin
+    Room:
+      type: object
+      description: Room serialization with participant info and last message.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        client_id:
+          type: string
+          format: uuid
+          readOnly: true
+        technician_id:
+          type: string
+          format: uuid
+          readOnly: true
+        client_user:
+          type: string
+          readOnly: true
+        technician_user:
+          type: string
+          readOnly: true
+        created_by_id:
+          type: string
+          format: uuid
+          readOnly: true
+        linked_contract_id:
+          type: string
+          format: uuid
+          nullable: true
+          readOnly: true
+        linked_contract_status:
+          type: string
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/StatusE55Enum'
+          readOnly: true
+        metadata:
+          readOnly: true
+        last_message:
+          type: string
+          readOnly: true
+        unread_count:
+          type: string
+          readOnly: true
+        last_message_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        closed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        closed_by_id:
+          type: string
+          format: uuid
+          nullable: true
+          readOnly: true
+      required:
+      - client_id
+      - client_user
+      - closed_at
+      - closed_by_id
+      - created_at
+      - created_by_id
+      - id
+      - last_message
+      - last_message_at
+      - linked_contract_id
+      - linked_contract_status
+      - metadata
+      - status
+      - technician_id
+      - technician_user
+      - unread_count
+      - updated_at
+    RoomCloseRequest:
+      type: object
+      description: Close a room with an optional reason.
+      properties:
+        reason:
+          type: string
+          default: ''
+          maxLength: 500
+    RoomCreateRequest:
+      type: object
+      description: Client initiates contact with a technician.
+      properties:
+        technician_id:
+          type: string
+          format: uuid
+        initial_message:
+          type: string
+          default: ''
+          maxLength: 2000
+      required:
+      - technician_id
+    RoomList:
+      type: object
+      description: Lighter room serialization for list views.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/StatusE55Enum'
+          readOnly: true
+        client_user:
+          type: string
+          readOnly: true
+        technician_user:
+          type: string
+          readOnly: true
+        linked_contract_id:
+          type: string
+          format: uuid
+          nullable: true
+          readOnly: true
+        last_message_preview:
+          type: string
+          readOnly: true
+        unread_count:
+          type: string
+          readOnly: true
+        last_message_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - client_user
+      - created_at
+      - id
+      - last_message_at
+      - last_message_preview
+      - linked_contract_id
+      - status
+      - technician_user
+      - unread_count
+      - updated_at
     Skill:
       type: object
       properties:
@@ -7017,6 +7677,20 @@ components:
         * `active` - Active
         * `suspended` - Suspended
         * `blocked` - Blocked
+    StatusE55Enum:
+      enum:
+      - OPEN
+      - PROPOSAL_CREATED
+      - CONTRACT_LINKED
+      - CLOSED
+      - BLOCKED
+      type: string
+      description: |-
+        * `OPEN` - Open
+        * `PROPOSAL_CREATED` - Proposal Created
+        * `CONTRACT_LINKED` - Contract Linked
+        * `CLOSED` - Closed
+        * `BLOCKED` - Blocked
     SubSkill:
       type: object
       properties:
@@ -7166,6 +7840,19 @@ components:
           minLength: 1
       required:
       - refresh
+    UnreadSummary:
+      type: object
+      properties:
+        total_unread:
+          type: integer
+        rooms:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+      required:
+      - rooms
+      - total_unread
   securitySchemes:
     jwtAuth:
       type: http

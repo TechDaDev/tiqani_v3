@@ -2,51 +2,220 @@
 
 ## Overview
 
-Tiqani does **not yet have a real-time chat/messaging system**. This document covers:
+The chat system enables **pre-contract negotiation** between clients and technicians.
+Chat comes **before** contract creation — participants discuss project details, share
+files, negotiate pricing, and only create a contract once they reach agreement.
 
-1. **Current communication mechanisms** — how clients and technicians communicate today
-2. **Planned chat architecture** — how a real-time chat feature should be built using the existing infrastructure
-3. **Implementation order** — recommended steps for building chat
+This replaces the previous stage-based communication for pre-contract discussion.
 
 ---
 
-## 1. Current Communication Mechanisms
+## Business Purpose
 
-Without a dedicated chat system, the platform uses these channels for communication:
+- Clients browse technician profiles and initiate contact
+- Pre-contract discussion of project details, requirements, timeline, and budget
+- Technicians send price offers for the client to accept
+- Once the price is accepted, a contract can be created and linked to the chat room
+- All messages, files, and price offers are preserved as an audit trail
 
-### Contract Stage-Based Communication
+---
 
-The primary communication channel is the **contract stage workflow**:
+## Who Can Start a Chat
+
+- **Only clients** can initiate a chat room with a technician
+- Technicians cannot initiate first contact
+- One active room per client+technician pair (previous rooms must be closed)
+
+---
+
+## Room Lifecycle
 
 ```
-Client creates draft contract
-        │
-        ▼
-Technician accepts (or negotiates)
-        │
-        ▼
-In Progress — stage-by-stage delivery
-        │
-        ├── Technician submits stage (with description + optional attachment)
-        │       POST /api/contracts/{id}/stages/{sid}/submit/
-        │
-        └── Client approves stage
-                POST /api/contracts/{id}/stages/{sid}/approve/
-                        │
-                        ▼
-                (funds released from escrow)
+OPEN → PROPOSAL_CREATED → CONTRACT_LINKED → CLOSED
+  ↓         ↓                                    ↓
+BLOCKED   CLOSED                              (terminal)
 ```
 
-Each stage submission includes:
-- `description` — text describing completed work
-- `attachment` — optional file (screenshot, document)
-- Status tracking: `pending` → `submitted` → `approved`
+- **OPEN**: Room created, participants can exchange messages
+- **PROPOSAL_CREATED**: Technician has sent a price offer
+- **CONTRACT_LINKED**: A contract has been linked to the room
+- **CLOSED**: Room closed by participant (no new messages)
+- **BLOCKED**: Room blocked by admin/moderation
 
-**This is not real-time messaging.** It is a structured deliverable workflow.
+---
 
-### Extension Requests
+## REST API Endpoints
 
-When a contract needs timeline changes:
+Base path: `/api/chat/`
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/rooms/` | List current user's chat rooms |
+| POST | `/rooms/` | Client creates a room with a technician |
+| GET | `/rooms/{id}/` | Get room details |
+| GET | `/rooms/{id}/messages/` | List messages (paginated) |
+| POST | `/rooms/{id}/messages/send/` | Send text message |
+| POST | `/rooms/{id}/attachments/` | Upload file attachment |
+| POST | `/rooms/{id}/price-offers/` | Technician sends price offer |
+| POST | `/rooms/{id}/price-offers/{mid}/accept/` | Client accepts offer |
+| POST | `/rooms/{id}/mark-read/` | Mark room as read |
+| POST | `/rooms/{id}/close/` | Close room |
+| POST | `/rooms/{id}/link-contract/` | Link contract to room |
+| GET | `/rooms/unread-summary/` | Get unread counts |
+
+---
+
+## WebSocket Endpoint
+
+```
+ws://host/ws/chat/rooms/{room_id}/?token={access_token}
+```
+
+### Client-to-Server Messages
+
+```json
+{"type": "ping"}
+{"type": "chat.message.send", "body": "Hello!"}
+{"type": "chat.typing.start"}
+{"type": "chat.typing.stop"}
+{"type": "chat.read", "message_id": "..."}
+{"type": "chat.price_offer.send", "amount": "75000", "currency": "IQD", "description": "..."}
+```
+
+### Server-to-Client Events
+
+```json
+{"type": "chat.connection.accepted", "room_id": "...", "unread_count": 0}
+{"type": "chat.message.created", "payload": {...}}
+{"type": "chat.typing", "user_id": "...", "username": "...", "is_typing": true}
+{"type": "chat.read", "user_id": "...", "message_id": "..."}
+{"type": "chat.price_offer.created", "payload": {...}}
+{"type": "chat.price_accepted", "payload": {...}}
+{"type": "chat.contract_linked", "room_id": "...", "contract_id": "...", "contract_reference": "..."}
+{"type": "chat.room.closed", "room_id": "...", "closed_by_id": "...", "closed_at": "..."}
+{"type": "pong"}
+{"type": "error", "message": "..."}
+```
+
+---
+
+## Message Types
+
+| Type | Description | Requires |
+|------|-------------|----------|
+| `TEXT` | Plain text message | `body` (non-empty) |
+| `FILE` | File attachment | `attachment` uploaded via REST |
+| `PRICE_OFFER` | Technician's price quote | `price_amount` |
+| `PRICE_ACCEPTED` | Client accepts the offer | System-generated |
+| `CONTRACT_LINKED` | Contract linked notification | System-generated |
+| `SYSTEM` | System-generated messages | Created by service layer |
+
+---
+
+## Price Offer Workflow
+
+1. Participants discuss project requirements via text messages
+2. Technician sends a price offer via `POST /price-offers/` or WebSocket
+3. Room status changes to `PROPOSAL_CREATED`
+4. Client reviews the offer in context
+5. Client accepts the offer via `POST /price-offers/{id}/accept/`
+6. A `PRICE_ACCEPTED` message is created with the offer details
+7. Client can now create a contract based on the accepted offer
+8. Contract is linked to the room via `POST /link-contract/`
+
+---
+
+## Contract Linking
+
+After a contract is created via the existing contract endpoints:
+
+```http
+POST /api/chat/rooms/{room_id}/link-contract/
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{"contract_id": "..."}
+```
+
+The system validates:
+- Contract client matches room client
+- Contract technician matches room technician
+- Room is not closed or blocked
+
+On success:
+- Room status → `CONTRACT_LINKED`
+- `linked_contract` FK set
+- `CONTRACT_LINKED` system message created
+- Both participants receive notifications
+
+---
+
+## Attachment Workflow
+
+- File uploads use REST multipart endpoint (`POST /attachments/`)
+- WebSocket does NOT accept file uploads
+- Allowed file types: PDF, JPG, JPEG, PNG
+- Max file size: 10MB (uses existing `validate_document_file` validator)
+- File URLs use existing private media storage behavior
+
+---
+
+## Notification Integration
+
+Chat events trigger notifications via the existing notification service:
+
+| Event | Recipient | Notification Type |
+|-------|-----------|-------------------|
+| Room created / first message | Technician | `SYSTEM` |
+| New message | Other participant | `SYSTEM` |
+| Price offer sent | Client | `CONTRACT_PROPOSAL_SUBMITTED` |
+| Price accepted | Technician | `CONTRACT_ACCEPTED` |
+| Contract linked | Both | `CONTRACT_CREATED` |
+
+---
+
+## Frontend/Mobile Implementation Guide
+
+### Step 1: Room List
+```
+GET /api/chat/rooms/
+```
+Displays rooms with last message preview, unread count, and participant info.
+
+### Step 2: Create Room (Client Only)
+```http
+POST /api/chat/rooms/
+{"technician_id": "...", "initial_message": "I need help with..."}
+```
+
+### Step 3: Connect WebSocket
+```
+ws://host/ws/chat/rooms/{room_id}/?token={access_token}
+```
+- Listen for `chat.message.created` events for realtime updates
+- Send `chat.typing.start`/`chat.typing.stop` for typing indicators
+- Send `chat.message.send` for instant message delivery
+
+### Step 4: Handle Messages
+- Text messages via WebSocket or REST fallback
+- File attachments via REST multipart only
+- Price offers via dedicated endpoint or WebSocket
+
+### Step 5: Contract Creation
+- After price acceptance, create contract via existing contract API
+- Link contract to room via `POST /link-contract/`
+
+---
+
+## Known Limitations
+
+- No group/multi-participant chat (client+technician only)
+- No message search/full-text search
+- No message editing via API (soft-delete only)
+- No message reactions/emoji
+- No file preview/thumbnail generation
+- No message reporting/flagging
+- No auto-closing of stale rooms
 
 ```
 Technician requests extension
