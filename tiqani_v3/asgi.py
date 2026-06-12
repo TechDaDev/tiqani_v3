@@ -1,16 +1,17 @@
 """
 ASGI config for tiqani_v3 project.
 
-It exposes the ASGI callable as a module-level variable named ``application``.
+Uses the ProtocolTypeRouter from ``routing.py`` to dispatch HTTP and
+WebSocket requests. HTTP requests use Django's standard ASGI handler.
+WebSocket requests use Channels consumers with JWT auth.
 
-For more information on this file, see
-https://docs.djangoproject.com/en/5.0/howto/deployment/asgi/
+For more information:
+    https://docs.djangoproject.com/en/5.0/howto/deployment/asgi/
+    https://channels.readthedocs.io/
 """
 
 import os
 
-from django.core.asgi import get_asgi_application
-
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'tiqani_v3.settings.dev')
 
-application = get_asgi_application()
+from .routing import application  # noqa: E402

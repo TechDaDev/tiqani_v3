@@ -63,6 +63,28 @@ CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
 # OTP cleanup retention
 OTP_CLEANUP_RETENTION_DAYS = env.int("OTP_CLEANUP_RETENTION_DAYS", default=7)
 
+# ---------------------------------------------------------------------------
+# ASGI / Channels
+# ---------------------------------------------------------------------------
+ASGI_APPLICATION = "tiqani_v3.asgi.application"
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": env(
+            "CHANNEL_LAYERS_BACKEND",
+            default="channels_redis.core.RedisChannelLayer",
+        ),
+        "CONFIG": {
+            "hosts": [
+                env(
+                    "CHANNEL_LAYERS_REDIS_URL",
+                    default="redis://redis:6379/2",
+                )
+            ],
+        },
+    },
+}
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -77,6 +99,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt.token_blacklist",
     "django_filters",
     "django_celery_beat",
+    "channels",
     # Local apps
     "accounts",
     "category",

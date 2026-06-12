@@ -1,0 +1,198 @@
+{
+  "info": {
+    "name": "Tiqani v3 — Phase 14: Realtime Notifications",
+    "description": "WebSocket notification foundation. Requires daphne/uvicorn ASGI server for WebSocket connections.\n\n**WebSocket URL:**\n`ws://{{ws_base_url}}/ws/notifications/?token={{access_token}}`\n\n**Postman WebSocket support:**\nPostman supports WebSocket connections. Create a new WebSocket request with the URL above.\n\n**Steps:**\n1. Run \"Login\" to get an access token.\n2. Open a WebSocket connection to `ws://{{ws_base_url}}/ws/notifications/?token={{access_token}}`\n3. Send messages and observe responses.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000",
+      "type": "string"
+    },
+    {
+      "key": "ws_base_url",
+      "value": "127.0.0.1:8000",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Health Check",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status is 200\", function() {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response has status ok\", function() {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.status).to.eql(\"ok\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/health/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "health", ""]
+        }
+      }
+    },
+    {
+      "name": "2. Login (Get Token)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Login successful\", function() {",
+              "    pm.response.to.have.status(200);",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.access).to.not.be.empty;",
+              "    pm.collectionVariables.set(\"access_token\", json.access);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"username\": \"admin\",\n    \"password\": \"admin123\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/auth/login/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "auth", "login", ""]
+        }
+      }
+    },
+    {
+      "name": "3. List Notifications",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status is 200\", function() {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/notifications/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "notifications", ""]
+        }
+      }
+    },
+    {
+      "name": "4. Unread Count",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/notifications/unread-count/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "notifications", "unread-count", ""]
+        }
+      }
+    },
+    {
+      "name": "5. Mark All Read",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/notifications/mark-all-read/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "notifications", "mark-all-read", ""]
+        }
+      }
+    },
+    {
+      "name": "6. WebSocket — Ping",
+      "description": "Open a WebSocket connection to:\n`ws://{{ws_base_url}}/ws/notifications/?token={{access_token}}`\n\nAfter connecting, send: {\"type\": \"ping\"}\n\nExpected response: {\"type\": \"pong\"}",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "ws://{{ws_base_url}}/ws/notifications/?token={{access_token}}",
+          "protocol": "ws",
+          "host": ["{{ws_base_url}}"],
+          "path": ["ws", "notifications", ""],
+          "query": [
+            {
+              "key": "token",
+              "value": "{{access_token}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "7. WebSocket — Get Unread Count",
+      "description": "After connecting, send: {\"type\": \"get.unread_count\"}\n\nExpected response: {\"type\": \"notification.unread_count\", \"unread_count\": N}",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "ws://{{ws_base_url}}/ws/notifications/?token={{access_token}}",
+          "protocol": "ws",
+          "host": ["{{ws_base_url}}"],
+          "path": ["ws", "notifications", ""],
+          "query": [
+            {
+              "key": "token",
+              "value": "{{access_token}}"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

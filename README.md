@@ -90,10 +90,12 @@ docker compose -f docker-compose.prod.yml up --build -d
 | `python manage.py check_media_storage` | Check media storage configuration |
 | `python manage.py check_celery_setup` | Check Celery/Redis setup |
 | `python manage.py seed_celery_beat_schedule` | Seed default Celery Beat periodic tasks (idempotent) |
+| `python manage.py check_realtime_setup` | Check Channels/WebSocket realtime setup |
 | `python manage.py final_backend_qa` | Run final QA checklist |
 | `python manage.py createsuperuser` | Create admin user |
 | `python manage.py collectstatic --noinput` | Collect static files for production |
-| `gunicorn tiqani_v3.wsgi:application --bind 0.0.0.0:8000` | Start production server |
+| `daphne -b 0.0.0.0 -p 8000 tiqani_v3.asgi:application` | Start ASGI server (WebSocket support) |
+| `gunicorn tiqani_v3.wsgi:application --bind 0.0.0.0:8000` | Start HTTP-only production server |
 
 ## API Route Groups
 

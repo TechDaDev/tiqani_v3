@@ -51,7 +51,10 @@ services:
       - media_volume:/app/media
     ports:
       - "8000:8000"
-    command: ["gunicorn", "tiqani_v3.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "4", "--timeout", "120"]
+    # Daphne is required for WebSocket support.
+    # For HTTP-only deployments, replace with:
+    #   gunicorn tiqani_v3.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 120
+    command: ["daphne", "-b", "0.0.0.0", "-p", "8000", "tiqani_v3.asgi:application"]
 
   # Optional Nginx reverse proxy — uncomment for local HTTPS testing
   # nginx:

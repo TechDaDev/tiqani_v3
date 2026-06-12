@@ -42,10 +42,24 @@ def create_notification(
             target_url=target_url,
             metadata=metadata or {},
         )
+        # Send realtime notification after DB commit
+        transaction.on_commit(lambda: _realtime_notification_created(notif))
         return notif
     except Exception as exc:
         logger.warning("Failed to create notification: %s", exc)
         return None
+
+
+def _realtime_notification_created(notification):
+    """
+    Send a realtime notification created event via Channels.
+    Safe to call — fails silently if channel layer is unavailable.
+    """
+    try:
+        from .realtime import send_notification_created
+        send_notification_created(notification)
+    except Exception as exc:
+        logger.debug("Realtime notification skipped: %s", exc)
 
 
 def create_notifications_bulk(recipients, notification_type, title, message='', **kwargs):
@@ -62,6 +76,8 @@ def mark_notification_read(notification, user):
     if notification.recipient != user:
         return False
     notification.mark_read()
+    _realtime_broadcast_unread(user.id)
+    _realtime_marked_read(user.id, notification.id)
     return True
 
 
@@ -71,7 +87,37 @@ def mark_all_notifications_read(user):
     updated = Notification.objects.filter(recipient=user, is_read=False).update(
         is_read=True, read_at=now,
     )
+    if updated:
+        _realtime_broadcast_unread(user.id)
+        _realtime_bulk_read(user.id, updated)
     return updated
+
+
+def _realtime_broadcast_unread(user_id):
+    """Broadcast updated unread count via Channels."""
+    try:
+        from .realtime import broadcast_unread_count
+        broadcast_unread_count(user_id)
+    except Exception as exc:
+        logger.debug("Realtime unread broadcast skipped: %s", exc)
+
+
+def _realtime_marked_read(user_id, notification_id):
+    """Send marked-read event via Channels."""
+    try:
+        from .realtime import send_marked_read_event
+        send_marked_read_event(user_id, notification_id)
+    except Exception as exc:
+        logger.debug("Realtime marked-read skipped: %s", exc)
+
+
+def _realtime_bulk_read(user_id, updated_count):
+    """Send bulk-read event via Channels."""
+    try:
+        from .realtime import send_bulk_read_event
+        send_bulk_read_event(user_id, updated_count)
+    except Exception as exc:
+        logger.debug("Realtime bulk-read skipped: %s", exc)
 
 
 def create_activity(verb, actor=None, target_type='', target_id=None, target_repr='', audience='system', metadata=None):
