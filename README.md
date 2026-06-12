@@ -88,6 +88,8 @@ docker compose -f docker-compose.prod.yml up --build -d
 | `python manage.py seed_platform_fees` | Seed default platform fee config (idempotent) |
 | `python manage.py check_deployment_ready` | Deployment readiness check |
 | `python manage.py check_media_storage` | Check media storage configuration |
+| `python manage.py check_celery_setup` | Check Celery/Redis setup |
+| `python manage.py seed_celery_beat_schedule` | Seed default Celery Beat periodic tasks (idempotent) |
 | `python manage.py final_backend_qa` | Run final QA checklist |
 | `python manage.py createsuperuser` | Create admin user |
 | `python manage.py collectstatic --noinput` | Collect static files for production |

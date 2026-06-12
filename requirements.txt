@@ -17,6 +17,11 @@ whitenoise>=6.9
 django-storages[boto3]>=1.14
 boto3>=1.35
 
+# Background tasks
+celery[redis]>=5.4
+redis>=5.0
+django-celery-beat>=2.7
+
 # Utilities
 pillow>=12.0
 requests>=2.32

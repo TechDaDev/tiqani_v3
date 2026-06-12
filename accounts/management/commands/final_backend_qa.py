@@ -65,7 +65,7 @@ class Command(BaseCommand):
                      f'missing: {set(demo_usernames) - set(User.objects.filter(username__in=demo_usernames).values_list("username", flat=True))}')
 
         # ── Core app URLs import ─────────────────────────────────
-        apps = ['accounts', 'category', 'contract', 'ratereview', 'wallet', 'notification', 'dashboard', 'dealership']
+        apps = ['accounts', 'category', 'contract', 'ratereview', 'wallet', 'notification', 'dashboard', 'dealership', 'django_celery_beat']
         importable = 0
         for app in apps:
             try:

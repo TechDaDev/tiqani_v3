@@ -42,6 +42,13 @@ if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
     echo "  Done."
 fi
 
+# ── Seed Celery Beat schedule ──────────────────────────────────────
+if [ "${SEED_CELERY_BEAT:-false}" = "true" ]; then
+    echo "Seeding Celery Beat schedule..."
+    python manage.py seed_celery_beat_schedule
+    echo "  Done."
+fi
+
 # ── Collect static files ───────────────────────────────────────────
 if [ "${RUN_COLLECTSTATIC:-false}" = "true" ]; then
     echo "Collecting static files..."

@@ -66,6 +66,51 @@ services:
   #   depends_on:
   #     - web
 
+  # ───────────────────────────────────────────────────────────────────
+  # Celery Worker — background task processor
+  # ───────────────────────────────────────────────────────────────────
+  celery_worker:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      DJANGO_SETTINGS_MODULE: tiqani_v3.settings.prod
+    volumes:
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    command: celery -A tiqani_v3 worker -l info
+
+  # ───────────────────────────────────────────────────────────────────
+  # Celery Beat — periodic task scheduler
+  # ───────────────────────────────────────────────────────────────────
+  celery_beat:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      DJANGO_SETTINGS_MODULE: tiqani_v3.settings.prod
+    volumes:
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    command: >
+      sh -c "
+        python manage.py migrate django_celery_beat --noinput &&
+        python manage.py seed_celery_beat_schedule &&
+        celery -A tiqani_v3 beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+      "
+
 volumes:
   postgres_data_prod:
   redis_data:
