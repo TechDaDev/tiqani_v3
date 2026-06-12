@@ -1,7 +1,14 @@
-"""Tests for chat WebSocket consumer."""
+"""Tests for chat WebSocket consumer.
+
+Uses TransactionTestCase with available_apps so that DB flush is
+limited to chat and accounts tables only.  This avoids PostgreSQL FK
+cascade errors from unrelated tables (contract, wallet) while giving
+each async WebSocket test a fresh, committed DB state visible to the
+WebsocketCommunicator's async event loop.
+"""
 
 from channels.testing import WebsocketCommunicator
-from django.test import TestCase, override_settings
+from django.test import TransactionTestCase, override_settings
 
 from accounts.models import CustomUser, ClientProfile, TechnicianProfile
 from chat.models import ServiceChatRoom
@@ -9,13 +16,10 @@ from tiqani_v3.routing import application
 
 
 @override_settings(CHANNEL_LAYERS={"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}})
-class ChatConsumerTests(TestCase):
-    """Test WebSocket consumer behavior.
+class ChatConsumerTests(TransactionTestCase):
+    """Test WebSocket consumer behavior."""
 
-    All DB setup is done synchronously in setUp.  Async test methods
-    access only scalar values (room.id, token) so they do not cross
-    async/sync DB boundaries unsafely.
-    """
+    available_apps = ["chat", "accounts"]
 
     def setUp(self):
         self.client_user = CustomUser.objects.create_user(
@@ -44,8 +48,11 @@ class ChatConsumerTests(TestCase):
             application,
             f"/ws/chat/rooms/{self.room.id}/",
         )
-        connected, _ = await communicator.connect()
-        self.assertFalse(connected)
+        try:
+            connected, _ = await communicator.connect()
+            self.assertFalse(connected)
+        finally:
+            await communicator.disconnect()
 
     async def test_authenticated_participant_connects(self):
         """Authenticated participant should connect successfully."""
@@ -53,9 +60,11 @@ class ChatConsumerTests(TestCase):
             application,
             f"/ws/chat/rooms/{self.room.id}/?token={self.token}",
         )
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-        await communicator.disconnect()
+        try:
+            connected, _ = await communicator.connect()
+            self.assertTrue(connected)
+        finally:
+            await communicator.disconnect()
 
     async def test_ping_returns_pong(self):
         """Ping should return pong."""
@@ -63,18 +72,19 @@ class ChatConsumerTests(TestCase):
             application,
             f"/ws/chat/rooms/{self.room.id}/?token={self.token}",
         )
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
+        try:
+            connected, _ = await communicator.connect()
+            self.assertTrue(connected)
 
-        # Drain the connection.accepted message first, then send ping
-        welcome = await communicator.receive_json_from()
-        self.assertEqual(welcome["type"], "chat.connection.accepted")
+            # Drain the connection.accepted message first, then send ping
+            welcome = await communicator.receive_json_from()
+            self.assertEqual(welcome["type"], "chat.connection.accepted")
 
-        await communicator.send_json_to({"type": "ping"})
-        response = await communicator.receive_json_from()
-        self.assertEqual(response["type"], "pong")
-
-        await communicator.disconnect()
+            await communicator.send_json_to({"type": "ping"})
+            response = await communicator.receive_json_from()
+            self.assertEqual(response["type"], "pong")
+        finally:
+            await communicator.disconnect()
 
     async def test_connection_accepted_sent(self):
         """Connection should send connection.accepted."""
@@ -82,11 +92,12 @@ class ChatConsumerTests(TestCase):
             application,
             f"/ws/chat/rooms/{self.room.id}/?token={self.token}",
         )
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
+        try:
+            connected, _ = await communicator.connect()
+            self.assertTrue(connected)
 
-        response = await communicator.receive_json_from()
-        self.assertEqual(response["type"], "chat.connection.accepted")
-        self.assertEqual(response["room_id"], str(self.room.id))
-
-        await communicator.disconnect()
+            response = await communicator.receive_json_from()
+            self.assertEqual(response["type"], "chat.connection.accepted")
+            self.assertEqual(response["room_id"], str(self.room.id))
+        finally:
+            await communicator.disconnect()

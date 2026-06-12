@@ -7,8 +7,8 @@
 | **Platform** | Tiqani — service marketplace (client ↔ technician) |
 | **Business Problem** | Connect verified technicians with clients; manage contracts, payments, and trust through a structured financial workflow |
 | **Backend Readiness** | Backend-complete. Ready for frontend/mobile handoff and staging deployment planning. |
-| **Test Status** | 488 tests passing |
-| **Latest Commit** | `e5b8188` — chore(release): finalize production hardening API schema and launch readiness |
+| **Test Status** | 562 tests passing |
+| **Latest Commit** | `d3d0f9f` — test(chat): stabilize realtime and notification test suite |
 | **Branch** | `main` |
 
 The backend supports the full platform lifecycle: user registration and authentication, profile management, category/skill browsing, contract lifecycle (draft → stages → completion), wallet/ledger transactions, platform fee calculation, dealership financial agent workflows, post-contract reviews, real-time notifications, and an admin dashboard with role-based access. No real payment gateway is integrated yet (dealerships act as controlled financial agents in the current stage).
@@ -35,6 +35,8 @@ The backend supports the full platform lifecycle: user registration and authenti
 | 14 | Realtime Notifications | Django Channels + Redis + Daphne, WebSocket auth, real-time push |
 | 15 | Monitoring & Operations | Sentry, structured JSON logs, Request ID middleware, health endpoints, audit export, runbook |
 | 16 | Production Hardening | OpenAPI schema (drf-spectacular), Swagger/Redoc docs, rate-limit review, DB indexes, permission matrix, launch checklist, CI enhancements |
+| 17 | Chat System | Pre-contract messaging, WebSocket real-time communication, admin moderation, file sharing |
+| 18 | Chat Validation & Stabilization | Input/output validation for chat messages, PostgreSQL async consumer test stability, full suite at 562 tests |
 
 ---
 
