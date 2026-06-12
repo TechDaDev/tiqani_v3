@@ -51,7 +51,8 @@ Verify each item before deploying to production.
 - [ ] Error tracking configured (Sentry or similar)
 - [ ] Uptime monitoring in place
 - [ ] Database query monitoring configured
-- [ ] Disk space monitoring for media uploads
+- [ ] Disk space / S3 bucket size monitoring for media uploads
+- [ ] S3 lifecycle policy configured for cost control (see `docs/MEDIA_STORAGE.md`)
 
 ## Performance
 

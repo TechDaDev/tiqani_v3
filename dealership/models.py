@@ -12,6 +12,8 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
+from tiqani_v3.file_validators import validate_document_file, validate_proof_file
+
 
 # ---------------------------------------------------------------------------
 # DealershipProfile
@@ -140,6 +142,7 @@ class DealershipGuarantee(models.Model):
     )
     document_file = models.FileField(
         upload_to='dealership/guarantees/', null=True, blank=True,
+        validators=[validate_document_file],
         verbose_name=_("Document File"),
     )
     status = models.CharField(
@@ -296,6 +299,7 @@ class DealershipClientRecharge(models.Model):
     )
     proof_file = models.FileField(
         upload_to='dealership/recharges/', null=True, blank=True,
+        validators=[validate_proof_file],
         verbose_name=_("Proof File"),
     )
     wallet_transaction = models.ForeignKey(

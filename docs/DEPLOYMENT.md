@@ -193,5 +193,7 @@ Then set `DATABASE_URL=postgres://tiqani_user:strong_password@localhost:5432/tiq
 ## 11. Media / static handling
 
 - **Static files:** Served by WhiteNoise in production. Collected via `collectstatic`.
-- **Media files** (user uploads): Must be served by the reverse proxy or a CDN. Django does not serve media files in production by default.
+- **Media files** (user uploads): Must be served by the reverse proxy, a CDN, or an S3-compatible storage backend.
+- Django does not serve media files in production by default.
+- See [`docs/MEDIA_STORAGE.md`](MEDIA_STORAGE.md) for full configuration details, including S3 setup, file validation, and cost controls.
 - In Docker Compose, media and static volumes are mounted for persistence.

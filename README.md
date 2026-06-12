@@ -87,6 +87,8 @@ docker compose -f docker-compose.prod.yml up --build -d
 | `python manage.py test --verbosity=1` | Run full test suite |
 | `python manage.py seed_platform_fees` | Seed default platform fee config (idempotent) |
 | `python manage.py check_deployment_ready` | Deployment readiness check |
+| `python manage.py check_media_storage` | Check media storage configuration |
+| `python manage.py final_backend_qa` | Run final QA checklist |
 | `python manage.py createsuperuser` | Create admin user |
 | `python manage.py collectstatic --noinput` | Collect static files for production |
 | `gunicorn tiqani_v3.wsgi:application --bind 0.0.0.0:8000` | Start production server |
@@ -106,6 +108,7 @@ docker compose -f docker-compose.prod.yml up --build -d
 | Reviews | `/api/reviews/` | Mixed |
 | Notifications | `/api/notifications/` | Yes |
 | Admin | `/api/admin/` | Admin |
+| Dealership | `/api/dealership/` | Dealership |
 
 See `docs/API_OVERVIEW.md` for detailed route documentation.
 

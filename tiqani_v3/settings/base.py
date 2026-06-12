@@ -140,6 +140,44 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 # ---------------------------------------------------------------------------
+# Media storage — S3-compatible (overridable in prod.py / dev.py)
+# ---------------------------------------------------------------------------
+USE_S3_MEDIA = env.bool("USE_S3_MEDIA", default=False)
+
+# S3-compatible storage settings
+S3_ACCESS_KEY_ID = env("S3_ACCESS_KEY_ID", default="")
+S3_SECRET_ACCESS_KEY = env("S3_SECRET_ACCESS_KEY", default="")
+S3_STORAGE_BUCKET_NAME = env("S3_STORAGE_BUCKET_NAME", default="")
+S3_REGION_NAME = env("S3_REGION_NAME", default="us-east-1")
+S3_ENDPOINT_URL = env("S3_ENDPOINT_URL", default="")
+S3_CUSTOM_DOMAIN = env("S3_CUSTOM_DOMAIN", default="")
+S3_SIGNATURE_VERSION = env("S3_SIGNATURE_VERSION", default="s3v4")
+S3_ADDRESSING_STYLE = env("S3_ADDRESSING_STYLE", default="virtual")
+S3_DEFAULT_ACL = env("S3_DEFAULT_ACL", default="private")
+S3_QUERYSTRING_AUTH = env.bool("S3_QUERYSTRING_AUTH", default=True)
+S3_QUERYSTRING_EXPIRE = env.int("S3_QUERYSTRING_EXPIRE", default=900)
+S3_FILE_OVERWRITE = env.bool("S3_FILE_OVERWRITE", default=False)
+S3_OBJECT_PARAMETERS_CACHE_CONTROL = env("S3_OBJECT_PARAMETERS_CACHE_CONTROL", default="max-age=86400")
+S3_MEDIA_LOCATION = env("S3_MEDIA_LOCATION", default="media")
+S3_PRIVATE_MEDIA_LOCATION = env("S3_PRIVATE_MEDIA_LOCATION", default="private")
+S3_PUBLIC_MEDIA_LOCATION = env("S3_PUBLIC_MEDIA_LOCATION", default="public")
+
+# Upload size limits (MB)
+MAX_PROFILE_IMAGE_SIZE_MB = env.int("MAX_PROFILE_IMAGE_SIZE_MB", default=2)
+MAX_CATEGORY_ICON_SIZE_MB = env.int("MAX_CATEGORY_ICON_SIZE_MB", default=1)
+MAX_DOCUMENT_SIZE_MB = env.int("MAX_DOCUMENT_SIZE_MB", default=10)
+MAX_PROOF_FILE_SIZE_MB = env.int("MAX_PROOF_FILE_SIZE_MB", default=5)
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+
+# ---------------------------------------------------------------------------
 # Default primary key field type
 # ---------------------------------------------------------------------------
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

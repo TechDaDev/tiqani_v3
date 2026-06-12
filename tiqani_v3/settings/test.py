@@ -1,6 +1,9 @@
-"""Test settings – high throttle limits so test suites don't hit 429."""
+"""Test settings – high throttle limits so tests don't hit 429."""
 
 from .base import *  # noqa: F403
+
+# Force local media storage in tests — no S3
+USE_S3_MEDIA = False
 
 # High throttle limits so tests don't get 429
 REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {  # type: ignore[name-defined]  # noqa: F405

@@ -98,6 +98,8 @@ This command creates the default platform fee configuration if it does not alrea
 | Login returns 401 | Invalid credentials or expired token | Check credentials or refresh token |
 | CORS errors in frontend | `CORS_ALLOWED_ORIGINS` not set correctly | Update environment variable |
 | 429 Too Many Requests | Rate limit exceeded | Wait and retry, or adjust throttle rates |
+| Upload rejected | File too large or invalid type | Check file size/type limits in `docs/MEDIA_STORAGE.md` |
+| S3 upload failure | Missing credentials or bucket | Run `python manage.py check_media_storage` to diagnose |
 | Emails not sending | SMTP misconfigured | Check SMTP host, port, credentials |
 | OTP not working | Clock skew or expired code | Check server time, reduce `OTP_VALIDITY_SECONDS` |
 | Migrations failing | Conflicting schema changes | Rollback, fix, and re-run migrations |

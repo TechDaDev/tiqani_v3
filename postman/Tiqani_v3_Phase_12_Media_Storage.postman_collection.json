@@ -1,0 +1,221 @@
+{
+	"info": {
+		"name": "Tiqani v3 — Phase 12: Media Storage",
+		"description": "Media storage configuration and upload validators. Tests local vs S3 storage, file validation, and sensitive file exposure hardening.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://127.0.0.1:8000"
+		},
+		{
+			"key": "admin_token",
+			"value": ""
+		},
+		{
+			"key": "dealership_token",
+			"value": ""
+		},
+		{
+			"key": "finance_token",
+			"value": ""
+		},
+		{
+			"key": "access_token",
+			"value": ""
+		},
+		{
+			"key": "guarantee_id",
+			"value": ""
+		},
+		{
+			"key": "recharge_id",
+			"value": ""
+		}
+	],
+	"item": [
+		{
+			"name": "1. Health & Storage Check",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/health/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "health"]
+						}
+					}
+				},
+				{
+					"name": "Check Media Storage (CLI)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/health/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "health"]
+						},
+						"description": "Run locally: python manage.py check_media_storage"
+					}
+				}
+			]
+		},
+		{
+			"name": "2. Authentication",
+			"item": [
+				{
+					"name": "Admin Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"pm.collectionVariables.set('admin_token', jsonData.access);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"username\": \"admin_demo\",\n\t\"password\": \"AdminDemo123!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						}
+					}
+				},
+				{
+					"name": "Dealership Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"pm.collectionVariables.set('dealership_token', jsonData.access);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"username\": \"dealership_demo\",\n\t\"password\": \"DealershipDemo123!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "3. Upload Examples (multipart/form-data)",
+			"item": [
+				{
+					"name": "Upload Guarantee Document",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{admin_token}}" }
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{ "key": "cash_amount", "value": "5000000", "type": "text" },
+								{ "key": "document_file", "type": "file", "src": "" }
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/dealerships/{{guarantee_id}}/guarantees/create/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "dealerships", "{{guarantee_id}}", "guarantees", "create"]
+						},
+						"description": "Upload a PDF or image document. Max 10 MB. Allowed: pdf, jpg, jpeg, png."
+					}
+				},
+				{
+					"name": "Upload Recharge Proof",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{dealership_token}}" }
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{ "key": "client_id", "value": "", "type": "text" },
+								{ "key": "fee_mode", "value": "added_on_top", "type": "text" },
+								{ "key": "wallet_credit_amount", "value": "50000", "type": "text" },
+								{ "key": "proof_file", "type": "file", "src": "" }
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/dealership/recharges/create/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dealership", "recharges", "create"]
+						},
+						"description": "Upload a proof file (PDF or image) with a recharge. Max 5 MB."
+					}
+				},
+				{
+					"name": "Upload Profile Image (Multipart)",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{access_token}}" },
+							{ "key": "Content-Type", "value": "multipart/form-data" }
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{ "key": "profile_image", "type": "file", "src": "" }
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/accounts/me/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "accounts", "me"]
+						},
+						"description": "Upload a profile image. Max 2 MB. Allowed: jpg, jpeg, png, webp."
+					}
+				}
+			]
+		},
+		{
+			"name": "4. Notes",
+			"item": [
+				{
+					"name": "Important Notes",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/health/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "health"]
+						},
+						"description": "## Upload Notes\n\n1. Use multipart/form-data for file uploads.\n2. Max file sizes are enforced server-side:\n   - Profile images: 2 MB\n   - Category icons: 1 MB\n   - Documents: 10 MB\n   - Proof files: 5 MB\n\n3. Allowed extensions:\n   - Images: jpg, jpeg, png, webp\n   - Documents: pdf, jpg, jpeg, png\n   - Proof files: pdf, jpg, jpeg, png, webp\n\n4. Blocked types:\n   - Executables (.exe, .bat, .sh)\n   - Archives (.zip, .rar, .7z)\n   - Videos (.mp4, .mov, .avi)\n   - Scripts (.js, .html, .svg)\n\n5. File overwrite is disabled.\n\n## Storage Modes\n\n- **Local**: Files stored at MEDIA_ROOT. Use for development.\n- **S3**: Files stored on S3-compatible storage. Signed URLs expire after 900s.\n\nRun `python manage.py check_media_storage` to check current configuration."
+					}
+				}
+			]
+		}
+	]
+}

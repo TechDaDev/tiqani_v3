@@ -9,6 +9,7 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import RegexValidator, MinValueValidator
+from tiqani_v3.file_validators import validate_profile_image_file, validate_document_file
 from django.contrib.auth.models import AbstractUser
 
 # --- Configuration & Helpers ---
@@ -158,7 +159,12 @@ class CustomUser(AbstractUser, TimestampedModel):
     address = models.CharField(max_length=255, null=True, blank=True, verbose_name=_("Address"))
     gender = models.CharField(max_length=6, choices=Gender.choices, null=True, blank=True, verbose_name=_("Gender"))
     date_of_birth = models.DateField(null=True, blank=True, verbose_name=_("Date of Birth"))
-    profile_image = models.ImageField(upload_to=universal_file_path, null=True, blank=True, verbose_name=_("Avatar"))
+    profile_image = models.ImageField(
+        upload_to=universal_file_path,
+        null=True, blank=True,
+        validators=[validate_profile_image_file],
+        verbose_name=_("Avatar"),
+    )
 
     upload_folder = 'users/avatars'
     REQUIRED_FIELDS = [] # Username/Email handled by AbstractUser logic
@@ -205,8 +211,9 @@ class TechnicianProfile(BaseProfile):
         verbose_name=_("Job Title")
     )
     identification_documents = models.FileField(
-        upload_to=universal_file_path, 
+        upload_to=universal_file_path,
         null=True, blank=True,
+        validators=[validate_document_file],
         verbose_name=_("ID Documents")
     )
     github = models.URLField(max_length=255, validators=[GITHUB_REGEX], blank=True, null=True)
@@ -368,7 +375,10 @@ class TechnicianImage(TimestampedModel):
         on_delete=models.CASCADE, 
         related_name='portfolio_images'
     )
-    image = models.ImageField(upload_to=universal_file_path)
+    image = models.ImageField(
+        upload_to=universal_file_path,
+        validators=[validate_profile_image_file],
+    )
     description = models.CharField(max_length=255, blank=True, null=True)
     
     # Carousel Logic

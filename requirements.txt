@@ -13,6 +13,10 @@ psycopg2-binary>=2.9
 gunicorn>=23.0
 whitenoise>=6.9
 
+# Storage
+django-storages[boto3]>=1.14
+boto3>=1.35
+
 # Utilities
 pillow>=12.0
 requests>=2.32
