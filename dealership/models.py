@@ -411,6 +411,7 @@ class DealershipClientCashout(models.Model):
         indexes = [
             models.Index(fields=['dealership', 'status']),
             models.Index(fields=['client', 'status']),
+            models.Index(fields=['code_expires_at', 'status'], name='idx_cashout_expiry_sweep'),
         ]
         constraints = [
             models.UniqueConstraint(

@@ -27,6 +27,9 @@ channels>=4.1
 channels-redis>=4.2
 daphne>=4.1
 
+# API documentation
+drf-spectacular>=0.28
+
 # Utilities
 pillow>=12.0
 requests>=2.32

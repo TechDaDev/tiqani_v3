@@ -1,0 +1,74 @@
+{
+  "info": {
+    "name": "Tiqani v3 - Phase 16 Launch Readiness",
+    "description": "## Tiqani v3 - Phase 16\n\n### Final Production Hardening, API Schema & Launch Readiness\n\nIncludes health, schema, core listing, and admin summary endpoints.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://127.0.0.1:8000" },
+    { "key": "token", "value": "" },
+    { "key": "admin_token", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health - Legacy",
+      "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/api/health/", "host": ["{{base_url}}"], "path": ["api", "health", ""] } },
+      "response": []
+    },
+    {
+      "name": "Health - Liveness",
+      "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/api/health/live/", "host": ["{{base_url}}"], "path": ["api", "health", "live", ""] } },
+      "response": []
+    },
+    {
+      "name": "Health - Readiness",
+      "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/api/health/ready/", "host": ["{{base_url}}"], "path": ["api", "health", "ready", ""] } },
+      "response": []
+    },
+    {
+      "name": "Health - Deep",
+      "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/api/health/deep/", "host": ["{{base_url}}"], "path": ["api", "health", "deep", ""] } },
+      "response": []
+    },
+    {
+      "name": "OpenAPI Schema",
+      "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/api/schema/", "host": ["{{base_url}}"], "path": ["api", "schema", ""] } },
+      "response": []
+    },
+    {
+      "name": "Swagger Docs",
+      "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/api/docs/", "host": ["{{base_url}}"], "path": ["api", "docs", ""] } },
+      "response": []
+    },
+    {
+      "name": "ReDoc",
+      "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/api/redoc/", "host": ["{{base_url}}"], "path": ["api", "redoc", ""] } },
+      "response": []
+    },
+    {
+      "name": "Categories",
+      "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/api/categories/", "host": ["{{base_url}}"], "path": ["api", "categories", ""] } },
+      "response": []
+    },
+    {
+      "name": "Login",
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}" }, "url": { "raw": "{{base_url}}/api/auth/login/", "host": ["{{base_url}}"], "path": ["api", "auth", "login", ""] } },
+      "response": []
+    },
+    {
+      "name": "Admin Dashboard Summary",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": { "raw": "{{base_url}}/api/admin/summary/", "host": ["{{base_url}}"], "path": ["api", "admin", "summary", ""] } },
+      "response": []
+    },
+    {
+      "name": "Notification Unread Count",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }], "url": { "raw": "{{base_url}}/api/notifications/unread-count/", "host": ["{{base_url}}"], "path": ["api", "notifications", "unread-count", ""] } },
+      "response": []
+    },
+    {
+      "name": "Request ID Example",
+      "request": { "method": "GET", "header": [{ "key": "X-Request-ID", "value": "my-custom-id" }], "url": { "raw": "{{base_url}}/api/health/", "host": ["{{base_url}}"], "path": ["api", "health", ""] } },
+      "response": []
+    }
+  ]
+}

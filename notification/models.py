@@ -60,6 +60,7 @@ class Notification(models.Model):
         indexes = [
             models.Index(fields=['recipient', 'is_read']),
             models.Index(fields=['recipient', 'created_at']),
+            models.Index(fields=['is_read', 'created_at'], name='idx_notif_cleanup'),
             models.Index(fields=['target_type', 'target_id']),
         ]
 

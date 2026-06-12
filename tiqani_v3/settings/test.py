@@ -23,4 +23,12 @@ REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {  # type: ignore[name-defined]  # no
     "login": "100000/hour",
     "password_reset": "100000/hour",
     "otp": "100000/hour",
+    "dealership_finance": "100000/hour",
+    "wallet_finance": "100000/hour",
+    "reviews": "100000/hour",
+    "notifications": "100000/hour",
+    "schema": "100000/hour",
 }
+
+# API docs accessible in test
+API_DOCS_PUBLIC = True

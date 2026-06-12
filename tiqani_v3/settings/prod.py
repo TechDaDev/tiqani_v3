@@ -7,8 +7,6 @@ environment variables.
 
 import os
 
-import sentry_sdk
-
 from .base import *  # noqa: F403, F401
 
 # ---------------------------------------------------------------------------
@@ -16,10 +14,15 @@ from .base import *  # noqa: F403, F401
 # ---------------------------------------------------------------------------
 DEBUG = False
 
+# API docs protected in production by default
+API_DOCS_PUBLIC = env.bool("API_DOCS_PUBLIC", default=False)  # noqa: F405
+
 # ---------------------------------------------------------------------------
 # Sentry — error tracking & performance monitoring
 # ---------------------------------------------------------------------------
 if SENTRY_DSN:  # noqa: F405
+    import sentry_sdk
+
     sentry_sdk.init(
         dsn=SENTRY_DSN,  # noqa: F405
         environment=SENTRY_ENVIRONMENT,  # noqa: F405

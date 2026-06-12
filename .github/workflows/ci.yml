@@ -69,3 +69,16 @@ jobs:
       - name: Run tests
         run: |
           python manage.py test --settings=$DJANGO_SETTINGS_MODULE --verbosity=1
+
+      - name: API consistency audit
+        run: |
+          python manage.py audit_api_consistency --settings=$DJANGO_SETTINGS_MODULE
+
+      - name: Operations readiness check
+        run: |
+          python manage.py check_operations_ready --settings=$DJANGO_SETTINGS_MODULE
+
+      - name: Generated schema validation
+        run: |
+          python manage.py spectacular --file /tmp/schema.yml --settings=$DJANGO_SETTINGS_MODULE
+          python -c "import yaml; yaml.safe_load(open('/tmp/schema.yml')); print('Schema OK')"

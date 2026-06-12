@@ -20,6 +20,7 @@ env = environ.Env(
     CORS_ALLOWED_ORIGINS=(list, []),
     CSRF_TRUSTED_ORIGINS=(list, []),
     CORS_ALLOW_CREDENTIALS=(bool, True),
+    API_DOCS_PUBLIC=(bool, True),
     SENTRY_DSN=(str, ""),
     SENTRY_ENVIRONMENT=(str, "development"),
     SENTRY_TRACES_SAMPLE_RATE=(float, 0.0),
@@ -36,6 +37,11 @@ if env_file.exists():
 SENTRY_DSN = env("SENTRY_DSN")
 SENTRY_ENVIRONMENT = env("SENTRY_ENVIRONMENT")
 SENTRY_TRACES_SAMPLE_RATE = env("SENTRY_TRACES_SAMPLE_RATE")
+
+# ---------------------------------------------------------------------------
+# API documentation access control
+# ---------------------------------------------------------------------------
+API_DOCS_PUBLIC = env("API_DOCS_PUBLIC")
 
 # ---------------------------------------------------------------------------
 # Security
@@ -101,6 +107,7 @@ INSTALLED_APPS = [
     "django_filters",
     "django_celery_beat",
     "channels",
+    "drf_spectacular",
     # Local apps
     "accounts",
     "category",
@@ -256,7 +263,13 @@ REST_FRAMEWORK = {
         "login": env("THROTTLE_LOGIN", default="5/minute"),
         "password_reset": env("THROTTLE_PASSWORD_RESET", default="3/minute"),
         "otp": env("THROTTLE_OTP", default="3/minute"),
+        "dealership_finance": env("THROTTLE_DEALERSHIP_FINANCE_RATE", default="30/minute"),
+        "wallet_finance": env("THROTTLE_WALLET_FINANCE_RATE", default="30/minute"),
+        "reviews": env("THROTTLE_REVIEWS_RATE", default="60/minute"),
+        "notifications": env("THROTTLE_NOTIFICATIONS_RATE", default="120/minute"),
+        "schema": env("THROTTLE_SCHEMA_RATE", default="20/minute"),
     },
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
     "DEFAULT_FILTER_BACKENDS": [
@@ -390,6 +403,19 @@ LOGGING = {
             "propagate": False,
         },
     },
+}
+
+# ---------------------------------------------------------------------------
+# API documentation (drf-spectacular)
+# ---------------------------------------------------------------------------
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Tiqani API",
+    "DESCRIPTION": "Backend API for Tiqani service marketplace, wallets, dealership finance, notifications, and admin operations.",
+    "VERSION": "16.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "COMPONENT_SPLIT_REQUEST": True,
+    "SCHEMA_PATH_PREFIX": r"/api/",
+    "SECURITY": [{"bearerAuth": []}],
 }
 
 # ---------------------------------------------------------------------------
