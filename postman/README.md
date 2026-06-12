@@ -6,6 +6,7 @@
 |---|---|
 | `Tiqani_v3_Phase_7_Admin_Dashboard.postman_collection.json` | Admin dashboard, moderation, and finance APIs |
 | `Tiqani_v3_Phase_8_Security_Hardening.postman_collection.json` | Security smoke tests (auth barriers, RBAC, unsafe field attempts) |
+| `Tiqani_v3_Phase_11_Dealership.postman_collection.json` | Dealership financial agent: profile, recharges, cash-outs, settlements, admin oversight |
 
 ## Import
 

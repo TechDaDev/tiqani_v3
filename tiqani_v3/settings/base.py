@@ -67,6 +67,7 @@ INSTALLED_APPS = [
     "wallet",
     "notification",
     "dashboard",
+    "dealership",
 ]
 
 AUTH_USER_MODEL = "accounts.CustomUser"

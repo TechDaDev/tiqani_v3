@@ -945,6 +945,73 @@ See `docs/POSTMAN.md` for detailed instructions.
 
 ---
 
+## Dealership Financial Agent (Phase 11)
+
+New app: `dealership`
+
+### Role
+- `dealership` — New user role for dealership users.
+
+### Endpoints
+
+**Dealership-facing** (prefix: `/api/dealership/`):
+- `GET /api/dealership/me/` — Current dealership profile
+- `GET /api/dealership/me/summary/` — Financial summary (used heavily by mobile)
+- `GET /api/dealership/fee-config/` — Active recharge fee config
+- `GET /api/dealership/clients/lookup/?q=phone_or_email` — Quick client search
+- `POST /api/dealership/recharges/preview/` — Preview recharge calculation
+- `POST /api/dealership/recharges/create/` — Create wallet recharge (supports Idempotency-Key)
+- `GET /api/dealership/recharges/` — List dealership recharges
+- `GET /api/dealership/recharges/<id>/` — Recharge detail
+- `POST /api/dealership/cashouts/preview/` — Cash-out preview (client initiates)
+- `POST /api/dealership/cashouts/create/` — Create cash-out request (client)
+- `GET /api/dealership/cashouts/` — List cash-outs
+- `GET /api/dealership/cashouts/<id>/` — Cash-out detail
+- `POST /api/dealership/cashouts/<id>/confirm-code/` — Dealership confirms cash-out
+- `GET /api/dealership/settlements/` — List dealership settlements
+
+**Admin** (prefix: `/api/admin/`):
+- `GET /api/admin/dealerships/` — List all dealerships
+- `GET /api/admin/dealerships/<id>/` — Dealership detail with computed financials
+- `POST /api/admin/dealerships/<id>/approve/` — Approve dealership
+- `POST /api/admin/dealerships/<id>/suspend/` — Suspend dealership
+- `POST /api/admin/dealerships/<id>/block/` — Block dealership
+- `POST /api/admin/dealerships/<id>/unlock/` — Unlock financially locked dealership
+- `GET /api/admin/dealerships/<id>/guarantees/` — List guarantees
+- `POST /api/admin/dealerships/<id>/guarantees/create/` — Add guarantee
+- `POST /api/admin/dealership-guarantees/<id>/verify/` — Verify guarantee
+- `POST /api/admin/dealership-guarantees/<id>/reject/` — Reject guarantee
+- `GET /api/admin/dealership-recharges/` — All recharges
+- `GET /api/admin/dealership-cashouts/` — All cash-outs
+- `GET /api/admin/dealership-settlements/` — All settlements
+- `POST /api/admin/dealership-settlements/generate/` — Generate settlement
+- `POST /api/admin/dealership-settlements/<id>/complete/` — Complete settlement
+
+### Fee Modes
+1. **Added On Top** — Client pays `wallet_credit + fee`. Fee is `wallet_credit * 1%`.
+2. **Deducted From Deposit** — Client pays `cash_received`. Fee deducted. Wallet credited `cash_received - fee`.
+
+### Financial Formulas
+- `total_guarantee = sum(verified guarantees)`
+- `usable_credit_limit = total_guarantee * usage_limit_percent / 100`
+- `net_exposure = completed_recharges - completed_cashouts ± settlements`
+- `available_capacity = usable_credit_limit - net_exposure`
+- Lock triggers when `net_exposure >= usable_credit_limit`
+- Cash-out reduces exposure (may unlock)
+
+### Idempotency
+- `Idempotency-Key` header or body field supported on recharge creation and cash-out creation.
+- Duplicate key with same payload returns existing result (200, not 201).
+- Duplicate key with different payload returns 409.
+
+### Demo Credentials
+- Username: `dealership_demo`
+- Password: `DealershipDemo123!`
+- Has 50M IQD verified guarantee → 40M IQD usable limit
+
+### Postman Collection
+`postman/Tiqani_v3_Phase_11_Dealership.postman_collection.json`
+
 ## Known Limitations
 
 - **No real payment gateway yet** — Wallet uses payment intents and manual admin approval. No Stripe/MyFatoorah integration.
@@ -953,3 +1020,5 @@ See `docs/POSTMAN.md` for detailed instructions.
 - **No WebSockets** — Notifications are pull-based (polling). No real-time push.
 - **No file CDN** — Media files are stored locally. For production, configure external storage (S3, etc.).
 - **ASGI not fully utilized** — ASGI is configured but app uses WSGI via Gunicorn. WebSocket support not implemented.
+- **No S3 integration** — Media uploads use local storage.
+- **No real payment gateway for dealership** — Dealership recharges are internal ledger operations.

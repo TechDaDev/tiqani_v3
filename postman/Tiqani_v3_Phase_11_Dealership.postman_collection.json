@@ -1,0 +1,709 @@
+{
+	"info": {
+		"name": "Tiqani v3 — Phase 11: Dealership Financial Agent",
+		"description": "Complete API collection for the dealership financial agent system including profile management, wallet recharges, cash-outs, settlements, and admin oversight.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://127.0.0.1:8000"
+		},
+		{
+			"key": "admin_token",
+			"value": ""
+		},
+		{
+			"key": "dealership_token",
+			"value": ""
+		},
+		{
+			"key": "client_token",
+			"value": ""
+		},
+		{
+			"key": "dealership_id",
+			"value": ""
+		},
+		{
+			"key": "client_id",
+			"value": ""
+		},
+		{
+			"key": "cashout_id",
+			"value": ""
+		},
+		{
+			"key": "settlement_id",
+			"value": ""
+		},
+		{
+			"key": "guarantee_id",
+			"value": ""
+		}
+	],
+	"item": [
+		{
+			"name": "1. Authentication",
+			"item": [
+				{
+					"name": "Admin Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"pm.collectionVariables.set('admin_token', jsonData.access);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"username\": \"admin_demo\",\n\t\"password\": \"AdminDemo123!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						}
+					}
+				},
+				{
+					"name": "Dealership Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"pm.collectionVariables.set('dealership_token', jsonData.access);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"username\": \"dealership_demo\",\n\t\"password\": \"DealershipDemo123!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						}
+					}
+				},
+				{
+					"name": "Client Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"pm.collectionVariables.set('client_token', jsonData.access);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"username\": \"client_demo\",\n\t\"password\": \"ClientDemo123!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "2. Dealership Profile & Summary",
+			"item": [
+				{
+					"name": "Get My Profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{dealership_token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dealership/me/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dealership", "me"]
+						}
+					}
+				},
+				{
+					"name": "Get Financial Summary",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{dealership_token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dealership/me/summary/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dealership", "me", "summary"]
+						}
+					}
+				},
+				{
+					"name": "Get Fee Config",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{dealership_token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dealership/fee-config/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dealership", "fee-config"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "3. Client Lookup",
+			"item": [
+				{
+					"name": "Lookup Client by Phone",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{dealership_token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dealership/clients/lookup/?q=07700000904",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dealership", "clients", "lookup"],
+							"query": [
+								{ "key": "q", "value": "07700000904" }
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "4. Recharge Preview & Create",
+			"item": [
+				{
+					"name": "Preview Recharge (Added On Top)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"pm.collectionVariables.set('client_id', jsonData.client_id || '');"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{dealership_token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"client_id\": \"{{client_id}}\",\n\t\"fee_mode\": \"added_on_top\",\n\t\"wallet_credit_amount\": \"100000\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/dealership/recharges/preview/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dealership", "recharges", "preview"]
+						}
+					}
+				},
+				{
+					"name": "Preview Recharge (Deducted From Deposit)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{dealership_token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"client_id\": \"{{client_id}}\",\n\t\"fee_mode\": \"deducted_from_deposit\",\n\t\"cash_received_amount\": \"101000\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/dealership/recharges/preview/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dealership", "recharges", "preview"]
+						}
+					}
+				},
+				{
+					"name": "Create Recharge",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{dealership_token}}" },
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Idempotency-Key", "value": "recharge-demo-001", "disabled": true }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"client_id\": \"{{client_id}}\",\n\t\"fee_mode\": \"added_on_top\",\n\t\"wallet_credit_amount\": \"100000\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/dealership/recharges/create/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dealership", "recharges", "create"]
+						}
+					}
+				},
+				{
+					"name": "List Recharges",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{dealership_token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dealership/recharges/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dealership", "recharges"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "5. Cash-out Flow",
+			"item": [
+				{
+					"name": "Preview Cash-out",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{client_token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"dealership_id\": {{dealership_id}},\n\t\"amount\": \"50000\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/dealership/cashouts/preview/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dealership", "cashouts", "preview"]
+						}
+					}
+				},
+				{
+					"name": "Create Cash-out Request",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"pm.collectionVariables.set('cashout_id', jsonData.id || '');"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{client_token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"dealership_id\": {{dealership_id}},\n\t\"amount\": \"50000\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/dealership/cashouts/create/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dealership", "cashouts", "create"]
+						}
+					}
+				},
+				{
+					"name": "Confirm Cash-out (Dealership)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{dealership_token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"confirmation_code\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/dealership/cashouts/{{cashout_id}}/confirm-code/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dealership", "cashouts", "{{cashout_id}}", "confirm-code"]
+						}
+					}
+				},
+				{
+					"name": "List Cash-outs",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{dealership_token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dealership/cashouts/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dealership", "cashouts"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "6. Settlements",
+			"item": [
+				{
+					"name": "List My Settlements",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{dealership_token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dealership/settlements/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dealership", "settlements"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "7. Admin — Dealership Management",
+			"item": [
+				{
+					"name": "List All Dealerships",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{admin_token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/dealerships/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "dealerships"]
+						}
+					}
+				},
+				{
+					"name": "Get Dealership Detail",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{admin_token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/dealerships/{{dealership_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "dealerships", "{{dealership_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Approve Dealership",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{admin_token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"notes\": \"Dealership approved after document verification.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/dealerships/{{dealership_id}}/approve/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "dealerships", "{{dealership_id}}", "approve"]
+						}
+					}
+				},
+				{
+					"name": "Suspend Dealership",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{admin_token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"reason\": \"Compliance review in progress.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/dealerships/{{dealership_id}}/suspend/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "dealerships", "{{dealership_id}}", "suspend"]
+						}
+					}
+				},
+				{
+					"name": "Block Dealership",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{admin_token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"reason\": \"Violation of terms of service.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/dealerships/{{dealership_id}}/block/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "dealerships", "{{dealership_id}}", "block"]
+						}
+					}
+				},
+				{
+					"name": "Unlock Dealership (Financial)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{admin_token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/dealerships/{{dealership_id}}/unlock/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "dealerships", "{{dealership_id}}", "unlock"]
+						}
+					}
+				},
+				{
+					"name": "List Guarantees",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{admin_token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/dealerships/{{dealership_id}}/guarantees/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "dealerships", "{{dealership_id}}", "guarantees"]
+						}
+					}
+				},
+				{
+					"name": "Create Guarantee",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{admin_token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"cash_amount\": \"10000000\",\n\t\"notes\": \"New cash guarantee deposit.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/dealerships/{{dealership_id}}/guarantees/create/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "dealerships", "{{dealership_id}}", "guarantees", "create"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "8. Admin — Guarantee Actions",
+			"item": [
+				{
+					"name": "Verify Guarantee",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{admin_token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"notes\": \"Bank check verified with institution.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/dealership-guarantees/{{guarantee_id}}/verify/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "dealership-guarantees", "{{guarantee_id}}", "verify"]
+						}
+					}
+				},
+				{
+					"name": "Reject Guarantee",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{admin_token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"notes\": \"Document did not meet verification requirements.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/dealership-guarantees/{{guarantee_id}}/reject/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "dealership-guarantees", "{{guarantee_id}}", "reject"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "9. Admin — Recharge / Cashout / Settlement Lists",
+			"item": [
+				{
+					"name": "Admin List Recharges",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{admin_token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/dealership-recharges/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "dealership-recharges"]
+						}
+					}
+				},
+				{
+					"name": "Admin List Cash-outs",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{admin_token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/dealership-cashouts/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "dealership-cashouts"]
+						}
+					}
+				},
+				{
+					"name": "Admin List Settlements",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{admin_token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/dealership-settlements/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "dealership-settlements"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "10. Admin — Settlement Lifecycle",
+			"item": [
+				{
+					"name": "Generate Settlement",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"pm.collectionVariables.set('settlement_id', jsonData.id || '');"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{admin_token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"dealership_id\": {{dealership_id}},\n\t\"period_start\": \"2026-01-01\",\n\t\"period_end\": \"2026-12-31\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/dealership-settlements/generate/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "dealership-settlements", "generate"]
+						}
+					}
+				},
+				{
+					"name": "Complete Settlement",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{admin_token}}" },
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"notes\": \"Settlement completed for the period.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/dealership-settlements/{{settlement_id}}/complete/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "dealership-settlements", "{{settlement_id}}", "complete"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "11. Dashboard Summary",
+			"item": [
+				{
+					"name": "Dashboard Summary (with Dealership Metrics)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{admin_token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/dashboard/summary/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "dashboard", "summary"]
+						}
+					}
+				}
+			]
+		}
+	]
+}

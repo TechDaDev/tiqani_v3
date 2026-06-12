@@ -13,6 +13,23 @@ from .views import (
     AdminWithdrawalApproveView, AdminWithdrawalRejectView, AdminPaymentIntentMarkPaidView,
     AdminActivityListView,
 )
+from dealership.views import (
+    AdminDealershipListView,
+    AdminDealershipDetailView,
+    AdminDealershipApproveView,
+    AdminDealershipSuspendView,
+    AdminDealershipBlockView,
+    AdminDealershipUnlockView,
+    AdminGuaranteeListView,
+    AdminGuaranteeCreateView,
+    AdminGuaranteeVerifyView,
+    AdminGuaranteeRejectView,
+    AdminRechargeListView,
+    AdminCashoutListView,
+    AdminSettlementListView,
+    AdminSettlementGenerateView,
+    AdminSettlementCompleteView,
+)
 
 urlpatterns = [
     # Dashboard
@@ -56,4 +73,21 @@ urlpatterns = [
 
     # Activity
     path('activity/', AdminActivityListView.as_view(), name='admin_activity_list'),
+
+    # Dealership admin
+    path('dealerships/', AdminDealershipListView.as_view(), name='admin-dealership-list'),
+    path('dealerships/<int:dealership_id>/', AdminDealershipDetailView.as_view(), name='admin-dealership-detail'),
+    path('dealerships/<int:dealership_id>/approve/', AdminDealershipApproveView.as_view(), name='admin-dealership-approve'),
+    path('dealerships/<int:dealership_id>/suspend/', AdminDealershipSuspendView.as_view(), name='admin-dealership-suspend'),
+    path('dealerships/<int:dealership_id>/block/', AdminDealershipBlockView.as_view(), name='admin-dealership-block'),
+    path('dealerships/<int:dealership_id>/unlock/', AdminDealershipUnlockView.as_view(), name='admin-dealership-unlock'),
+    path('dealerships/<int:dealership_id>/guarantees/', AdminGuaranteeListView.as_view(), name='admin-dealership-guarantee-list'),
+    path('dealerships/<int:dealership_id>/guarantees/create/', AdminGuaranteeCreateView.as_view(), name='admin-dealership-guarantee-create'),
+    path('dealership-guarantees/<int:guarantee_id>/verify/', AdminGuaranteeVerifyView.as_view(), name='admin-guarantee-verify'),
+    path('dealership-guarantees/<int:guarantee_id>/reject/', AdminGuaranteeRejectView.as_view(), name='admin-guarantee-reject'),
+    path('dealership-recharges/', AdminRechargeListView.as_view(), name='admin-dealership-recharge-list'),
+    path('dealership-cashouts/', AdminCashoutListView.as_view(), name='admin-dealership-cashout-list'),
+    path('dealership-settlements/', AdminSettlementListView.as_view(), name='admin-dealership-settlement-list'),
+    path('dealership-settlements/generate/', AdminSettlementGenerateView.as_view(), name='admin-dealership-settlement-generate'),
+    path('dealership-settlements/<int:settlement_id>/complete/', AdminSettlementCompleteView.as_view(), name='admin-dealership-settlement-complete'),
 ]

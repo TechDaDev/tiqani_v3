@@ -32,6 +32,7 @@ from notification.services import (
     notify_technician_approved, notify_technician_rejected,
     create_activity, notify_review_moderated,
 )
+from dealership.services import get_dealership_metrics
 
 from .permissions import (
     IsPlatformAdmin, IsSystemAdmin, IsFinanceAdmin,
@@ -67,6 +68,7 @@ class DashboardSummaryView(GenericAPIView):
             total=Count('id'),
             clients=Count('id', filter=Q(role='client')),
             technicians=Count('id', filter=Q(role='technician')),
+            dealerships=Count('id', filter=Q(role='dealership')),
             admins=Count('id', filter=Q(role='admin')),
             active=Count('id', filter=Q(is_active=True)),
             inactive=Count('id', filter=Q(is_active=False)),
@@ -134,6 +136,7 @@ class DashboardSummaryView(GenericAPIView):
             'finance': finance,
             'reviews': review_counts,
             'notifications': notif_counts,
+            'dealerships': get_dealership_metrics(),
         }
         return Response(data)
 

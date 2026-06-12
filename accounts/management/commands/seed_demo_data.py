@@ -20,6 +20,11 @@ from contract.models import Contract
 from wallet.models import Wallet, PlatformFeeConfig
 from notification.services import create_notification
 from ratereview.models import Review
+from dealership.models import (
+    DealershipProfile, DealershipGuarantee,
+    DealershipRechargeFeeConfig, DealershipClientRecharge,
+)
+from dealership.services import create_recharge
 
 User = get_user_model()
 
@@ -291,6 +296,71 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS("  ✓  Demo notifications created"))
         results['existing'] += 3
 
+        # ── Dealership Demo ──────────────────────────────────────
+        dealership_user, created = self._create_or_update_user(
+            'dealership_demo', 'dealership.demo@tiqani.local', 'DealershipDemo123!',
+            'dealership',
+        )
+        dealership_user.phone_number = '07700000907'
+        dealership_user.save()
+
+        profile, _ = DealershipProfile.objects.update_or_create(
+            user=dealership_user,
+            defaults={
+                'business_name': 'Tiqani Demo Dealership',
+                'owner_name': 'Ali Demo',
+                'phone': '07700000907',
+                'governorate': 'Baghdad',
+                'address': 'Demo Dealership Address, Baghdad',
+                'status': DealershipProfile.Status.ACTIVE,
+                'active': True,
+                'usage_limit_percent': Decimal('80.00'),
+                'recharge_enabled': True,
+                'cashout_enabled': True,
+            },
+        )
+        _report('dealership_demo (active dealership)', created)
+
+        # Verified guarantee
+        guarantee, _ = DealershipGuarantee.objects.update_or_create(
+            dealership=profile,
+            cash_amount=Decimal('50000000'),  # 50M IQD cash
+            bank_check_amount=Decimal('0'),
+            legal_document_amount=Decimal('0'),
+            defaults={
+                'status': DealershipGuarantee.Status.VERIFIED,
+                'total_guarantee_amount': Decimal('50000000'),
+            },
+        )
+        _report('Dealership guarantee 50M IQD (verified)', False)
+
+        # Fee config
+        DealershipRechargeFeeConfig.objects.update_or_create(
+            fee_percent=Decimal('1.00'),
+            defaults={
+                'default_fee_mode': DealershipRechargeFeeConfig.FeeMode.ADDED_ON_TOP,
+                'is_active': True,
+            },
+        )
+        self.stdout.write(self.style.SUCCESS("  ✓  Dealership fee config (1%)"))
+
+        # Sample recharge
+        client_profile = ClientProfile.objects.get(user=client_user)
+        try:
+            recharge, _ = create_recharge(
+                dealership=profile,
+                client=client_user,
+                fee_mode=DealershipRechargeFeeConfig.FeeMode.ADDED_ON_TOP,
+                wallet_credit_amount=Decimal('100000'),  # 100K IQD
+                created_by=dealership_user,
+            )
+            _report(f'Recharge {recharge.wallet_credit_amount} IQD → {client_user.username}', False)
+        except Exception as exc:
+            self.stdout.write(self.style.WARNING(f"  ⚠  Recharge skipped: {exc}"))
+
+        self.stdout.write(self.style.SUCCESS("  ✓  Dealership demo data seeded"))
+        results['existing'] += 2
+
         # ── Summary ──────────────────────────────────────────────
         self.stdout.write('\n' + '=' * 50)
         self.stdout.write(self.style.SUCCESS(
@@ -304,3 +374,4 @@ class Command(BaseCommand):
         self.stdout.write('  client_demo / ClientDemo123!')
         self.stdout.write('  tech_demo / TechDemo123!')
         self.stdout.write('  tech_pending_demo / TechPendingDemo123!')
+        self.stdout.write('  dealership_demo / DealershipDemo123!')

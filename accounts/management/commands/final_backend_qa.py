@@ -57,6 +57,7 @@ class Command(BaseCommand):
         demo_usernames = [
             'admin_demo', 'finance_demo', 'moderator_demo',
             'account_manager_demo', 'client_demo', 'tech_demo', 'tech_pending_demo',
+            'dealership_demo',
         ]
         existing = User.objects.filter(username__in=demo_usernames).count()
         self._check(f'Demo users present ({existing}/{len(demo_usernames)})',
@@ -64,7 +65,7 @@ class Command(BaseCommand):
                      f'missing: {set(demo_usernames) - set(User.objects.filter(username__in=demo_usernames).values_list("username", flat=True))}')
 
         # ── Core app URLs import ─────────────────────────────────
-        apps = ['accounts', 'category', 'contract', 'ratereview', 'wallet', 'notification', 'dashboard']
+        apps = ['accounts', 'category', 'contract', 'ratereview', 'wallet', 'notification', 'dashboard', 'dealership']
         importable = 0
         for app in apps:
             try:

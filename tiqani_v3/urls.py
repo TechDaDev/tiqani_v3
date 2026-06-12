@@ -40,6 +40,8 @@ urlpatterns = [
     path('api/wallet/', include('wallet.urls')),
     # Notifications / Activity
     path('api/notifications/', include('notification.urls')),
+    # Dealership
+    path('api/dealership/', include('dealership.urls')),
     # Admin Dashboard
     path('api/admin/', include('dashboard.urls')),
     # Health

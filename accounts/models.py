@@ -127,6 +127,7 @@ class CustomUser(AbstractUser, TimestampedModel):
     class Role(models.TextChoices):
         CLIENT = 'client', _('Client')
         TECHNICIAN = 'technician', _('Technician')
+        DEALERSHIP = 'dealership', _('Dealership')
         ADMIN = 'admin', _('Admin')
 
     class Gender(models.TextChoices):
