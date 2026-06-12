@@ -5,12 +5,28 @@ Requires SECRET_KEY, ALLOWED_HOSTS, and DATABASE_URL to be set via
 environment variables.
 """
 
+import os
+
+import sentry_sdk
+
 from .base import *  # noqa: F403, F401
 
 # ---------------------------------------------------------------------------
 # Debug — must be False in production
 # ---------------------------------------------------------------------------
 DEBUG = False
+
+# ---------------------------------------------------------------------------
+# Sentry — error tracking & performance monitoring
+# ---------------------------------------------------------------------------
+if SENTRY_DSN:  # noqa: F405
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,  # noqa: F405
+        environment=SENTRY_ENVIRONMENT,  # noqa: F405
+        traces_sample_rate=SENTRY_TRACES_SAMPLE_RATE,  # noqa: F405
+        send_default_pii=False,  # Do NOT send user PII to Sentry
+        release=os.environ.get("APP_VERSION", "unknown"),  # noqa: F405
+    )
 
 # ---------------------------------------------------------------------------
 # Security — required

@@ -1,0 +1,105 @@
+{
+  "info": {
+    "name": "Tiqani v3 - Phase 15 Operations",
+    "description": "## Tiqani v3 - Phase 15\n\n### Monitoring, Sentry, Structured Logs & Audit Export\n\nRequires authentication with admin role for some endpoints.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://127.0.0.1:8000" },
+    { "key": "admin_token", "value": "" },
+    { "key": "token", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health - Liveness",
+      "event": [],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/health/live/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "health", "live", ""]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Health - Readiness",
+      "event": [],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/health/ready/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "health", "ready", ""]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Health - Deep",
+      "event": [],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/health/deep/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "health", "deep", ""]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Health - Legacy (alias)",
+      "event": [],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/health/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "health", ""]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Check Operations Ready",
+      "event": [],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/health/deep/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "health", "deep", ""]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Audit Export - JSON (30 days)",
+      "event": [],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"days\": 30,\n  \"format\": \"json\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/admin/audit-export/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "admin", "audit-export", ""]
+        }
+      },
+      "response": []
+    }
+  ]
+}

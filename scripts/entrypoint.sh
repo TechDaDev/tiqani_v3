@@ -63,6 +63,13 @@ if [ "${SEED_PLATFORM_FEES:-false}" = "true" ]; then
     echo "  Done."
 fi
 
+# ── Seed Celery Beat schedule (ops tasks) ──────────────────────────
+if [ "${SEED_CELERY_BEAT:-false}" = "true" ]; then
+    echo "Seeding Celery Beat schedule for Phase 15 ops tasks..."
+    python manage.py seed_celery_beat_schedule
+    echo "  Done."
+fi
+
 # ── Execute main command ───────────────────────────────────────────
 echo "Starting: $@"
 exec "$@"

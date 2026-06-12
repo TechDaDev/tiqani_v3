@@ -51,6 +51,12 @@ services:
       - media_volume:/app/media
     ports:
       - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python manage.py check_operations_ready 2>&1 | grep -q '✓  Database reachable'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     # Daphne is required for WebSocket support.
     # For HTTP-only deployments, replace with:
     #   gunicorn tiqani_v3.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 120

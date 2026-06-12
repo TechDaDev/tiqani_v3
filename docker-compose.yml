@@ -52,6 +52,12 @@ services:
       - .:/app
     ports:
       - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python manage.py check_operations_ready 2>&1 | grep -q '✓  Database reachable'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     command: >
       sh -c "
         python manage.py migrate &&

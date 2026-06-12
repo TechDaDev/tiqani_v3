@@ -18,7 +18,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
-from .views import health
+from .views import health_live, health_ready, health_deep, health
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -46,6 +46,9 @@ urlpatterns = [
     path('api/admin/', include('dashboard.urls')),
     # Health
     path('api/health/', health),
+    path('api/health/live/', health_live),
+    path('api/health/ready/', health_ready),
+    path('api/health/deep/', health_deep),
 ]
 
 if settings.DEBUG:

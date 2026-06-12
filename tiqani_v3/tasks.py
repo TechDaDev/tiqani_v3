@@ -1,5 +1,6 @@
 """
-Project-wide background tasks — media cleanup reporting, health checks.
+Project-wide background tasks — media cleanup reporting, health checks,
+and operational housekeeping.
 
 These tasks are orchestrated by Celery Beat via django-celery-beat.
 """
@@ -146,3 +147,56 @@ def celery_health_check_task():
         "status": "ok",
         "timestamp": timezone.now().isoformat(),
     }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Phase 15 — Operations tasks
+# ═══════════════════════════════════════════════════════════════════
+
+
+@shared_task
+def celery_ping_workers_task():
+    """
+    Ping all available Celery workers and report responsiveness.
+
+    Intended to be run periodically (every 5 minutes) via Celery Beat.
+    """
+    try:
+        from celery.utils import uuid as celery_uuid
+
+        from tiqani_v3.celery import app as celery_app
+
+        ping_id = celery_uuid()
+        response = celery_app.control.ping(timeout=3.0)
+        active = len(response) if response else 0
+        logger.info("Worker ping: %d active worker(s)", active)
+        return {"task": "celery_ping_workers", "active_workers": active}
+    except Exception as exc:
+        logger.error("Worker ping failed: %s", exc)
+        return {"task": "celery_ping_workers", "error": str(exc)}
+
+
+@shared_task(bind=True, max_retries=2)
+def send_sentry_test_event_task(self):
+    """
+    Send a test event to Sentry for integration verification.
+
+    Safe to run in any environment — produces a warning-level event.
+    """
+    try:
+        import sentry_sdk
+
+        with sentry_sdk.push_scope() as scope:
+            scope.set_tag("test", "ops_readiness")
+            sentry_sdk.capture_message(
+                "Sentry integration test — safe to ignore",
+                level="warning",
+            )
+        logger.info("Sentry test event sent.")
+        return {"task": "send_sentry_test_event", "status": "sent"}
+    except ImportError:
+        logger.warning("sentry_sdk not available — skipping test event.")
+        return {"task": "send_sentry_test_event", "status": "skipped"}
+    except Exception as exc:
+        logger.error("Sentry test failed: %s", exc)
+        return {"task": "send_sentry_test_event", "error": str(exc)}
