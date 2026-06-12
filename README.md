@@ -197,7 +197,12 @@ See `docs/FRONTEND_HANDOFF.md` for:
 - Frontend route guards by role
 - API response patterns and error codes
 - Demo accounts table with credentials
-- Known limitations (no chat, no real payments, no WebSockets)
+- Known limitations (no real payments, etc.)
+
+See `docs/CHAT_WORKFLOW.md` for:
+- Current communication mechanisms (contract stages, notifications)
+- Planned chat architecture using existing Channels infrastructure
+- Recommended implementation order for real-time messaging
 
 ## Postman
 
