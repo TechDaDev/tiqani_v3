@@ -1,29 +1,21 @@
 """Tests for chat WebSocket consumer."""
 
-import json
 from channels.testing import WebsocketCommunicator
 from django.test import TestCase, override_settings
-from django.contrib.auth import get_user_model
 
 from accounts.models import CustomUser, ClientProfile, TechnicianProfile
 from chat.models import ServiceChatRoom
-from chat.consumers import ServiceChatConsumer
 from tiqani_v3.routing import application
 
 
 @override_settings(CHANNEL_LAYERS={"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}})
 class ChatConsumerTests(TestCase):
-    """Test WebSocket consumer behavior."""
+    """Test WebSocket consumer behavior.
 
-    async def asyncSetUp(self):
-        self.client_user = await get_user_model().objects.acreate(
-            username="client1", password="test123", role="client",
-            phone_number="07500000001",
-        )
-        self.tech_user = await get_user_model().objects.acreate(
-            username="tech1", password="test123", role="technician",
-            phone_number="07500000002",
-        )
+    All DB setup is done synchronously in setUp.  Async test methods
+    access only scalar values (room.id, token) so they do not cross
+    async/sync DB boundaries unsafely.
+    """
 
     def setUp(self):
         self.client_user = CustomUser.objects.create_user(
@@ -73,6 +65,10 @@ class ChatConsumerTests(TestCase):
         )
         connected, _ = await communicator.connect()
         self.assertTrue(connected)
+
+        # Drain the connection.accepted message first, then send ping
+        welcome = await communicator.receive_json_from()
+        self.assertEqual(welcome["type"], "chat.connection.accepted")
 
         await communicator.send_json_to({"type": "ping"})
         response = await communicator.receive_json_from()

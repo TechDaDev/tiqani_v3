@@ -95,3 +95,4 @@ settings_local.py
 media/
 uploads/
 *.sqlite3
+Results/

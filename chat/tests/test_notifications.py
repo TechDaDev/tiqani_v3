@@ -1,11 +1,12 @@
 """Tests for chat notification integration.
 
-Uses TransactionTestCase so transaction.on_commit callbacks fire properly.
+Uses TestCase with captureOnCommitCallbacks so transaction.on_commit
+callbacks fire without the FK truncation issues of TransactionTestCase.
 """
 
 from decimal import Decimal
 
-from django.test import TransactionTestCase, override_settings
+from django.test import TestCase, override_settings
 from django.db import transaction
 
 from accounts.models import CustomUser, ClientProfile, TechnicianProfile
@@ -15,7 +16,7 @@ from notification.models import Notification
 
 
 @override_settings(CHANNEL_LAYERS={"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}})
-class ChatNotificationTests(TransactionTestCase):
+class ChatNotificationTests(TestCase):
     """Test that chat actions create notifications."""
 
     def setUp(self):
@@ -36,8 +37,8 @@ class ChatNotificationTests(TransactionTestCase):
         )
 
     def test_message_creates_notification_for_other_participant(self):
-        # Service layer uses transaction.on_commit, so we need to call inside atomic
-        with transaction.atomic():
+        # Service layer uses transaction.on_commit, so capture callbacks
+        with transaction.atomic(), self.captureOnCommitCallbacks(execute=True):
             svc.create_message(room=self.room, sender=self.client_user, body="Hello!")
 
         # Check notification was created for technician
@@ -46,7 +47,7 @@ class ChatNotificationTests(TransactionTestCase):
         self.assertIn("New message", notif.title)
 
     def test_price_offer_creates_notification_for_client(self):
-        with transaction.atomic():
+        with transaction.atomic(), self.captureOnCommitCallbacks(execute=True):
             svc.create_price_offer(
                 room=self.room,
                 technician_user=self.tech_user,
@@ -58,13 +59,13 @@ class ChatNotificationTests(TransactionTestCase):
         self.assertIn("Price offer", notif.title)
 
     def test_accepted_offer_notifies_technician(self):
-        with transaction.atomic():
+        with transaction.atomic(), self.captureOnCommitCallbacks(execute=True):
             offer, _ = svc.create_price_offer(
                 room=self.room,
                 technician_user=self.tech_user,
                 amount="75000.00",
             )
-        with transaction.atomic():
+        with transaction.atomic(), self.captureOnCommitCallbacks(execute=True):
             svc.accept_price_offer(
                 room=self.room,
                 client_user=self.client_user,
