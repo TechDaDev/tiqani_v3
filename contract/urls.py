@@ -13,6 +13,15 @@ from .views import (
     ContractExtensionListView,
     ContractExtensionCreateView,
     ContractExtensionRespondView,
+    ContractFreezeView,
+    ContractRequestSignatureOtpView,
+    ContractSignView,
+    ContractSignaturesView,
+    ContractFinalizeView,
+    ContractDocumentsView,
+    ContractFinalDocumentView,
+    PublicVerifyCodeView,
+    PublicVerifyPdfView,
 )
 
 urlpatterns = [
@@ -31,4 +40,17 @@ urlpatterns = [
     path("<uuid:contract_id>/extension-requests/create/", ContractExtensionCreateView.as_view(), name="contract-extension-create"),
     path("<uuid:contract_id>/extension-requests/<uuid:request_id>/approve/", ContractExtensionRespondView.as_view(), name="contract-extension-approve"),
     path("<uuid:contract_id>/extension-requests/<uuid:request_id>/reject/", ContractExtensionRespondView.as_view(), name="contract-extension-reject"),
+
+    # --- Phase 19: Signatures & Finalization ---
+    path("<uuid:contract_id>/freeze/", ContractFreezeView.as_view(), name="contract-freeze"),
+    path("<uuid:contract_id>/request-signature-otp/", ContractRequestSignatureOtpView.as_view(), name="contract-request-signature-otp"),
+    path("<uuid:contract_id>/sign/", ContractSignView.as_view(), name="contract-sign"),
+    path("<uuid:contract_id>/signatures/", ContractSignaturesView.as_view(), name="contract-signatures"),
+    path("<uuid:contract_id>/finalize/", ContractFinalizeView.as_view(), name="contract-finalize"),
+    path("<uuid:contract_id>/documents/", ContractDocumentsView.as_view(), name="contract-documents"),
+    path("<uuid:contract_id>/documents/final/", ContractFinalDocumentView.as_view(), name="contract-final-document"),
+
+    # --- Public Verification ---
+    path("verify/<str:verification_code>/", PublicVerifyCodeView.as_view(), name="contract-public-verify-code"),
+    path("verify-pdf/", PublicVerifyPdfView.as_view(), name="contract-public-verify-pdf"),
 ]

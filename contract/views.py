@@ -5,8 +5,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
+from django.http import FileResponse
 from django.utils import timezone
 from django.db import transaction
+from drf_spectacular.utils import OpenApiResponse, extend_schema
 
 from .models import Contract, ContractStage, TimeExtensionRequest
 from .serializers import (
@@ -20,6 +22,11 @@ from .serializers import (
     TimeExtensionRequestSerializer,
     TimeExtensionCreateSerializer,
     ExtensionRespondSerializer,
+    ContractSignSerializer,
+    ContractSignatureSerializer,
+    ContractDocumentSerializer,
+    PublicVerifyCodeSerializer,
+    PublicVerifyPdfSerializer,
 )
 from .permissions import IsContractParticipantOrAdmin, IsContractClient, IsContractTechnician, IsAdminUser
 from . import services as svc
@@ -364,6 +371,250 @@ class ContractExtensionRespondView(APIView):
             )
         except (ValueError, PermissionError) as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ──────────────────────────────────────────────
+#  Phase 19: Freeze, Sign, Finalize, Verify
+# ──────────────────────────────────────────────
+
+class ContractFreezeView(APIView):
+    """POST: Freeze immutable contract snapshot for signatures."""
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        request=None,
+        responses={
+            200: OpenApiResponse(description='Contract version frozen.'),
+            400: OpenApiResponse(description='Invalid state for freezing.'),
+            403: OpenApiResponse(description='Permission denied.'),
+        },
+        tags=['Contracts'],
+    )
+    def post(self, request, **kwargs):
+        contract = get_object_or_404(Contract, id=kwargs["contract_id"], is_delete=False)
+        try:
+            version = svc.freeze_contract_version(contract, request.user)
+            return Response(
+                {
+                    "detail": "Contract version frozen.",
+                    "version_number": version.version_number,
+                    "snapshot_hash": version.canonical_snapshot_hash,
+                },
+                status=status.HTTP_200_OK,
+            )
+        except PermissionError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ContractRequestSignatureOtpView(APIView):
+    """POST: Request OTP email for signing."""
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        request=None,
+        responses={
+            200: OpenApiResponse(description='OTP sent to email for signature.'),
+            400: OpenApiResponse(description='Failed to send OTP or invalid state.'),
+            403: OpenApiResponse(description='Permission denied.'),
+        },
+        tags=['Contracts'],
+    )
+    def post(self, request, **kwargs):
+        contract = get_object_or_404(Contract, id=kwargs["contract_id"], is_delete=False)
+        try:
+            otp = svc.request_signature_otp(contract, request.user)
+            return Response(
+                {
+                    "detail": "OTP sent to email for signature.",
+                    "verification_id": otp.verification_id,
+                },
+                status=status.HTTP_200_OK,
+            )
+        except PermissionError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ContractSignView(APIView):
+    """POST: Submit OTP to sign frozen contract version."""
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        request=ContractSignSerializer,
+        responses={
+            200: ContractSignatureSerializer,
+            400: OpenApiResponse(description='Invalid OTP or contract state.'),
+            403: OpenApiResponse(description='Permission denied.'),
+        },
+        tags=['Contracts'],
+    )
+    def post(self, request, **kwargs):
+        contract = get_object_or_404(Contract, id=kwargs["contract_id"], is_delete=False)
+        serializer = ContractSignSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            signature = svc.sign_contract_version(
+                contract,
+                request.user,
+                serializer.validated_data["otp_code"],
+                ip_address=self._client_ip(request),
+                user_agent=request.META.get("HTTP_USER_AGENT", ""),
+            )
+            return Response(ContractSignatureSerializer(signature).data, status=status.HTTP_200_OK)
+        except PermissionError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    def _client_ip(self, request):
+        xff = request.META.get("HTTP_X_FORWARDED_FOR")
+        if xff:
+            return xff.split(",")[0].strip()
+        return request.META.get("REMOTE_ADDR", "")
+
+
+class ContractSignaturesView(APIView):
+    """GET: List signatures for latest frozen version."""
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        responses={
+            200: ContractSignatureSerializer(many=True),
+            403: OpenApiResponse(description='Permission denied.'),
+        },
+        tags=['Contracts'],
+    )
+    def get(self, request, **kwargs):
+        contract = get_object_or_404(Contract, id=kwargs["contract_id"], is_delete=False)
+        try:
+            signatures = svc.get_contract_signatures(contract, request.user)
+            return Response(ContractSignatureSerializer(signatures, many=True).data, status=status.HTTP_200_OK)
+        except PermissionError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+
+
+class ContractFinalizeView(APIView):
+    """POST: Finalize signed contract and activate escrow/workflow."""
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        request=None,
+        responses={
+            200: OpenApiResponse(description='Contract finalized successfully.'),
+            400: OpenApiResponse(description='Invalid state or missing signatures.'),
+            403: OpenApiResponse(description='Permission denied.'),
+        },
+        tags=['Contracts'],
+    )
+    def post(self, request, **kwargs):
+        contract = get_object_or_404(Contract, id=kwargs["contract_id"], is_delete=False)
+        if not (_is_participant(contract, request.user) or request.user.is_staff):
+            return Response({"detail": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            result = svc.finalize_signed_contract(contract, request.user)
+            return Response(
+                {
+                    "detail": "Contract finalized successfully.",
+                    "contract_id": str(result["contract"].id),
+                    "status": result["contract"].status,
+                    "version_number": result["version"].version_number if result.get("version") else None,
+                    "verification_code": result["attestation"].verification_code if result.get("attestation") else None,
+                    "document_sha256": result["document"].sha256 if result.get("document") else None,
+                },
+                status=status.HTTP_200_OK,
+            )
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ContractDocumentsView(APIView):
+    """GET: List contract document metadata."""
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        responses={
+            200: ContractDocumentSerializer(many=True),
+            403: OpenApiResponse(description='Permission denied.'),
+        },
+        tags=['Contracts'],
+    )
+    def get(self, request, **kwargs):
+        contract = get_object_or_404(Contract, id=kwargs["contract_id"], is_delete=False)
+        try:
+            documents = svc.get_contract_documents(contract, request.user)
+            return Response(
+                ContractDocumentSerializer(documents, many=True, context={"request": request}).data,
+                status=status.HTTP_200_OK,
+            )
+        except PermissionError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+
+
+class ContractFinalDocumentView(APIView):
+    """GET: Download final signed PDF document."""
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(description='Signed PDF file response.'),
+            403: OpenApiResponse(description='Permission denied.'),
+            404: OpenApiResponse(description='Final document not found.'),
+        },
+        tags=['Contracts'],
+    )
+    def get(self, request, **kwargs):
+        contract = get_object_or_404(Contract, id=kwargs["contract_id"], is_delete=False)
+        try:
+            document = svc.get_final_document(contract, request.user)
+        except PermissionError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+
+        if not document or not document.file:
+            return Response({"detail": "Final signed document not found."}, status=status.HTTP_404_NOT_FOUND)
+        return FileResponse(document.file.open("rb"), content_type=document.mime_type)
+
+
+class PublicVerifyCodeView(APIView):
+    """GET: Public verification by attestation code (no auth required)."""
+    permission_classes = []
+    authentication_classes = []
+
+    @extend_schema(
+        responses={
+            200: PublicVerifyCodeSerializer,
+            404: OpenApiResponse(description='Verification code not found.'),
+        },
+        tags=['Contracts Public Verification'],
+    )
+    def get(self, request, verification_code):
+        try:
+            result = svc.public_verify_by_code(verification_code)
+            return Response(result, status=status.HTTP_200_OK)
+        except Exception:
+            return Response({"detail": "Verification code not found."}, status=status.HTTP_404_NOT_FOUND)
+
+
+class PublicVerifyPdfView(APIView):
+    """POST: Public verification by uploaded PDF hash."""
+    permission_classes = []
+    authentication_classes = []
+
+    @extend_schema(
+        request=PublicVerifyPdfSerializer,
+        responses={
+            200: OpenApiResponse(description='PDF verification result.'),
+            400: OpenApiResponse(description='Invalid file.'),
+        },
+        tags=['Contracts Public Verification'],
+    )
+    def post(self, request):
+        serializer = PublicVerifyPdfSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = svc.public_verify_uploaded_pdf(serializer.validated_data["file"])
+        return Response(result, status=status.HTTP_200_OK)
 
 
 # ──────────────────────────────────────────────

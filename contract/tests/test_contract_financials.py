@@ -14,7 +14,7 @@ User = get_user_model()
 
 
 class ContractFinancialIntegrationTest(APITestCase):
-    """When both accept, financial artifacts are created."""
+    """Under Phase 19, dual acceptance defers financial artifacts until finalization."""
 
     def setUp(self):
         self.client = APIClient()
@@ -68,11 +68,8 @@ class ContractFinancialIntegrationTest(APITestCase):
         self.client.force_authenticate(user=self.tech_user)
         self.client.post(self.accept_url)
         self.contract.refresh_from_db()
-        self.assertEqual(self.contract.status, "in_progress")
-        self.assertTrue(hasattr(self.contract, "payment_breakdown"))
-        bd = self.contract.payment_breakdown
-        self.assertEqual(bd.contract_amount, Decimal("500000.00"))
-        self.assertEqual(bd.total_platform_fee, Decimal("75000.00"))
+        self.assertEqual(self.contract.status, "pending_signatures")
+        self.assertFalse(hasattr(self.contract, "payment_breakdown"))
 
     def test_both_accept_creates_payment_intent(self):
         self.client.force_authenticate(user=self.client_user)
@@ -80,7 +77,7 @@ class ContractFinancialIntegrationTest(APITestCase):
         self.client.force_authenticate(user=self.tech_user)
         self.client.post(self.accept_url)
         intents = PaymentIntent.objects.filter(contract=self.contract)
-        self.assertEqual(intents.count(), 1)
+        self.assertEqual(intents.count(), 0)
 
     def test_accept_twice_does_not_duplicate_breakdown(self):
         self.client.force_authenticate(user=self.client_user)
@@ -88,7 +85,7 @@ class ContractFinancialIntegrationTest(APITestCase):
         self.client.force_authenticate(user=self.tech_user)
         self.client.post(self.accept_url)
         count = ContractPaymentBreakdown.objects.filter(contract=self.contract).count()
-        self.assertEqual(count, 1)
+        self.assertEqual(count, 0)
 
 
 class StageFinancialTest(APITestCase):

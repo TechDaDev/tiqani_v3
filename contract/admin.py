@@ -1,5 +1,14 @@
 from django.contrib import admin
-from .models import Contract, ContractStage, TimeExtensionRequest
+from .models import (
+    Contract,
+    ContractStage,
+    TimeExtensionRequest,
+    ContractVersion,
+    ContractSignature,
+    ContractDocument,
+    PlatformAttestation,
+    ContractAuditEvent,
+)
 
 
 class ContractStageInline(admin.TabularInline):
@@ -95,3 +104,97 @@ class TimeExtensionRequestAdmin(admin.ModelAdmin):
             except Exception as e:
                 self.message_user(request, f"Error denying extension: {str(e)}", level='error')
     deny_requests.short_description = "Deny selected extension requests"
+
+
+# ──────────────────────────────────────────────
+#  Phase 19: Electronic Contracts
+# ──────────────────────────────────────────────
+
+
+@admin.register(ContractVersion)
+class ContractVersionAdmin(admin.ModelAdmin):
+    list_display = ('contract', 'version_number', 'is_frozen', 'frozen_at', 'canonical_snapshot_hash')
+    list_filter = ('is_frozen', 'frozen_at')
+    search_fields = ('contract__contract_reference', 'canonical_snapshot_hash')
+    readonly_fields = ('id', 'contract', 'version_number', 'canonical_snapshot', 'canonical_snapshot_hash',
+                       'is_frozen', 'frozen_at', 'frozen_by', 'created_at', 'updated_at')
+
+    def has_add_permission(self, request):
+        return False  # versions are created programmatically
+
+    def has_delete_permission(self, request, obj=None):
+        return False  # immutable — no deletion
+
+
+@admin.register(ContractSignature)
+class ContractSignatureAdmin(admin.ModelAdmin):
+    list_display = ('contract_version', 'signer_role', 'signer', 'signed_at', 'signature_hash_short')
+    list_filter = ('signer_role', 'signed_at')
+    search_fields = ('contract_version__contract__contract_reference', 'signer__username', 'signature_hash')
+    readonly_fields = ('id', 'contract_version', 'signer', 'signer_role', 'otp_verification',
+                       'signed_at', 'signature_hash', 'ip_address', 'user_agent', 'created_at', 'updated_at')
+
+    def signature_hash_short(self, obj):
+        return obj.signature_hash[:20] + "..." if obj.signature_hash else "-"
+    signature_hash_short.short_description = "Signature Hash"
+
+    def has_add_permission(self, request):
+        return False  # signatures are created via OTP flow
+
+    def has_delete_permission(self, request, obj=None):
+        return False  # immutable
+
+
+@admin.register(ContractDocument)
+class ContractDocumentAdmin(admin.ModelAdmin):
+    list_display = ('contract_version', 'kind', 'sha256_short', 'file_size', 'created_at')
+    list_filter = ('kind', 'created_at')
+    search_fields = ('contract_version__contract__contract_reference', 'sha256')
+    readonly_fields = ('id', 'contract_version', 'kind', 'file', 'sha256', 'mime_type', 'file_size',
+                       'created_by', 'created_at', 'updated_at')
+
+    def sha256_short(self, obj):
+        return obj.sha256[:20] + "..." if obj.sha256 else "-"
+    sha256_short.short_description = "SHA-256"
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        # Prevent deletion of final signed documents
+        if obj and obj.kind == 'signed_pdf':
+            return False
+        return super().has_delete_permission(request, obj)
+
+
+@admin.register(PlatformAttestation)
+class PlatformAttestationAdmin(admin.ModelAdmin):
+    list_display = ('verification_code', 'contract_version', 'attestation_hash_short', 'created_at')
+    search_fields = ('verification_code', 'contract_version__contract__contract_reference')
+    readonly_fields = ('id', 'contract_version', 'verification_code', 'attestation_hash',
+                       'payload', 'created_at', 'updated_at')
+
+    def attestation_hash_short(self, obj):
+        return obj.attestation_hash[:20] + "..." if obj.attestation_hash else "-"
+    attestation_hash_short.short_description = "Attestation Hash"
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(ContractAuditEvent)
+class ContractAuditEventAdmin(admin.ModelAdmin):
+    list_display = ('contract', 'event_type', 'actor', 'created_at')
+    list_filter = ('event_type', 'created_at')
+    search_fields = ('contract__contract_reference', 'event_type', 'actor__username')
+    readonly_fields = ('id', 'contract', 'event_type', 'actor', 'payload', 'created_at', 'updated_at')
+    date_hierarchy = 'created_at'
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

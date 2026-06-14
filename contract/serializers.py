@@ -5,7 +5,15 @@ from django.conf import settings
 from django.utils import timezone
 from decimal import Decimal
 
-from .models import Contract, ContractStage, TimeExtensionRequest
+from .models import (
+    Contract,
+    ContractStage,
+    TimeExtensionRequest,
+    ContractVersion,
+    ContractSignature,
+    ContractDocument,
+    PlatformAttestation,
+)
 from accounts.models import ClientProfile, TechnicianProfile
 
 
@@ -183,9 +191,19 @@ class ContractDetailSerializer(serializers.ModelSerializer):
                 actions.append("accept")
             if (is_client or is_technician) or is_admin:
                 actions.append("cancel")
+        elif obj.status == "pending_signatures":
+            if is_client or is_technician:
+                actions.extend(["freeze", "request_signature_otp", "sign", "list_signatures"])
+            if is_admin:
+                actions.extend(["freeze", "list_signatures"])
+        elif obj.status == "pending_finalization":
+            if is_client or is_technician or is_admin:
+                actions.extend(["list_signatures", "finalize", "list_documents"])
         elif obj.status == "in_progress":
             if is_technician:
                 actions.append("request_extension")
+            if is_client or is_technician or is_admin:
+                actions.append("list_documents")
             if is_admin:
                 actions.append("cancel")
         elif obj.status in ("completed", "canceled"):
@@ -358,3 +376,74 @@ class ExtensionRespondSerializer(serializers.Serializer):
     """Client responds to an extension request."""
     approve = serializers.BooleanField(default=True)
     client_response = serializers.CharField(required=False, allow_blank=True, max_length=2000)
+
+
+class ContractFreezeSerializer(serializers.Serializer):
+    """Freeze immutable contract snapshot before signatures."""
+    pass
+
+
+class ContractSignatureOtpRequestSerializer(serializers.Serializer):
+    """Request OTP email for contract signature."""
+    pass
+
+
+class ContractSignSerializer(serializers.Serializer):
+    """Submit OTP to create signature proof."""
+    otp_code = serializers.CharField(min_length=6, max_length=6)
+
+
+class ContractSignatureSerializer(serializers.ModelSerializer):
+    """Read-only signature records."""
+
+    class Meta:
+        model = ContractSignature
+        fields = (
+            'id', 'signer_role', 'signature_hash', 'signed_at', 'ip_address', 'user_agent', 'created_at',
+        )
+        read_only_fields = fields
+
+
+class ContractDocumentSerializer(serializers.ModelSerializer):
+    """Read-only contract document metadata."""
+    download_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ContractDocument
+        fields = (
+            'id', 'kind', 'sha256', 'mime_type', 'file_size', 'download_url', 'created_at',
+        )
+        read_only_fields = fields
+
+    def get_download_url(self, obj):
+        if not obj.file:
+            return None
+        request = self.context.get('request')
+        if request:
+            return request.build_absolute_uri(obj.file.url)
+        return obj.file.url
+
+
+class ContractFinalizeSerializer(serializers.Serializer):
+    """Trigger finalization after both signatures."""
+    pass
+
+
+class PublicVerifyCodeSerializer(serializers.Serializer):
+    """Public verification payload — no sensitive PII exposed."""
+    valid = serializers.BooleanField()
+    contract_reference = serializers.CharField()
+    version = serializers.IntegerField()
+    status = serializers.CharField()
+    document_type = serializers.CharField()
+    finalized_at = serializers.DateTimeField(allow_null=True)
+    client_signature_verified = serializers.BooleanField()
+    technician_signature_verified = serializers.BooleanField()
+    platform_attestation_verified = serializers.BooleanField()
+    document_hash = serializers.CharField(allow_null=True)
+    attestation_id = serializers.CharField()
+
+
+class PublicVerifyPdfSerializer(serializers.Serializer):
+    """Upload a PDF for public hash verification."""
+    file = serializers.FileField()

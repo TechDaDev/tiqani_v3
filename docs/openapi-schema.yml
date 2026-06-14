@@ -127,11 +127,15 @@ paths:
           - draft
           - in_progress
           - pending_acceptance
+          - pending_finalization
+          - pending_signatures
         description: |-
           Current contract status
 
           * `draft` - Draft
           * `pending_acceptance` - Pending Acceptance
+          * `pending_signatures` - Pending Signatures
+          * `pending_finalization` - Pending Finalization
           * `in_progress` - In Progress
           * `completed` - Completed
           * `canceled` - Canceled
@@ -2896,6 +2900,56 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/contracts/{contract_id}/documents/:
+    get:
+      operationId: contracts_documents_list
+      description: 'GET: List contract document metadata.'
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ContractDocument'
+          description: ''
+        '403':
+          description: Permission denied.
+  /api/contracts/{contract_id}/documents/final/:
+    get:
+      operationId: contracts_documents_final_retrieve
+      description: 'GET: Download final signed PDF document.'
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Signed PDF file response.
+        '403':
+          description: Permission denied.
+        '404':
+          description: Final document not found.
   /api/contracts/{contract_id}/extension-requests/:
     get:
       operationId: contracts_extension_requests_retrieve
@@ -2984,6 +3038,141 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/contracts/{contract_id}/finalize/:
+    post:
+      operationId: contracts_finalize_create
+      description: 'POST: Finalize signed contract and activate escrow/workflow.'
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Contract finalized successfully.
+        '400':
+          description: Invalid state or missing signatures.
+        '403':
+          description: Permission denied.
+  /api/contracts/{contract_id}/freeze/:
+    post:
+      operationId: contracts_freeze_create
+      description: 'POST: Freeze immutable contract snapshot for signatures.'
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Contract version frozen.
+        '400':
+          description: Invalid state for freezing.
+        '403':
+          description: Permission denied.
+  /api/contracts/{contract_id}/request-signature-otp/:
+    post:
+      operationId: contracts_request_signature_otp_create
+      description: 'POST: Request OTP email for signing.'
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: OTP sent to email for signature.
+        '400':
+          description: Failed to send OTP or invalid state.
+        '403':
+          description: Permission denied.
+  /api/contracts/{contract_id}/sign/:
+    post:
+      operationId: contracts_sign_create
+      description: 'POST: Submit OTP to sign frozen contract version.'
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Contracts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractSignRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ContractSignRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ContractSignRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractSignature'
+          description: ''
+        '400':
+          description: Invalid OTP or contract state.
+        '403':
+          description: Permission denied.
+  /api/contracts/{contract_id}/signatures/:
+    get:
+      operationId: contracts_signatures_list
+      description: 'GET: List signatures for latest frozen version.'
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ContractSignature'
+          description: ''
+        '403':
+          description: Permission denied.
   /api/contracts/{contract_id}/stages/:
     get:
       operationId: contracts_stages_retrieve
@@ -3102,6 +3291,54 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/contracts/verify-pdf/:
+    post:
+      operationId: contracts_verify_pdf_create
+      description: 'POST: Public verification by uploaded PDF hash.'
+      tags:
+      - Contracts Public Verification
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublicVerifyPdfRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PublicVerifyPdfRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PublicVerifyPdfRequest'
+        required: true
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: PDF verification result.
+        '400':
+          description: Invalid file.
+  /api/contracts/verify/{verification_code}/:
+    get:
+      operationId: contracts_verify_retrieve
+      description: 'GET: Public verification by attestation code (no auth required).'
+      parameters:
+      - in: path
+        name: verification_code
+        schema:
+          type: string
+        required: true
+      tags:
+      - Contracts Public Verification
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicVerifyCode'
+          description: ''
+        '404':
+          description: Verification code not found.
   /api/dealership/cashouts/:
     get:
       operationId: dealership_cashouts_list
@@ -4448,12 +4685,14 @@ components:
           description: Calculated deadline date (start_date + duration_days)
         status:
           allOf:
-          - $ref: '#/components/schemas/Status154Enum'
+          - $ref: '#/components/schemas/Status065Enum'
           description: |-
             Current contract status
 
             * `draft` - Draft
             * `pending_acceptance` - Pending Acceptance
+            * `pending_signatures` - Pending Signatures
+            * `pending_finalization` - Pending Finalization
             * `in_progress` - In Progress
             * `completed` - Completed
             * `canceled` - Canceled
@@ -4477,6 +4716,11 @@ components:
         technician_accepted:
           type: boolean
           description: Technician has accepted the contract
+        finalized_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the signed/final contract package was finalized
         client:
           type: string
           format: uuid
@@ -4485,6 +4729,11 @@ components:
           type: string
           format: uuid
           description: Technician performing the work
+        finalized_by:
+          type: string
+          format: uuid
+          nullable: true
+          description: User who triggered finalization
       required:
       - client
       - created_at
@@ -4524,12 +4773,14 @@ components:
           maxLength: 20
         status:
           allOf:
-          - $ref: '#/components/schemas/Status154Enum'
+          - $ref: '#/components/schemas/Status065Enum'
           description: |-
             Current contract status
 
             * `draft` - Draft
             * `pending_acceptance` - Pending Acceptance
+            * `pending_signatures` - Pending Signatures
+            * `pending_finalization` - Pending Finalization
             * `in_progress` - In Progress
             * `completed` - Completed
             * `canceled` - Canceled
@@ -5975,6 +6226,90 @@ components:
       - profile_image
       - role
       - username
+    ContractDocument:
+      type: object
+      description: Read-only contract document metadata.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        kind:
+          allOf:
+          - $ref: '#/components/schemas/KindEnum'
+          readOnly: true
+        sha256:
+          type: string
+          readOnly: true
+        mime_type:
+          type: string
+          readOnly: true
+        file_size:
+          type: integer
+          readOnly: true
+        download_url:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - download_url
+      - file_size
+      - id
+      - kind
+      - mime_type
+      - sha256
+    ContractSignRequest:
+      type: object
+      description: Submit OTP to create signature proof.
+      properties:
+        otp_code:
+          type: string
+          minLength: 6
+          maxLength: 6
+      required:
+      - otp_code
+    ContractSignature:
+      type: object
+      description: Read-only signature records.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        signer_role:
+          allOf:
+          - $ref: '#/components/schemas/SignerRoleEnum'
+          readOnly: true
+        signature_hash:
+          type: string
+          readOnly: true
+        signed_at:
+          type: string
+          format: date-time
+          readOnly: true
+        ip_address:
+          type: string
+          readOnly: true
+          nullable: true
+        user_agent:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - ip_address
+      - signature_hash
+      - signed_at
+      - signer_role
+      - user_agent
     DifficultyLevelEnum:
       enum:
       - beginner
@@ -6065,6 +6400,14 @@ components:
         * `Salah al-Din` - صلاح الدين
         * `Diyala` - ديالى
         * `Halabja` - حلبجة
+    KindEnum:
+      enum:
+      - draft_pdf
+      - signed_pdf
+      type: string
+      description: |-
+        * `draft_pdf` - Draft PDF
+        * `signed_pdf` - Signed PDF
     LinkContractRequest:
       type: object
       description: Link an existing contract to the room.
@@ -6971,6 +7314,56 @@ components:
       - manual
       type: string
       description: '* `manual` - Manual / Internal'
+    PublicVerifyCode:
+      type: object
+      description: Public verification payload — no sensitive PII exposed.
+      properties:
+        valid:
+          type: boolean
+        contract_reference:
+          type: string
+        version:
+          type: integer
+        status:
+          type: string
+        document_type:
+          type: string
+        finalized_at:
+          type: string
+          format: date-time
+          nullable: true
+        client_signature_verified:
+          type: boolean
+        technician_signature_verified:
+          type: boolean
+        platform_attestation_verified:
+          type: boolean
+        document_hash:
+          type: string
+          nullable: true
+        attestation_id:
+          type: string
+      required:
+      - attestation_id
+      - client_signature_verified
+      - contract_reference
+      - document_hash
+      - document_type
+      - finalized_at
+      - platform_attestation_verified
+      - status
+      - technician_signature_verified
+      - valid
+      - version
+    PublicVerifyPdfRequest:
+      type: object
+      description: Upload a PDF for public hash verification.
+      properties:
+        file:
+          type: string
+          format: binary
+      required:
+      - file
     PurposeEnum:
       enum:
       - contract_funding
@@ -7527,6 +7920,14 @@ components:
       - technician_user
       - unread_count
       - updated_at
+    SignerRoleEnum:
+      enum:
+      - client
+      - technician
+      type: string
+      description: |-
+        * `client` - Client
+        * `technician` - Technician
     Skill:
       type: object
       properties:
@@ -7621,10 +8022,12 @@ components:
         * `3` - 3 Stages
         * `4` - 4 Stages
         * `5` - 5 Stages
-    Status154Enum:
+    Status065Enum:
       enum:
       - draft
       - pending_acceptance
+      - pending_signatures
+      - pending_finalization
       - in_progress
       - completed
       - canceled
@@ -7632,6 +8035,8 @@ components:
       description: |-
         * `draft` - Draft
         * `pending_acceptance` - Pending Acceptance
+        * `pending_signatures` - Pending Signatures
+        * `pending_finalization` - Pending Finalization
         * `in_progress` - In Progress
         * `completed` - Completed
         * `canceled` - Canceled

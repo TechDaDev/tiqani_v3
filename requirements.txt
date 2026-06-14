@@ -32,4 +32,6 @@ drf-spectacular>=0.28
 
 # Utilities
 pillow>=12.0
+reportlab>=4.5.0
+qrcode>=8.0
 requests>=2.32

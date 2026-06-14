@@ -318,6 +318,19 @@ REGISTRATION_VERIFICATION_REQUIRED = env.bool(
 )
 
 # ---------------------------------------------------------------------------
+# Electronic Contracts (Phase 19)
+# ---------------------------------------------------------------------------
+CONTRACT_PUBLIC_VERIFY_BASE_URL = env(
+    "CONTRACT_PUBLIC_VERIFY_BASE_URL",
+    default="http://localhost:8000",
+)
+CONTRACT_PLATFORM_REGISTRATION = env(
+    "CONTRACT_PLATFORM_REGISTRATION",
+    default="",
+)
+CONTRACT_PDF_MAX_UPLOAD_MB = env.int("CONTRACT_PDF_MAX_UPLOAD_MB", default=10)
+
+# ---------------------------------------------------------------------------
 # Logging — structured JSON with sensitive-data redaction
 # ---------------------------------------------------------------------------
 LOG_LEVEL = env("LOG_LEVEL", default="INFO")

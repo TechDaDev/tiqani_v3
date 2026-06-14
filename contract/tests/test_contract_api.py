@@ -212,7 +212,7 @@ class ContractAcceptTest(ContractApiTestBase):
         self.contract.refresh_from_db()
         self.assertTrue(self.contract.technician_accepted)
 
-    def test_both_accept_moves_to_in_progress(self):
+    def test_both_accept_moves_to_pending_signatures(self):
         # Client accepts
         self.client_api.force_authenticate(user=self.client_user)
         self.client_api.post(self.accept_url)
@@ -220,12 +220,12 @@ class ContractAcceptTest(ContractApiTestBase):
         self.assertTrue(self.contract.client_accepted)
         self.assertEqual(self.contract.status, "pending_acceptance")
 
-        # Technician accepts → should move to in_progress
+        # Technician accepts -> should move to pending_signatures
         self.client_api.force_authenticate(user=self.tech_user)
         resp = self.client_api.post(self.accept_url)
         self.contract.refresh_from_db()
         self.assertTrue(self.contract.technician_accepted)
-        self.assertEqual(self.contract.status, "in_progress")
+        self.assertEqual(self.contract.status, "pending_signatures")
 
     def test_stages_created_when_in_progress(self):
         self.client_api.force_authenticate(user=self.client_user)
@@ -236,13 +236,13 @@ class ContractAcceptTest(ContractApiTestBase):
         stage_count = self.contract.stages.count()
         self.assertEqual(stage_count, 3)
 
-    def test_escrow_created_when_in_progress(self):
+    def test_escrow_not_created_before_finalization(self):
         self.client_api.force_authenticate(user=self.client_user)
         self.client_api.post(self.accept_url)
         self.client_api.force_authenticate(user=self.tech_user)
         self.client_api.post(self.accept_url)
         self.contract.refresh_from_db()
-        self.assertGreater(self.contract.escrow_amount, 0)
+        self.assertEqual(self.contract.escrow_amount, 0)
 
     def test_accept_idempotent(self):
         self.client_api.force_authenticate(user=self.client_user)

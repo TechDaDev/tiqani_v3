@@ -1,0 +1,195 @@
+{
+	"info": {
+		"name": "Tiqani v3 - Phase 19 Electronic Contracts",
+		"description": "Complete electronic contract signing, finalization, and public verification flow.\n\n## Flow\n1. Client and technician accept the contract\n2. Freeze contract version\n3. Each party requests OTP via email\n4. Each party signs with OTP\n5. Verify both signatures\n6. Finalize to generate PDF + attestation + activate escrow\n7. Verify using attestation code or uploaded PDF",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{jwt_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000"
+		},
+		{
+			"key": "contract_id",
+			"value": ""
+		},
+		{
+			"key": "client_otp",
+			"value": ""
+		},
+		{
+			"key": "technician_otp",
+			"value": ""
+		},
+		{
+			"key": "verification_code",
+			"value": ""
+		}
+	],
+	"item": [
+		{
+			"name": "1. Freeze Contract Version",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/api/contracts/{{contract_id}}/freeze/",
+					"host": ["{{base_url}}"],
+					"path": ["api", "contracts", "{{contract_id}}", "freeze"]
+				}
+			}
+		},
+		{
+			"name": "2. Request Signature OTP (Client)",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/api/contracts/{{contract_id}}/request-signature-otp/",
+					"host": ["{{base_url}}"],
+					"path": ["api", "contracts", "{{contract_id}}", "request-signature-otp"]
+				}
+			}
+		},
+		{
+			"name": "3. Sign Contract (Client)",
+			"request": {
+				"method": "POST",
+				"header": [{"key": "Content-Type", "value": "application/json"}],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"otp_code\": \"{{client_otp}}\"}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/contracts/{{contract_id}}/sign/",
+					"host": ["{{base_url}}"],
+					"path": ["api", "contracts", "{{contract_id}}", "sign"]
+				}
+			}
+		},
+		{
+			"name": "4. Request Signature OTP (Technician)",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/api/contracts/{{contract_id}}/request-signature-otp/",
+					"host": ["{{base_url}}"],
+					"path": ["api", "contracts", "{{contract_id}}", "request-signature-otp"]
+				}
+			}
+		},
+		{
+			"name": "5. Sign Contract (Technician)",
+			"request": {
+				"method": "POST",
+				"header": [{"key": "Content-Type", "value": "application/json"}],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"otp_code\": \"{{technician_otp}}\"}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/contracts/{{contract_id}}/sign/",
+					"host": ["{{base_url}}"],
+					"path": ["api", "contracts", "{{contract_id}}", "sign"]
+				}
+			}
+		},
+		{
+			"name": "6. List Signatures",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/api/contracts/{{contract_id}}/signatures/",
+					"host": ["{{base_url}}"],
+					"path": ["api", "contracts", "{{contract_id}}", "signatures"]
+				}
+			}
+		},
+		{
+			"name": "7. Finalize Contract",
+			"request": {
+				"method": "POST",
+				"header": [{"key": "Content-Type", "value": "application/json"}],
+				"body": {
+					"mode": "raw",
+					"raw": "{}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/contracts/{{contract_id}}/finalize/",
+					"host": ["{{base_url}}"],
+					"path": ["api", "contracts", "{{contract_id}}", "finalize"]
+				}
+			}
+		},
+		{
+			"name": "8. List Documents",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/api/contracts/{{contract_id}}/documents/",
+					"host": ["{{base_url}}"],
+					"path": ["api", "contracts", "{{contract_id}}", "documents"]
+				}
+			}
+		},
+		{
+			"name": "9. Download Final PDF",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/api/contracts/{{contract_id}}/documents/final/",
+					"host": ["{{base_url}}"],
+					"path": ["api", "contracts", "{{contract_id}}", "documents", "final"]
+				}
+			}
+		},
+		{
+			"name": "10. Public Verify by Code",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/api/contracts/verify/{{verification_code}}/",
+					"host": ["{{base_url}}"],
+					"path": ["api", "contracts", "verify", "{{verification_code}}"]
+				}
+			}
+		},
+		{
+			"name": "11. Verify Uploaded PDF",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "file",
+							"type": "file",
+							"src": "/path/to/downloaded/contract.pdf"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{base_url}}/api/contracts/verify-pdf/",
+					"host": ["{{base_url}}"],
+					"path": ["api", "contracts", "verify-pdf"]
+				}
+			}
+		}
+	]
+}

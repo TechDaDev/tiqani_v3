@@ -1,6 +1,8 @@
 """Contract management models for work agreements, stages, and extensions."""
 
 import uuid
+import hashlib
+import json
 from datetime import timedelta
 from decimal import Decimal
 
@@ -8,6 +10,13 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.utils import timezone
+from django.core.validators import FileExtensionValidator
+
+
+def contract_document_upload_path(instance, filename):
+	"""Store generated contract documents under deterministic contract/version folders."""
+	ext = filename.split('.')[-1].lower() if '.' in filename else 'pdf'
+	return f"contracts/documents/{instance.contract_version.contract_id}/{instance.contract_version.version_number}/{instance.kind}_{instance.id}.{ext}"
 
 
 # --- Base Abstract Models ---
@@ -34,6 +43,8 @@ class Contract(TimestampedModel):
 	CONTRACT_STATUS = [
 		('draft', 'Draft'),
 		('pending_acceptance', 'Pending Acceptance'),
+		('pending_signatures', 'Pending Signatures'),
+		('pending_finalization', 'Pending Finalization'),
 		('in_progress', 'In Progress'),
 		('completed', 'Completed'),
 		('canceled', 'Canceled')
@@ -165,6 +176,19 @@ class Contract(TimestampedModel):
 		db_index=True,
 		help_text="Technician has accepted the contract"
 	)
+	finalized_at = models.DateTimeField(
+		null=True,
+		blank=True,
+		help_text="When the signed/final contract package was finalized"
+	)
+	finalized_by = models.ForeignKey(
+		settings.AUTH_USER_MODEL,
+		null=True,
+		blank=True,
+		on_delete=models.SET_NULL,
+		related_name='finalized_contracts',
+		help_text="User who triggered finalization"
+	)
 
 	class Meta:
 		"""
@@ -224,23 +248,11 @@ class Contract(TimestampedModel):
 			if not all([self.agreed_amount, self.stage_number, self.work_description, self.contract_duration]):
 				raise ValueError("Contract must have amount, stages, description and duration before acceptance")
 		
-		# Check if both parties accepted to move to in_progress
+		# Check if both parties accepted to move to pending_signatures.
+		# Escrow/funding activation is intentionally deferred to explicit finalization.
 		if (self.client_accepted and self.technician_accepted and
 			self.status == 'pending_acceptance'):
-			self.status = 'in_progress'
-			
-			# Setup escrow if transitioning from pending_acceptance
-			if old_status == 'pending_acceptance':
-				try:
-					with transaction.atomic():
-						self._setup_contract_escrow()
-						# Set technician as unavailable during active contract
-						self.technician.is_available = False
-						self.technician.save(update_fields=['is_available'])
-				except Exception as e:
-					# Revert status if escrow setup fails
-					self.status = 'pending_acceptance'
-					raise e
+			self.status = 'pending_signatures'
 		
 		super().save(*args, **kwargs)
 
@@ -438,6 +450,97 @@ class Contract(TimestampedModel):
 				deadline=stage_deadline,
 			)
 
+	def get_latest_version(self):
+		"""Return latest immutable contract version, if any."""
+		return self.versions.order_by('-version_number').first()
+
+	def get_or_create_frozen_version(self, actor=None):
+		"""Create immutable frozen version from canonical snapshot if missing.
+
+		The snapshot is JSON-canonicalized (sort_keys, compact separators) so the
+		SHA-256 hash is deterministic for the same logical data. UUIDs, Decimals,
+		dates, booleans, lists, and dict key order are all normalized.
+		"""
+		latest = self.get_latest_version()
+		if latest and latest.is_frozen:
+			return latest, False
+
+		version_number = (latest.version_number + 1) if latest else 1
+		snapshot = {
+			# Identity
+			'contract_id': str(self.id),
+			'contract_reference': self.contract_reference,
+			'version': version_number,
+
+			# Party identity snapshots
+			'client_id': str(self.client.user_id),
+			'client_name': self.client.user.get_full_name() or self.client.user.username,
+			'technician_id': str(self.technician.user_id),
+			'technician_name': self.technician.user.get_full_name() or self.technician.user.username,
+
+			# Project
+			'project_title': self.work_description[:100] if self.work_description else '',
+			'work_description': self.work_description or '',
+			'location': self.client.user.governorate or '',
+
+			# Chat & offer reference
+			'accepted_offer_reference': self.contract_reference,
+
+			# Financial
+			'agreed_amount': str(self.agreed_amount or Decimal('0.00')),
+			'currency': self.currency,
+			'client_platform_fee': str(self.client_platform_fee or Decimal('0.00')),
+			'technician_platform_fee': str(self.technician_platform_fee or Decimal('0.00')),
+			'escrow_amount': str(self.escrow_amount or Decimal('0.00')),
+
+			# Timeline
+			'stage_number': self.stage_number,
+			'start_date': self.start_date.isoformat() if self.start_date else None,
+			'duration_days': self.duration_days,
+			'contract_duration': self.contract_duration.isoformat() if self.contract_duration else None,
+
+			# Policies & terms
+			'materials_responsibility': 'As agreed between parties',
+			'inclusions': 'As specified in the work description and stages',
+			'exclusions': 'Any work not described in the stages above',
+			'client_obligations': 'Provide accurate requirements. Fund escrow. Review and approve stages. Communicate promptly.',
+			'technician_obligations': 'Deliver services as described. Complete stages by deadlines. Communicate professionally.',
+			'cancellation_terms': 'Either party may cancel before acceptance. Admin cancellation with refund handling after in_progress.',
+			'extension_terms': 'Technician may request deadline extensions subject to client approval.',
+			'payment_release_rules': 'Stage funds released upon client approval of completed work.',
+			'dispute_clause_version': 'v1.0',
+			'governing_law_version': 'v1.0',
+			'platform_attestation_version': 'v1.0',
+			'consent_text_version': 'v1.0',
+
+			# Metadata
+			'generated_at': timezone.now().isoformat(),
+
+			# Stages
+			'stages': [
+				{
+					'stage_number': stage.stage_number,
+					'amount': str(stage.amount),
+					'deadline': stage.deadline.isoformat() if stage.deadline else None,
+					'description': stage.stage_description,
+				}
+				for stage in self.stages.order_by('stage_number')
+			],
+		}
+		snapshot_canonical = json.dumps(snapshot, sort_keys=True, separators=(',', ':'))
+		snapshot_hash = hashlib.sha256(snapshot_canonical.encode('utf-8')).hexdigest()
+
+		version = ContractVersion.objects.create(
+			contract=self,
+			version_number=version_number,
+			canonical_snapshot=snapshot,
+			canonical_snapshot_hash=snapshot_hash,
+			is_frozen=True,
+			frozen_at=timezone.now(),
+			frozen_by=actor,
+		)
+		return version, True
+
 	def mark_completed(self):
 		"""
 		Mark contract as completed and release technician availability.
@@ -596,6 +699,169 @@ class ContractStage(TimestampedModel):
 			# Update contract total_paid
 			self.contract.total_paid += self.amount
 			self.contract.save(update_fields=['total_paid'])
+
+
+class ContractVersion(TimestampedModel):
+	"""Immutable versioned contract snapshot used for signing and attestation."""
+
+	contract = models.ForeignKey(
+		Contract,
+		on_delete=models.CASCADE,
+		related_name='versions',
+	)
+	version_number = models.PositiveIntegerField()
+	canonical_snapshot = models.JSONField(default=dict)
+	canonical_snapshot_hash = models.CharField(max_length=64, db_index=True)
+	is_frozen = models.BooleanField(default=True, db_index=True)
+	frozen_at = models.DateTimeField(null=True, blank=True)
+	frozen_by = models.ForeignKey(
+		settings.AUTH_USER_MODEL,
+		null=True,
+		blank=True,
+		on_delete=models.SET_NULL,
+		related_name='frozen_contract_versions',
+	)
+
+	class Meta:
+		indexes = [
+			models.Index(fields=['contract', 'version_number']),
+			models.Index(fields=['contract', 'is_frozen']),
+		]
+		unique_together = [('contract', 'version_number')]
+		ordering = ['-version_number']
+
+	def __str__(self):
+		return f"{self.contract.contract_reference} v{self.version_number}"
+
+
+class ContractSignature(TimestampedModel):
+	"""A signer's immutable signature proof for a frozen contract version."""
+
+	SIGNER_ROLE_CHOICES = [
+		('client', 'Client'),
+		('technician', 'Technician'),
+	]
+
+	contract_version = models.ForeignKey(
+		ContractVersion,
+		on_delete=models.CASCADE,
+		related_name='signatures',
+	)
+	signer = models.ForeignKey(
+		settings.AUTH_USER_MODEL,
+		on_delete=models.CASCADE,
+		related_name='contract_signatures',
+	)
+	signer_role = models.CharField(max_length=20, choices=SIGNER_ROLE_CHOICES, db_index=True)
+	otp_verification = models.ForeignKey(
+		'accounts.OTPVerification',
+		null=True,
+		blank=True,
+		on_delete=models.SET_NULL,
+		related_name='contract_signatures',
+	)
+	signed_at = models.DateTimeField(default=timezone.now, db_index=True)
+	signature_hash = models.CharField(max_length=64, db_index=True)
+	ip_address = models.GenericIPAddressField(null=True, blank=True)
+	user_agent = models.CharField(max_length=500, blank=True, default='')
+
+	class Meta:
+		indexes = [
+			models.Index(fields=['contract_version', 'signer_role']),
+		]
+		unique_together = [('contract_version', 'signer_role')]
+
+	def __str__(self):
+		return f"{self.contract_version} signed by {self.signer_role}"
+
+
+class ContractDocument(TimestampedModel):
+	"""Stored contract files (draft/signed PDF) linked to immutable versions."""
+
+	KIND_CHOICES = [
+		('draft_pdf', 'Draft PDF'),
+		('signed_pdf', 'Signed PDF'),
+	]
+
+	contract_version = models.ForeignKey(
+		ContractVersion,
+		on_delete=models.CASCADE,
+		related_name='documents',
+	)
+	kind = models.CharField(max_length=20, choices=KIND_CHOICES, db_index=True)
+	file = models.FileField(
+		upload_to=contract_document_upload_path,
+		validators=[FileExtensionValidator(allowed_extensions=['pdf'])],
+	)
+	sha256 = models.CharField(max_length=64, db_index=True)
+	mime_type = models.CharField(max_length=100, default='application/pdf')
+	file_size = models.PositiveIntegerField(default=0)
+	created_by = models.ForeignKey(
+		settings.AUTH_USER_MODEL,
+		null=True,
+		blank=True,
+		on_delete=models.SET_NULL,
+		related_name='contract_documents_created',
+	)
+
+	class Meta:
+		indexes = [
+			models.Index(fields=['contract_version', 'kind']),
+			models.Index(fields=['sha256']),
+		]
+		ordering = ['-created_at']
+
+	def __str__(self):
+		return f"{self.contract_version} {self.kind}"
+
+
+class PlatformAttestation(TimestampedModel):
+	"""Platform attestation proving final package integrity and verification code."""
+
+	contract_version = models.OneToOneField(
+		ContractVersion,
+		on_delete=models.CASCADE,
+		related_name='attestation',
+	)
+	verification_code = models.CharField(max_length=32, unique=True, db_index=True)
+	attestation_hash = models.CharField(max_length=64, db_index=True)
+	payload = models.JSONField(default=dict)
+
+	class Meta:
+		indexes = [
+			models.Index(fields=['verification_code']),
+		]
+
+	def __str__(self):
+		return f"Attestation {self.verification_code}"
+
+
+class ContractAuditEvent(TimestampedModel):
+	"""Append-only audit stream for contract freeze/sign/finalization events."""
+
+	contract = models.ForeignKey(
+		Contract,
+		on_delete=models.CASCADE,
+		related_name='audit_events',
+	)
+	event_type = models.CharField(max_length=64, db_index=True)
+	actor = models.ForeignKey(
+		settings.AUTH_USER_MODEL,
+		null=True,
+		blank=True,
+		on_delete=models.SET_NULL,
+		related_name='contract_audit_events',
+	)
+	payload = models.JSONField(default=dict)
+
+	class Meta:
+		indexes = [
+			models.Index(fields=['contract', 'event_type', 'created_at']),
+		]
+		ordering = ['-created_at']
+
+	def __str__(self):
+		return f"{self.contract.contract_reference}::{self.event_type}"
 
 
 class TimeExtensionRequest(TimestampedModel):
