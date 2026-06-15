@@ -73,7 +73,8 @@ class TechnicianListView(APIView):
         if search:
             from django.db.models import Q
             queryset = queryset.filter(
-                Q(user__full_name__icontains=search) |
+                Q(user__first_name__icontains=search) |
+                Q(user__last_name__icontains=search) |
                 Q(job_title__icontains=search) |
                 Q(about__icontains=search)
             )
