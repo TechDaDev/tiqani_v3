@@ -107,8 +107,8 @@ class BaseProfile(TimestampedModel):
         """Boolean check for completion."""
         return self.completion_percentage == 100
 
-    def get_missing_fields(self):
-        """Returns list of field names that are empty."""
+    def get_incomplete_fields(self):
+        """Returns list of field names that are empty/missing."""
         missing = []
         for f in self.REQ_USER_FIELDS:
             if not getattr(self.user, f, None): missing.append(f)
@@ -116,6 +116,9 @@ class BaseProfile(TimestampedModel):
             val = getattr(self, f, None)
             if not val: missing.append(f)
         return missing
+
+    # Backward-compatible alias for admin and internal use
+    get_missing_fields = get_incomplete_fields
 
     def save(self, *args, **kwargs):
         self.is_complete = self.calculate_completion()

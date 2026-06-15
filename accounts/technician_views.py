@@ -160,11 +160,6 @@ class TechnicianSkillsView(APIView):
         # Create or get skill set
         skill_set, created = TechnicianSkillSet.objects.get_or_create(technician=profile)
 
-        # Ensure profile points to the skill_set record (no direct FK, but we link via the relation)
-        if profile.skill_set_id != skill_set.id:
-            # The reverse relation is managed via the TechnicianSkillSet model
-            pass
-        
         serializer = TechnicianSkillSetSerializer(
             skill_set,
             data=request.data,
