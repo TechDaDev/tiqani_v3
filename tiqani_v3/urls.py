@@ -19,6 +19,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
 from .views import health_live, health_ready, health_deep, health
+from servicerequest import urls as servicerequest_urls
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -44,6 +45,9 @@ urlpatterns = [
     path('api/dealership/', include('dealership.urls')),
     # Chat
     path('api/chat/', include('chat.urls')),
+    # Service Requests
+    path('api/requests/', include('servicerequest.urls')),
+    path('api/technician/requests/', include(servicerequest_urls.technician_urlpatterns)),
     # Admin Dashboard
     path('api/admin/', include('dashboard.urls')),
     # Health
