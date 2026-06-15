@@ -8,6 +8,7 @@ urlpatterns = [
     # Unread summary
     path("rooms/unread-summary/", views.UnreadSummaryView.as_view(), name="chat-unread-summary"),
     # Rooms
+    path("rooms/by-request/<uuid:request_id>/", views.RoomByRequestView.as_view(), name="chat-room-by-request"),
     path("rooms/", views.RoomListCreateView.as_view(), name="chat-room-list-create"),
     path("rooms/<uuid:room_id>/", views.RoomDetailView.as_view(), name="chat-room-detail"),
     # Messages

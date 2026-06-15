@@ -113,6 +113,54 @@ def get_or_create_chat_room(client_user, technician_profile, created_by=None):
     return room, True
 
 
+def get_or_create_room_for_request(service_request, created_by=None):
+    """
+    Get an existing room linked to a service request, or create a new one.
+
+    The room is created between the request's client and technician.
+    Only works for ACCEPTED requests (negotiation stage).
+
+    Returns:
+        (ServiceChatRoom, created: bool)
+    """
+    from servicerequest.models import ServiceRequest
+
+    if service_request.status not in (ServiceRequest.Status.ACCEPTED, ServiceRequest.Status.PENDING):
+        raise ValueError("Service request must be accepted or pending to create a conversation.")
+
+    # Check if room already exists for this request
+    existing = ServiceChatRoom.objects.filter(service_request=service_request).first()
+    if existing:
+        return existing, False
+
+    # Check if an active room already exists between these participants
+    existing_room = ServiceChatRoom.objects.filter(
+        client=service_request.client,
+        technician=service_request.technician,
+        status__in=[
+            ServiceChatRoom.Status.OPEN,
+            ServiceChatRoom.Status.PROPOSAL_CREATED,
+            ServiceChatRoom.Status.CONTRACT_LINKED,
+        ],
+    ).first()
+
+    if existing_room:
+        # Link the existing room to this request
+        existing_room.service_request = service_request
+        existing_room.save(update_fields=["service_request"])
+        return existing_room, False
+
+    # Create new room
+    room = ServiceChatRoom.objects.create(
+        client=service_request.client,
+        technician=service_request.technician,
+        service_request=service_request,
+        created_by=created_by or service_request.client.user,
+        status=ServiceChatRoom.Status.OPEN,
+    )
+    return room, True
+
+
 def get_room_queryset_for_user(user):
     """
     Return rooms where user is a participant.

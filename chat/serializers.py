@@ -194,6 +194,8 @@ class RoomSerializer(serializers.ModelSerializer):
     last_message = serializers.SerializerMethodField()
     unread_count = serializers.SerializerMethodField()
     linked_contract_status = serializers.SerializerMethodField()
+    service_request_title = serializers.SerializerMethodField()
+    service_request_status = serializers.SerializerMethodField()
 
     class Meta:
         model = ServiceChatRoom
@@ -206,6 +208,9 @@ class RoomSerializer(serializers.ModelSerializer):
             "created_by_id",
             "linked_contract_id",
             "linked_contract_status",
+            "service_request_id",
+            "service_request_title",
+            "service_request_status",
             "status",
             "metadata",
             "last_message",
@@ -217,6 +222,16 @@ class RoomSerializer(serializers.ModelSerializer):
             "closed_by_id",
         )
         read_only_fields = fields
+
+    def get_service_request_title(self, obj):
+        if obj.service_request:
+            return obj.service_request.title
+        return None
+
+    def get_service_request_status(self, obj):
+        if obj.service_request:
+            return obj.service_request.status
+        return None
 
     def get_client_user(self, obj):
         request = self.context.get("request")
@@ -255,6 +270,8 @@ class RoomListSerializer(serializers.ModelSerializer):
     technician_user = serializers.SerializerMethodField()
     last_message_preview = serializers.SerializerMethodField()
     unread_count = serializers.SerializerMethodField()
+    service_request_title = serializers.SerializerMethodField()
+    service_request_id = serializers.UUIDField(read_only=True)
 
     class Meta:
         model = ServiceChatRoom
@@ -264,6 +281,8 @@ class RoomListSerializer(serializers.ModelSerializer):
             "client_user",
             "technician_user",
             "linked_contract_id",
+            "service_request_id",
+            "service_request_title",
             "last_message_preview",
             "unread_count",
             "last_message_at",
@@ -279,6 +298,11 @@ class RoomListSerializer(serializers.ModelSerializer):
     def get_technician_user(self, obj):
         request = self.context.get("request")
         return ChatUserSerializer(obj.technician.user, context={"request": request}).data
+
+    def get_service_request_title(self, obj):
+        if obj.service_request:
+            return obj.service_request.title
+        return None
 
     def get_last_message_preview(self, obj):
         last_msg = obj.messages.filter(is_deleted=False).order_by("-created_at").first()
@@ -310,3 +334,8 @@ class RoomListSerializer(serializers.ModelSerializer):
 class UnreadSummarySerializer(serializers.Serializer):
     total_unread = serializers.IntegerField()
     rooms = serializers.ListField(child=serializers.DictField())
+
+
+class RequestRoomCreateSerializer(serializers.Serializer):
+    """Create or get a conversation for a service request."""
+    request_id = serializers.UUIDField(required=True)
