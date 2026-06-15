@@ -52,6 +52,14 @@ class ClientRequestListCreateView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+        # Prevent self-request: client cannot send a request to themselves
+        tech_profile = serializer.validated_data["technician"]
+        if tech_profile.user == request.user:
+            return Response(
+                {"detail": "You cannot send a service request to yourself."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         sr = serializer.save(
             client=request.user.client_profile,
         )

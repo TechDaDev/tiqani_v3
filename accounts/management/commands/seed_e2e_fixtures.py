@@ -20,6 +20,7 @@ from django.utils import timezone
 from django.contrib.auth import get_user_model
 from accounts.models import TechnicianProfile, ClientProfile, TechnicianSkillSet
 from category.models import Category, Skill
+from servicerequest.models import ServiceRequest
 
 User = get_user_model()
 
@@ -134,12 +135,13 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def _seed_fixtures(self, password):
-        """Create or update all fixture users."""
+        """Create or update all fixture users and requests."""
         self._create_client(password)
         self._create_technician(password)
         self._create_approved_technician(password)
         self._create_restricted_technician(password)
         self._create_second_approved_technician(password)
+        self._seed_request_fixtures()
 
     def _get_or_create_user(self, key, password):
         """Helper to get_or_create a fixture user."""
@@ -293,6 +295,106 @@ class Command(BaseCommand):
             if skill:
                 skill_set.skills.add(skill)
 
+    def _seed_request_fixtures(self):
+        """Create deterministic service request fixtures for E2E testing.
+        
+        Creates requests in various states to support Playwright tests.
+        Idempotent: updates if exists, creates if not.
+        """
+        try:
+            client_profile = ClientProfile.objects.get(user__email=FIXTURE_EMAILS["client"])
+            approved_tech_profile = TechnicianProfile.objects.get(
+                user__email=FIXTURE_EMAILS["approved_technician"]
+            )
+            second_tech_profile = TechnicianProfile.objects.get(
+                user__email=FIXTURE_EMAILS["second_approved"]
+            )
+        except (ClientProfile.DoesNotExist, TechnicianProfile.DoesNotExist):
+            self.stdout.write(self.style.WARNING("  Skipping request fixtures: users not seeded yet."))
+            return
+
+        # Pending request — assigned to approved technician
+        ServiceRequest.objects.update_or_create(
+            id=self._request_id("pending"),
+            defaults=dict(
+                client=client_profile,
+                technician=approved_tech_profile,
+                title="Fix AC Unit",
+                description="My air conditioner is not cooling properly. Need a technician to check.",
+                status=ServiceRequest.Status.PENDING,
+                is_urgent=True,
+                governorate="Baghdad",
+            ),
+        )
+
+        # Accepted request
+        ServiceRequest.objects.update_or_create(
+            id=self._request_id("accepted"),
+            defaults=dict(
+                client=client_profile,
+                technician=approved_tech_profile,
+                title="Install Smart Lock",
+                description="Need help installing a smart lock at my office.",
+                status=ServiceRequest.Status.ACCEPTED,
+                governorate="Baghdad",
+            ),
+        )
+
+        # Declined request
+        ServiceRequest.objects.update_or_create(
+            id=self._request_id("declined"),
+            defaults=dict(
+                client=client_profile,
+                technician=approved_tech_profile,
+                title="Fix Leaking Pipe",
+                description="Kitchen sink pipe is leaking.",
+                status=ServiceRequest.Status.DECLINED,
+            ),
+        )
+
+        # Cancelled request
+        ServiceRequest.objects.update_or_create(
+            id=self._request_id("cancelled"),
+            defaults=dict(
+                client=client_profile,
+                technician=approved_tech_profile,
+                title="Paint Living Room",
+                description="Need to paint the living room walls.",
+                status=ServiceRequest.Status.CANCELLED,
+            ),
+        )
+
+        # Withdrawn request
+        ServiceRequest.objects.update_or_create(
+            id=self._request_id("withdrawn"),
+            defaults=dict(
+                client=client_profile,
+                technician=approved_tech_profile,
+                title="Fix Garden Fence",
+                description="The wooden fence needs repairs.",
+                status=ServiceRequest.Status.WITHDRAWN,
+            ),
+        )
+
+        # Cross-client request (for IDOR tests) — client A to second technician
+        ServiceRequest.objects.update_or_create(
+            id=self._request_id("cross_client"),
+            defaults=dict(
+                client=client_profile,
+                technician=second_tech_profile,
+                title="Cross-Client Request",
+                description="This request belongs to the primary client but assigned to second tech.",
+                status=ServiceRequest.Status.PENDING,
+            ),
+        )
+
+        self.stdout.write(f"  Created {ServiceRequest.objects.count()} request fixture(s).")
+
+    def _request_id(self, label):
+        """Generate a deterministic UUID for a request fixture label."""
+        import uuid
+        return uuid.uuid5(uuid.NAMESPACE_DNS, f"e2e-request-{label}.tiqani.local")
+
     def _report(self):
         """Print a summary of created fixtures."""
         self.stdout.write()
@@ -302,6 +404,10 @@ class Command(BaseCommand):
         self.stdout.write(f"  Approved technician: {FIXTURE_EMAILS['approved_technician']}")
         self.stdout.write(f"  Restricted tech:     {FIXTURE_EMAILS['restricted_technician']}")
         self.stdout.write(f"  Second approved:     {FIXTURE_EMAILS['second_approved']}")
+        req_count = ServiceRequest.objects.filter(
+            client__user__email__in=FIXTURE_EMAILS.values()
+        ).count()
+        self.stdout.write(f"  Service requests:    {req_count} fixtures")
         self.stdout.write()
         self.stdout.write("  Credentials: Set via E2E_FIXTURE_PASSWORD environment variable.")
         self.stdout.write("  Production guard: Active (use --force to override).")

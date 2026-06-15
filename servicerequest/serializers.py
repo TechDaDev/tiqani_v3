@@ -106,16 +106,18 @@ class ServiceRequestCreateSerializer(serializers.ModelSerializer):
         ]
 
     def validate_technician(self, value):
-        """Look up TechnicianProfile by user UUID; ensure approved and available."""
+        """Look up TechnicianProfile by user UUID; ensure eligible, approved, and available."""
         from accounts.models import TechnicianProfile, CustomUser
         try:
             user = CustomUser.objects.get(id=value)
-            try:
-                profile = TechnicianProfile.objects.get(user=user)
-            except TechnicianProfile.DoesNotExist:
-                raise serializers.ValidationError("No technician profile found for this user.")
         except CustomUser.DoesNotExist:
             raise serializers.ValidationError("Technician not found.")
+        if user.role != CustomUser.Role.TECHNICIAN:
+            raise serializers.ValidationError("The specified user is not a technician.")
+        try:
+            profile = TechnicianProfile.objects.get(user=user)
+        except TechnicianProfile.DoesNotExist:
+            raise serializers.ValidationError("No technician profile found for this user.")
         if not profile.approved:
             raise serializers.ValidationError("This technician is not yet approved.")
         if not profile.is_available:
