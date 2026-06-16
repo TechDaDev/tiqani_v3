@@ -20,6 +20,7 @@ from django.contrib import admin
 from django.urls import path, include
 from .views import health_live, health_ready, health_deep, health
 from servicerequest import urls as servicerequest_urls
+from contract import offer_urls as contract_offer_urls
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -35,8 +36,9 @@ urlpatterns = [
     path('api/clients/', include('accounts.client_urls')),
     # Public reviews
     path('api/reviews/', include('ratereview.urls')),
-    # Contracts
+    # Contracts + Offers
     path('api/contracts/', include('contract.urls')),
+    path('api/offers/', include('contract.offer_urls')),
     # Wallet / Fees / Payment Prep
     path('api/wallet/', include('wallet.urls')),
     # Notifications / Activity
@@ -48,6 +50,8 @@ urlpatterns = [
     # Service Requests
     path('api/requests/', include('servicerequest.urls')),
     path('api/technician/requests/', include(servicerequest_urls.technician_urlpatterns)),
+    # Technician Offers
+    path('api/technician/offers/', include(contract_offer_urls.technician_urlpatterns)),
     # Admin Dashboard
     path('api/admin/', include('dashboard.urls')),
     # Health

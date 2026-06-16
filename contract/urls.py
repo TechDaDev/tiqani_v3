@@ -54,3 +54,39 @@ urlpatterns = [
     path("verify/<str:verification_code>/", PublicVerifyCodeView.as_view(), name="contract-public-verify-code"),
     path("verify-pdf/", PublicVerifyPdfView.as_view(), name="contract-public-verify-pdf"),
 ]
+
+# ──────────────────────────────────────────────
+#  Offer endpoints (Phase 6)
+# ──────────────────────────────────────────────
+
+from .offer_views import (
+    ClientOfferListView,
+    ClientOfferDetailView,
+    ClientOfferAcceptView,
+    ClientOfferRejectView,
+    OfferByRequestView,
+)
+
+offer_urlpatterns = [
+    # Client-facing offers
+    path("", ClientOfferListView.as_view(), name="client-offer-list"),
+    path("<uuid:offer_id>/", ClientOfferDetailView.as_view(), name="client-offer-detail"),
+    path("<uuid:offer_id>/accept/", ClientOfferAcceptView.as_view(), name="client-offer-accept"),
+    path("<uuid:offer_id>/reject/", ClientOfferRejectView.as_view(), name="client-offer-reject"),
+    # By-request lookup
+    path("by-request/<uuid:request_id>/", OfferByRequestView.as_view(), name="offer-by-request"),
+]
+
+from .offer_views import (
+    TechnicianOfferListCreateView,
+    TechnicianOfferDetailView,
+    TechnicianOfferSubmitView,
+    TechnicianOfferWithdrawView,
+)
+
+technician_offer_urlpatterns = [
+    path("", TechnicianOfferListCreateView.as_view(), name="technician-offer-list"),
+    path("<uuid:offer_id>/", TechnicianOfferDetailView.as_view(), name="technician-offer-detail"),
+    path("<uuid:offer_id>/submit/", TechnicianOfferSubmitView.as_view(), name="technician-offer-submit"),
+    path("<uuid:offer_id>/withdraw/", TechnicianOfferWithdrawView.as_view(), name="technician-offer-withdraw"),
+]

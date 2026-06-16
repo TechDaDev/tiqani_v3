@@ -143,6 +143,7 @@ class Command(BaseCommand):
         self._create_second_approved_technician(password)
         self._seed_request_fixtures()
         self._seed_messaging_fixtures()
+        self._seed_offer_fixtures()
 
     def _get_or_create_user(self, key, password):
         """Helper to get_or_create a fixture user."""
@@ -577,6 +578,127 @@ class Command(BaseCommand):
 
         self.stdout.write(f"  Created messaging fixtures: 3 rooms, 6 messages.")
 
+    def _seed_offer_fixtures(self):
+        """Create deterministic offer fixtures for E2E testing.
+
+        Creates offers in various states to support Playwright tests.
+        Idempotent: updates if exists, creates if not.
+        """
+        from contract.offer_models import Offer
+
+        try:
+            client_profile = ClientProfile.objects.get(user__email=FIXTURE_EMAILS["client"])
+            approved_tech_profile = TechnicianProfile.objects.get(
+                user__email=FIXTURE_EMAILS["approved_technician"]
+            )
+            second_tech_profile = TechnicianProfile.objects.get(
+                user__email=FIXTURE_EMAILS["second_approved"]
+            )
+        except (ClientProfile.DoesNotExist, TechnicianProfile.DoesNotExist):
+            self.stdout.write(self.style.WARNING("  Skipping offer fixtures: users not seeded."))
+            return
+
+        from servicerequest.models import ServiceRequest
+
+        # Accepted request — suitable for offers
+        accepted_request = ServiceRequest.objects.filter(
+            client=client_profile,
+            technician=approved_tech_profile,
+            status=ServiceRequest.Status.ACCEPTED,
+        ).first()
+
+        # Second accepted request for cross-client
+        accepted_request_2 = ServiceRequest.objects.filter(
+            client=client_profile,
+            technician=second_tech_profile,
+            status=ServiceRequest.Status.PENDING,
+        ).first()
+
+        if not accepted_request:
+            self.stdout.write(self.style.WARNING("  Skipping offer fixtures: no accepted request."))
+            return
+
+        import uuid
+
+        # Submitted offer — eligible for client acceptance test
+        Offer.objects.update_or_create(
+            id=uuid.uuid5(uuid.NAMESPACE_DNS, "e2e-offer-submitted.tiqani.local"),
+            defaults={
+                "service_request": accepted_request,
+                "amount": "150000.00",
+                "description": "Complete smart lock installation including mounting, wiring, and configuration.",
+                "duration_days": 2,
+                "status": Offer.Status.SUBMITTED,
+            },
+        )
+
+        # Submitted offer — for rejection test
+        Offer.objects.update_or_create(
+            id=uuid.uuid5(uuid.NAMESPACE_DNS, "e2e-offer-for-rejection.tiqani.local"),
+            defaults={
+                "service_request": accepted_request,
+                "amount": "250000.00",
+                "description": "Premium installation with additional security features.",
+                "duration_days": 3,
+                "status": Offer.Status.SUBMITTED,
+            },
+        )
+
+        # Accepted offer — should have a Contract created
+        accepted_offer, _ = Offer.objects.update_or_create(
+            id=uuid.uuid5(uuid.NAMESPACE_DNS, "e2e-offer-accepted.tiqani.local"),
+            defaults={
+                "service_request": accepted_request,
+                "amount": "120000.00",
+                "description": "Basic smart lock installation.",
+                "duration_days": 1,
+                "status": Offer.Status.ACCEPTED,
+            },
+        )
+
+        # Create a contract for the accepted offer
+        from contract.models import Contract
+        Contract.objects.update_or_create(
+            id=uuid.uuid5(uuid.NAMESPACE_DNS, "e2e-contract-from-offer.tiqani.local"),
+            defaults={
+                "client": client_profile,
+                "technician": approved_tech_profile,
+                "work_description": accepted_offer.description,
+                "agreed_amount": accepted_offer.amount,
+                "currency": "IQD",
+                "status": "draft",
+                "client_accepted": True,
+                "technician_accepted": True,
+            },
+        )
+
+        # Withdrawn offer
+        Offer.objects.update_or_create(
+            id=uuid.uuid5(uuid.NAMESPACE_DNS, "e2e-offer-withdrawn.tiqani.local"),
+            defaults={
+                "service_request": accepted_request,
+                "amount": "50000.00",
+                "description": "Quick fix offer (withdrawn).",
+                "duration_days": 1,
+                "status": Offer.Status.WITHDRAWN,
+            },
+        )
+
+        # Offer for Client B / Tech B — IDOR test
+        if accepted_request_2:
+            Offer.objects.update_or_create(
+                id=uuid.uuid5(uuid.NAMESPACE_DNS, "e2e-offer-cross-client.tiqani.local"),
+                defaults={
+                    "service_request": accepted_request_2,
+                    "amount": "180000.00",
+                    "description": "Cross-client offer for IDOR testing.",
+                    "duration_days": 4,
+                    "status": Offer.Status.SUBMITTED,
+                },
+            )
+
+        self.stdout.write(f"  Created offer fixtures.")
+
     def _report(self):
         """Print a summary of created fixtures."""
         self.stdout.write()
@@ -595,6 +717,9 @@ class Command(BaseCommand):
         chat_msg_count = ServiceChatMessage.objects.count()
         self.stdout.write(f"  Chat rooms:          {chat_room_count} fixtures")
         self.stdout.write(f"  Chat messages:       {chat_msg_count} fixtures")
+        from contract.offer_models import Offer
+        offer_count = Offer.objects.count()
+        self.stdout.write(f"  Offers:              {offer_count} fixtures")
         self.stdout.write()
         self.stdout.write("  Credentials: Set via E2E_FIXTURE_PASSWORD environment variable.")
         self.stdout.write("  Production guard: Active (use --force to override).")
