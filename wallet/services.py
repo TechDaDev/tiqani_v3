@@ -356,10 +356,7 @@ def create_contract_payment_intent(contract, user):
     """
     from .sandbox_gateway import SANDBOX_PROVIDER_NAME
 
-    eligible, reason = check_funding_eligibility(contract, user)
-    if not eligible:
-        raise ValueError(reason)
-
+    # Check for existing non-terminal intent FIRST (idempotency)
     existing = PaymentIntent.objects.filter(
         contract=contract,
         purpose=PaymentIntent.Purpose.CONTRACT_FUNDING,
@@ -368,6 +365,10 @@ def create_contract_payment_intent(contract, user):
     ).select_for_update().first()
     if existing:
         return existing
+
+    eligible, reason = check_funding_eligibility(contract, user)
+    if not eligible:
+        raise ValueError(reason)
 
     breakdown = ensure_contract_payment_breakdown(contract)
     amount = breakdown.client_total_amount

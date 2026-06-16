@@ -249,10 +249,13 @@ class PaymentIntentSandboxConfirmView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, intent_id):
+        pi = get_object_or_404(PaymentIntent, id=intent_id)
+        if pi.user != request.user and not request.user.is_staff:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
         simulate_failure = request.data.get("simulate_failure", False)
         try:
             intent, result = svc.confirm_sandbox_payment(
-                intent_id=intent_id,
+                intent_id=str(pi.id),  # Re-fetch for atomic safety
                 simulate_failure=bool(simulate_failure),
             )
             serializer = PaymentIntentSerializer(intent)
