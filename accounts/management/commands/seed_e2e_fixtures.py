@@ -423,6 +423,9 @@ class Command(BaseCommand):
             second_tech_profile = TechnicianProfile.objects.get(
                 user__email=FIXTURE_EMAILS["second_approved"]
             )
+            tech_profile = TechnicianProfile.objects.get(
+                user__email=FIXTURE_EMAILS["technician"]
+            )
         except (ClientProfile.DoesNotExist, TechnicianProfile.DoesNotExist):
             self.stdout.write(self.style.WARNING("  Skipping messaging fixtures: users not seeded."))
             return
@@ -430,6 +433,7 @@ class Command(BaseCommand):
         client_user = client_profile.user
         approved_tech_user = approved_tech_profile.user
         second_tech_user = second_tech_profile.user
+        tech_user = tech_profile.user
 
         accepted_request = ServiceRequest.objects.filter(
             client=client_profile,
@@ -526,7 +530,52 @@ class Command(BaseCommand):
             defaults={"unread_count": 0},
         )
 
-        self.stdout.write(f"  Created messaging fixtures: 2 rooms, 4 messages.")
+        # Room 3: Client A + Technician C (e2e_technician), plain conversations
+        room3, _ = ServiceChatRoom.objects.update_or_create(
+            id=self._room_id("room3"),
+            defaults={
+                "client": client_profile,
+                "technician": tech_profile,
+                "created_by": client_user,
+                "status": ServiceChatRoom.Status.OPEN,
+                "last_message_at": "2026-06-16T10:00:00Z",
+            },
+        )
+        # Client A message in room 3
+        ServiceChatMessage.objects.update_or_create(
+            id=self._message_id("room3_client"),
+            defaults={
+                "room": room3,
+                "sender": client_user,
+                "message_type": "TEXT",
+                "body": "Hello, I need help with my computer.",
+                "created_at": "2026-06-16T09:45:00Z",
+            },
+        )
+        # Technician C reply
+        ServiceChatMessage.objects.update_or_create(
+            id=self._message_id("room3_tech_reply"),
+            defaults={
+                "room": room3,
+                "sender": tech_user,
+                "message_type": "TEXT",
+                "body": "I'd be happy to help! What seems to be the issue?",
+                "created_at": "2026-06-16T10:00:00Z",
+            },
+        )
+        # Unread for technician
+        ServiceChatReadState.objects.update_or_create(
+            room=room3,
+            user=client_user,
+            defaults={"unread_count": 0},
+        )
+        ServiceChatReadState.objects.update_or_create(
+            room=room3,
+            user=tech_user,
+            defaults={"unread_count": 1},
+        )
+
+        self.stdout.write(f"  Created messaging fixtures: 3 rooms, 6 messages.")
 
     def _report(self):
         """Print a summary of created fixtures."""
