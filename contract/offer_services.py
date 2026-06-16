@@ -98,7 +98,7 @@ def submit_offer(offer, user):
 
 
 def withdraw_offer(offer, user):
-    """Withdraw a SUBMITTED offer (technician only)."""
+    """Withdraw a DRAFT or SUBMITTED offer (technician only)."""
     _check_technician_owns_offer(offer, user)
 
     if not offer.can_withdraw():
@@ -121,36 +121,40 @@ def accept_offer(offer, user):
 
     - Validates the user is the request owner.
     - Validates offer is in SUBMITTED status.
+    - Uses select_for_update to prevent concurrent acceptance races.
     - Creates a minimal draft Contract with agreed values.
     - Both parties are marked as having accepted.
     - Returns (offer, contract) tuple.
     """
     _check_client_owns_request(offer, user)
 
-    if offer.status != Offer.Status.SUBMITTED:
-        raise ValueError(
-            f"Cannot accept an offer with status '{offer.status}'. "
-            f"Only submitted offers can be accepted."
-        )
-
     with transaction.atomic():
-        offer.status = Offer.Status.ACCEPTED
-        offer.save()
+        # Lock the offer row to prevent concurrent acceptance
+        locked_offer = Offer.objects.select_for_update().get(pk=offer.pk)
+
+        if locked_offer.status != Offer.Status.SUBMITTED:
+            raise ValueError(
+                f"Cannot accept an offer with status '{locked_offer.status}'. "
+                f"Only submitted offers can be accepted."
+            )
+
+        locked_offer.status = Offer.Status.ACCEPTED
+        locked_offer.save()
 
         contract = Contract.objects.create(
-            client=offer.client,
-            technician=offer.technician,
-            work_description=offer.description,
-            agreed_amount=offer.amount,
+            client=locked_offer.client,
+            technician=locked_offer.technician,
+            work_description=locked_offer.description,
+            agreed_amount=locked_offer.amount,
             currency="IQD",
             status="draft",
         )
-        # Mark both parties having accepted since the offer was agreed
         contract.client_accepted = True
         contract.technician_accepted = True
-        # Save triggers auto-transition to pending_acceptance if fields are complete
-        # But we keep it simple — just mark accepted, no stages/duration needed
         contract.save()
+
+        # Update the caller's reference
+        offer.status = locked_offer.status
 
     _notify_offer_accepted(offer, contract)
     return offer, contract

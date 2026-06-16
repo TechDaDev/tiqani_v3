@@ -203,10 +203,11 @@ class TechnicianOfferManageTest(OfferApiTestBase):
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual(resp.data["status"], "WITHDRAWN")
 
-    def test_cannot_withdraw_draft_offer(self):
+    def test_technician_can_withdraw_draft_offer(self):
         self.client_api.force_authenticate(user=self.tech_user)
         resp = self.client_api.post(f"/api/technician/offers/{self.offer.id}/withdraw/")
-        self.assertEqual(resp.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.data["status"], "WITHDRAWN")
 
 
 # ------------------------------------------------------------------

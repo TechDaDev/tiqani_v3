@@ -98,8 +98,8 @@ class OfferModelTest(TestCase):
         self.offer.status = Offer.Status.SUBMITTED
         self.assertTrue(self.offer.can_withdraw())
 
-    def test_cannot_withdraw_draft(self):
-        self.assertFalse(self.offer.can_withdraw())
+    def test_can_withdraw_draft(self):
+        self.assertTrue(self.offer.can_withdraw())
 
     def test_str_representation(self):
         expected = f"Offer {self.offer.id} on {self.request.id} ({self.offer.status})"

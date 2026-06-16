@@ -91,6 +91,13 @@ class Offer(models.Model):
         verbose_name = _("Offer")
         verbose_name_plural = _("Offers")
         ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["service_request"],
+                condition=models.Q(status="ACCEPTED"),
+                name="uq_offer_accepted_per_request",
+            ),
+        ]
         indexes = [
             models.Index(fields=["service_request", "status"]),
             models.Index(fields=["status"]),
@@ -122,8 +129,8 @@ class Offer(models.Model):
         return self.status == self.Status.DRAFT
 
     def can_withdraw(self):
-        """Only SUBMITTED offers can be withdrawn."""
-        return self.status == self.Status.SUBMITTED
+        """DRAFT and SUBMITTED offers can be withdrawn."""
+        return self.status in (self.Status.DRAFT, self.Status.SUBMITTED)
 
     def clean(self):
         """Validate status transitions."""
@@ -143,7 +150,7 @@ class Offer(models.Model):
     @staticmethod
     def _allowed_transitions(from_status):
         transitions = {
-            Offer.Status.DRAFT: [Offer.Status.SUBMITTED],
+            Offer.Status.DRAFT: [Offer.Status.SUBMITTED, Offer.Status.WITHDRAWN],
             Offer.Status.SUBMITTED: [
                 Offer.Status.ACCEPTED,
                 Offer.Status.REJECTED,
@@ -157,6 +164,9 @@ class Offer(models.Model):
 
     def save(self, *args, **kwargs):
         from django.core.exceptions import ValidationError
+        # Ensure amount is Decimal for comparison
+        if isinstance(self.amount, str):
+            self.amount = Decimal(self.amount)
         # Validate amount
         if self.amount is not None and self.amount <= 0:
             raise ValidationError({"amount": _("Amount must be greater than zero.")})

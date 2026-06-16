@@ -3834,6 +3834,98 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/offers/:
+    get:
+      operationId: offers_retrieve
+      description: GET /api/offers/ — List incoming offers for the authenticated client's
+        requests.
+      tags:
+      - offers
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/offers/{offer_id}/:
+    get:
+      operationId: offers_retrieve_2
+      description: GET /api/offers/<uuid:offer_id>/ — View incoming offer detail.
+      parameters:
+      - in: path
+        name: offer_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - offers
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/offers/{offer_id}/accept/:
+    post:
+      operationId: offers_accept_create
+      description: POST /api/offers/<uuid:offer_id>/accept/ — Accept offer and create
+        contract.
+      parameters:
+      - in: path
+        name: offer_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - offers
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/offers/{offer_id}/reject/:
+    post:
+      operationId: offers_reject_create
+      description: POST /api/offers/<uuid:offer_id>/reject/ — Reject offer.
+      parameters:
+      - in: path
+        name: offer_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - offers
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/offers/by-request/{request_id}/:
+    get:
+      operationId: offers_by_request_retrieve
+      description: |-
+        GET /api/offers/by-request/<uuid:request_id>/ — List offers for a specific request.
+        Accessible to client (request owner) or technician (assigned).
+      parameters:
+      - in: path
+        name: request_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - offers
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/requests/:
     get:
       operationId: requests_retrieve
@@ -4212,6 +4304,114 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaginatedReviewPublicList'
           description: ''
+  /api/technician/offers/:
+    get:
+      operationId: technician_offers_retrieve
+      description: |-
+        GET  /api/technician/offers/          — List own offers.
+        POST /api/technician/offers/          — Create draft offer.
+      tags:
+      - technician
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: technician_offers_create
+      description: |-
+        GET  /api/technician/offers/          — List own offers.
+        POST /api/technician/offers/          — Create draft offer.
+      tags:
+      - technician
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/technician/offers/{offer_id}/:
+    get:
+      operationId: technician_offers_retrieve_2
+      description: |-
+        GET   /api/technician/offers/<uuid:offer_id>/   — View own offer.
+        PATCH /api/technician/offers/<uuid:offer_id>/   — Update draft offer.
+      parameters:
+      - in: path
+        name: offer_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - technician
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: technician_offers_partial_update
+      description: |-
+        GET   /api/technician/offers/<uuid:offer_id>/   — View own offer.
+        PATCH /api/technician/offers/<uuid:offer_id>/   — Update draft offer.
+      parameters:
+      - in: path
+        name: offer_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - technician
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/technician/offers/{offer_id}/submit/:
+    post:
+      operationId: technician_offers_submit_create
+      description: POST /api/technician/offers/<uuid:offer_id>/submit/ — Submit draft
+        offer.
+      parameters:
+      - in: path
+        name: offer_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - technician
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/technician/offers/{offer_id}/withdraw/:
+    post:
+      operationId: technician_offers_withdraw_create
+      description: POST /api/technician/offers/<uuid:offer_id>/withdraw/ — Withdraw
+        submitted offer.
+      parameters:
+      - in: path
+        name: offer_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - technician
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/technician/requests/:
     get:
       operationId: technician_requests_retrieve
