@@ -4679,6 +4679,60 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/wallet/contracts/{contract_id}/funding/eligibility/:
+    get:
+      operationId: wallet_contracts_funding_eligibility_retrieve
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wallet/contracts/{contract_id}/funding/intents/:
+    post:
+      operationId: wallet_contracts_funding_intents_create
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wallet/contracts/{contract_id}/funding/status/:
+    get:
+      operationId: wallet_contracts_funding_status_retrieve
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/wallet/fee-config/:
     get:
       operationId: wallet_fee_config_retrieve
@@ -4743,6 +4797,24 @@ paths:
   /api/wallet/payment-intents/{intent_id}/mark-paid/:
     post:
       operationId: wallet_payment_intents_mark_paid_create
+      parameters:
+      - in: path
+        name: intent_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wallet/payment-intents/{intent_id}/sandbox-confirm/:
+    post:
+      operationId: wallet_payment_intents_sandbox_confirm_create
       parameters:
       - in: path
         name: intent_id

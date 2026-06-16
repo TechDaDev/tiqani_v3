@@ -144,6 +144,7 @@ class Command(BaseCommand):
         self._seed_request_fixtures()
         self._seed_messaging_fixtures()
         self._seed_offer_fixtures()
+        self._seed_payment_fixtures()
 
     def _get_or_create_user(self, key, password):
         """Helper to get_or_create a fixture user."""
@@ -720,6 +721,160 @@ class Command(BaseCommand):
         from contract.offer_models import Offer
         offer_count = Offer.objects.count()
         self.stdout.write(f"  Offers:              {offer_count} fixtures")
+        from wallet.models import PaymentIntent, WalletTransaction
+        pay_count = PaymentIntent.objects.filter(
+            user__email__in=list(FIXTURE_EMAILS.values())
+        ).count()
+        txn_count = WalletTransaction.objects.filter(
+            wallet__user__email__in=list(FIXTURE_EMAILS.values())
+        ).count()
+        self.stdout.write(f"  Payment intents:     {pay_count} fixtures")
+        self.stdout.write(f"  Wallet transactions: {txn_count} fixtures")
         self.stdout.write()
         self.stdout.write("  Credentials: Set via E2E_FIXTURE_PASSWORD environment variable.")
         self.stdout.write("  Production guard: Active (use --force to override).")
+
+    def _seed_payment_fixtures(self):
+        """Create deterministic payment fixtures for E2E funding tests."""
+        try:
+            client_profile = ClientProfile.objects.get(user__email=FIXTURE_EMAILS["client"])
+            approved_tech_profile = TechnicianProfile.objects.get(
+                user__email=FIXTURE_EMAILS["approved_technician"]
+            )
+        except (ClientProfile.DoesNotExist, TechnicianProfile.DoesNotExist):
+            self.stdout.write(self.style.WARNING("  Skipping payment fixtures: users not seeded."))
+            return
+
+        import uuid
+        from decimal import Decimal
+        from wallet.models import PaymentIntent, WalletTransaction, Wallet, ContractPaymentBreakdown
+        from contract.models import Contract
+        from wallet.services import ensure_contract_payment_breakdown
+
+        def _pay_id(label):
+            return uuid.uuid5(uuid.NAMESPACE_DNS, f"e2e-pay-{label}.tiqani.local")
+
+        def _contract_id(label):
+            return uuid.uuid5(uuid.NAMESPACE_DNS, f"e2e-contract-{label}.tiqani.local")
+
+        client_user = client_profile.user
+        tech_user = approved_tech_profile.user
+
+        # Ensure wallets exist
+        Wallet.objects.get_or_create(user=client_user, defaults={"balance": Decimal("0")})
+        Wallet.objects.get_or_create(user=tech_user, defaults={"balance": Decimal("0")})
+
+        # Scenario A: Unfunded eligible contract (in_progress, with agreed_amount)
+        contract_a, _ = Contract.objects.update_or_create(
+            id=_contract_id("unfunded"),
+            defaults={
+                "client": client_profile,
+                "technician": approved_tech_profile,
+                "agreed_amount": Decimal("500000.00"),
+                "currency": "IQD",
+                "status": "in_progress",
+                "work_description": "E2E test contract for funding success flow.",
+                "start_date": timezone.now().date(),
+                "duration_days": 10,
+            },
+        )
+        ensure_contract_payment_breakdown(contract_a)
+
+        # Scenario B: Separate contract for failure testing
+        contract_b, _ = Contract.objects.update_or_create(
+            id=_contract_id("failure"),
+            defaults={
+                "client": client_profile,
+                "technician": approved_tech_profile,
+                "agreed_amount": Decimal("250000.00"),
+                "currency": "IQD",
+                "status": "in_progress",
+                "work_description": "E2E test contract for funding failure flow.",
+                "start_date": timezone.now().date(),
+                "duration_days": 5,
+            },
+        )
+        ensure_contract_payment_breakdown(contract_b)
+
+        # Scenario C: Pending payment intent (no success, no escrow)
+        PaymentIntent.objects.update_or_create(
+            id=_pay_id("pending"),
+            defaults={
+                "contract": contract_a,
+                "user": client_user,
+                "amount": Decimal("525000.00"),
+                "currency": "IQD",
+                "purpose": PaymentIntent.Purpose.CONTRACT_FUNDING,
+                "provider": "sandbox",
+                "status": PaymentIntent.Status.PENDING,
+            },
+        )
+
+        # Scenario D: Failed payment intent (no success, no escrow)
+        PaymentIntent.objects.update_or_create(
+            id=_pay_id("failed"),
+            defaults={
+                "contract": contract_b,
+                "user": client_user,
+                "amount": Decimal("262500.00"),
+                "currency": "IQD",
+                "purpose": PaymentIntent.Purpose.CONTRACT_FUNDING,
+                "provider": "sandbox",
+                "status": PaymentIntent.Status.FAILED,
+                "metadata": {"failure_code": "sandbox_simulated_failure", "failure_message": "Simulated failure."},
+            },
+        )
+
+        # Scenario E: Funded contract
+        contract_e, _ = Contract.objects.update_or_create(
+            id=_contract_id("funded"),
+            defaults={
+                "client": client_profile,
+                "technician": approved_tech_profile,
+                "agreed_amount": Decimal("1000000.00"),
+                "currency": "IQD",
+                "status": "in_progress",
+                "escrow_amount": Decimal("1000000.00"),
+                "work_description": "E2E test contract for funded state.",
+                "start_date": timezone.now().date(),
+                "duration_days": 15,
+            },
+        )
+        success_intent, _ = PaymentIntent.objects.update_or_create(
+            id=_pay_id("success"),
+            defaults={
+                "contract": contract_e,
+                "user": client_user,
+                "amount": Decimal("1050000.00"),
+                "currency": "IQD",
+                "purpose": PaymentIntent.Purpose.CONTRACT_FUNDING,
+                "provider": "sandbox",
+                "status": PaymentIntent.Status.PAID,
+                "paid_at": timezone.now(),
+            },
+        )
+        wallet = client_user.wallet
+        wallet.balance += success_intent.amount
+        wallet.save(update_fields=["balance"])
+        WalletTransaction.objects.update_or_create(
+            id=_pay_id("txn_deposit"),
+            defaults={
+                "wallet": wallet,
+                "contract": contract_e,
+                "transaction_type": WalletTransaction.Type.DEPOSIT,
+                "amount": success_intent.amount,
+                "description": f"E2E deposit – {contract_e.contract_reference}",
+            },
+        )
+        WalletTransaction.objects.update_or_create(
+            id=_pay_id("txn_escrow"),
+            defaults={
+                "wallet": wallet,
+                "contract": contract_e,
+                "transaction_type": WalletTransaction.Type.ESCROW,
+                "amount": Decimal("1000000.00"),
+                "description": f"E2E escrow – {contract_e.contract_reference}",
+            },
+        )
+
+        self.stdout.write(f"  Created payment fixtures.")
