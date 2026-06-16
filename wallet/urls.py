@@ -11,6 +11,10 @@ from .views import (
     PaymentIntentMarkPaidView,
     FeeConfigListView,
     ContractBreakdownView,
+    ContractFundingEligibilityView,
+    ContractPaymentIntentCreateView,
+    ContractFundingStatusView,
+    PaymentIntentSandboxConfirmView,
 )
 
 urlpatterns = [
@@ -29,4 +33,9 @@ urlpatterns = [
     path("fee-config/", FeeConfigListView.as_view(), name="fee-config-list"),
     # Contract Breakdown
     path("contracts/<uuid:contract_id>/breakdown/", ContractBreakdownView.as_view(), name="contract-breakdown"),
+    # Phase 7 — Contract Funding
+    path("contracts/<uuid:contract_id>/funding/eligibility/", ContractFundingEligibilityView.as_view(), name="contract-funding-eligibility"),
+    path("contracts/<uuid:contract_id>/funding/intents/", ContractPaymentIntentCreateView.as_view(), name="contract-payment-intent-create"),
+    path("contracts/<uuid:contract_id>/funding/status/", ContractFundingStatusView.as_view(), name="contract-funding-status"),
+    path("payment-intents/<uuid:intent_id>/sandbox-confirm/", PaymentIntentSandboxConfirmView.as_view(), name="payment-intent-sandbox-confirm"),
 ]
