@@ -142,6 +142,7 @@ class Command(BaseCommand):
         self._create_restricted_technician(password)
         self._create_second_approved_technician(password)
         self._seed_request_fixtures()
+        self._seed_messaging_fixtures()
 
     def _get_or_create_user(self, key, password):
         """Helper to get_or_create a fixture user."""
@@ -395,6 +396,138 @@ class Command(BaseCommand):
         import uuid
         return uuid.uuid5(uuid.NAMESPACE_DNS, f"e2e-request-{label}.tiqani.local")
 
+    def _room_id(self, label):
+        """Generate a deterministic UUID for a chat room fixture label."""
+        import uuid
+        return uuid.uuid5(uuid.NAMESPACE_DNS, f"e2e-room-{label}.tiqani.local")
+
+    def _message_id(self, label):
+        """Generate a deterministic UUID for a message fixture label."""
+        import uuid
+        return uuid.uuid5(uuid.NAMESPACE_DNS, f"e2e-msg-{label}.tiqani.local")
+
+    def _seed_messaging_fixtures(self):
+        """Create deterministic messaging fixtures for E2E testing.
+
+        Creates chat rooms linked to service requests with sample messages.
+        Idempotent: updates if exists, creates if not.
+        """
+        from chat.models import ServiceChatRoom, ServiceChatMessage, ServiceChatReadState
+        from accounts.models import TechnicianProfile
+
+        try:
+            client_profile = ClientProfile.objects.get(user__email=FIXTURE_EMAILS["client"])
+            approved_tech_profile = TechnicianProfile.objects.get(
+                user__email=FIXTURE_EMAILS["approved_technician"]
+            )
+            second_tech_profile = TechnicianProfile.objects.get(
+                user__email=FIXTURE_EMAILS["second_approved"]
+            )
+        except (ClientProfile.DoesNotExist, TechnicianProfile.DoesNotExist):
+            self.stdout.write(self.style.WARNING("  Skipping messaging fixtures: users not seeded."))
+            return
+
+        client_user = client_profile.user
+        approved_tech_user = approved_tech_profile.user
+        second_tech_user = second_tech_profile.user
+
+        accepted_request = ServiceRequest.objects.filter(
+            client=client_profile,
+            technician=approved_tech_profile,
+            status=ServiceRequest.Status.ACCEPTED,
+        ).first()
+
+        # Room 1: Client A + Technician A, linked to accepted request
+        room1, _ = ServiceChatRoom.objects.update_or_create(
+            id=self._room_id("room1"),
+            defaults={
+                "client": client_profile,
+                "technician": approved_tech_profile,
+                "created_by": client_user,
+                "service_request": accepted_request,
+                "status": ServiceChatRoom.Status.OPEN,
+                "last_message_at": "2026-06-16T09:30:00Z",
+            },
+        )
+
+        # Client A message in room 1
+        ServiceChatMessage.objects.update_or_create(
+            id=self._message_id("room1_client"),
+            defaults={
+                "room": room1,
+                "sender": client_user,
+                "message_type": "TEXT",
+                "body": "Hi, I'd like to discuss the smart lock installation.",
+                "created_at": "2026-06-16T09:00:00Z",
+            },
+        )
+
+        # Technician A reply (unread for client)
+        ServiceChatMessage.objects.update_or_create(
+            id=self._message_id("room1_tech_reply"),
+            defaults={
+                "room": room1,
+                "sender": approved_tech_user,
+                "message_type": "TEXT",
+                "body": "Sure! I can install the smart lock tomorrow. What time works for you?",
+                "created_at": "2026-06-16T09:30:00Z",
+            },
+        )
+
+        # Set unread count for client
+        ServiceChatReadState.objects.update_or_create(
+            room=room1,
+            user=client_user,
+            defaults={"unread_count": 1},
+        )
+        ServiceChatReadState.objects.update_or_create(
+            room=room1,
+            user=approved_tech_user,
+            defaults={"unread_count": 0},
+        )
+
+        # Room 2: Client B + Technician B, linked to cross-client request
+        cross_request = ServiceRequest.objects.filter(
+            client=client_profile,
+            technician=second_tech_profile,
+        ).first()
+
+        room2, _ = ServiceChatRoom.objects.update_or_create(
+            id=self._room_id("room2"),
+            defaults={
+                "client": client_profile,
+                "technician": second_tech_profile,
+                "created_by": client_user,
+                "service_request": cross_request,
+                "status": ServiceChatRoom.Status.OPEN,
+            },
+        )
+
+        # Read conversation
+        ServiceChatMessage.objects.update_or_create(
+            id=self._message_id("room2_greeting"),
+            defaults={
+                "room": room2,
+                "sender": client_user,
+                "message_type": "TEXT",
+                "body": "Hello! I need help with a network setup.",
+                "created_at": "2026-06-15T14:00:00Z",
+            },
+        )
+        # All read
+        ServiceChatReadState.objects.update_or_create(
+            room=room2,
+            user=client_user,
+            defaults={"unread_count": 0},
+        )
+        ServiceChatReadState.objects.update_or_create(
+            room=room2,
+            user=second_tech_user,
+            defaults={"unread_count": 0},
+        )
+
+        self.stdout.write(f"  Created messaging fixtures: 2 rooms, 4 messages.")
+
     def _report(self):
         """Print a summary of created fixtures."""
         self.stdout.write()
@@ -408,6 +541,11 @@ class Command(BaseCommand):
             client__user__email__in=FIXTURE_EMAILS.values()
         ).count()
         self.stdout.write(f"  Service requests:    {req_count} fixtures")
+        from chat.models import ServiceChatRoom, ServiceChatMessage
+        chat_room_count = ServiceChatRoom.objects.count()
+        chat_msg_count = ServiceChatMessage.objects.count()
+        self.stdout.write(f"  Chat rooms:          {chat_room_count} fixtures")
+        self.stdout.write(f"  Chat messages:       {chat_msg_count} fixtures")
         self.stdout.write()
         self.stdout.write("  Credentials: Set via E2E_FIXTURE_PASSWORD environment variable.")
         self.stdout.write("  Production guard: Active (use --force to override).")
