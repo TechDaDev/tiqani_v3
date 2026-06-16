@@ -2,6 +2,14 @@
 
 from .base import *  # noqa: F403
 
+# In-memory SQLite so tests never need an external database
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": ":memory:",
+    }
+}
+
 # Force local media storage in tests — no S3
 USE_S3_MEDIA = False
 
