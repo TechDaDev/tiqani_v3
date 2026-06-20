@@ -753,6 +753,22 @@ class Command(BaseCommand):
         ).count()
         self.stdout.write(f"  Payment intents:     {pay_count} fixtures")
         self.stdout.write(f"  Wallet transactions: {txn_count} fixtures")
+
+        # Phase 8 execution counts
+        from contract.models import (
+            ExecutionMilestone, DeliverableSubmission,
+            RevisionRequest, CompletionRequest, ContractAuditEvent,
+        )
+        exec_ms_count = ExecutionMilestone.objects.filter(contract__client__user__email__in=FIXTURE_EMAILS.values()).count()
+        exec_sub_count = DeliverableSubmission.objects.filter(milestone__contract__client__user__email__in=FIXTURE_EMAILS.values()).count()
+        exec_rev_count = RevisionRequest.objects.filter(milestone__contract__client__user__email__in=FIXTURE_EMAILS.values()).count()
+        exec_cr_count = CompletionRequest.objects.filter(contract__client__user__email__in=FIXTURE_EMAILS.values()).count()
+        exec_hist_count = ContractAuditEvent.objects.filter(contract__client__user__email__in=FIXTURE_EMAILS.values()).count()
+        self.stdout.write(f"  Execution milestones:       {exec_ms_count} fixtures")
+        self.stdout.write(f"  Deliverable submissions:   {exec_sub_count} fixtures")
+        self.stdout.write(f"  Revision requests:         {exec_rev_count} fixtures")
+        self.stdout.write(f"  Completion requests:       {exec_cr_count} fixtures")
+        self.stdout.write(f"  Execution history events:  {exec_hist_count} fixtures")
         self.stdout.write()
         self.stdout.write("  Credentials: Set via E2E_FIXTURE_PASSWORD environment variable.")
         self.stdout.write("  Production guard: Active (use --force to override).")
