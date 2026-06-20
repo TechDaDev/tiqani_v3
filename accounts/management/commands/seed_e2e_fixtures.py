@@ -645,39 +645,39 @@ class Command(BaseCommand):
         import uuid
 
         # Submitted offer — eligible for client acceptance test
-        Offer.objects.update_or_create(
-            id=uuid.uuid5(uuid.NAMESPACE_DNS, "e2e-offer-submitted.tiqani.local"),
-            defaults={
-                "service_request": accepted_request,
-                "amount": "150000.00",
-                "description": "Complete smart lock installation including mounting, wiring, and configuration.",
-                "duration_days": 2,
-                "status": Offer.Status.SUBMITTED,
-            },
+        _sid = uuid.uuid5(uuid.NAMESPACE_DNS, "e2e-offer-submitted.tiqani.local")
+        Offer.objects.filter(id=_sid).delete()
+        Offer.objects.create(
+            id=_sid,
+            service_request=accepted_request,
+            amount="150000.00",
+            description="Complete smart lock installation including mounting, wiring, and configuration.",
+            duration_days=2,
+            status=Offer.Status.SUBMITTED,
         )
 
         # Submitted offer — for rejection test
-        Offer.objects.update_or_create(
-            id=uuid.uuid5(uuid.NAMESPACE_DNS, "e2e-offer-for-rejection.tiqani.local"),
-            defaults={
-                "service_request": accepted_request,
-                "amount": "250000.00",
-                "description": "Premium installation with additional security features.",
-                "duration_days": 3,
-                "status": Offer.Status.SUBMITTED,
-            },
+        _rid = uuid.uuid5(uuid.NAMESPACE_DNS, "e2e-offer-for-rejection.tiqani.local")
+        Offer.objects.filter(id=_rid).delete()
+        Offer.objects.create(
+            id=_rid,
+            service_request=accepted_request,
+            amount="250000.00",
+            description="Premium installation with additional security features.",
+            duration_days=3,
+            status=Offer.Status.SUBMITTED,
         )
 
         # Accepted offer — should have a Contract created
-        accepted_offer, _ = Offer.objects.update_or_create(
-            id=uuid.uuid5(uuid.NAMESPACE_DNS, "e2e-offer-accepted.tiqani.local"),
-            defaults={
-                "service_request": accepted_request,
-                "amount": "120000.00",
-                "description": "Basic smart lock installation.",
-                "duration_days": 1,
-                "status": Offer.Status.ACCEPTED,
-            },
+        _aid = uuid.uuid5(uuid.NAMESPACE_DNS, "e2e-offer-accepted.tiqani.local")
+        Offer.objects.filter(id=_aid).delete()
+        accepted_offer = Offer.objects.create(
+            id=_aid,
+            service_request=accepted_request,
+            amount="120000.00",
+            description="Basic smart lock installation.",
+            duration_days=1,
+            status=Offer.Status.ACCEPTED,
         )
 
         # Create a contract for the accepted offer
@@ -697,28 +697,28 @@ class Command(BaseCommand):
         )
 
         # Withdrawn offer
-        Offer.objects.update_or_create(
-            id=uuid.uuid5(uuid.NAMESPACE_DNS, "e2e-offer-withdrawn.tiqani.local"),
-            defaults={
-                "service_request": accepted_request,
-                "amount": "50000.00",
-                "description": "Quick fix offer (withdrawn).",
-                "duration_days": 1,
-                "status": Offer.Status.WITHDRAWN,
-            },
+        _wid = uuid.uuid5(uuid.NAMESPACE_DNS, "e2e-offer-withdrawn.tiqani.local")
+        Offer.objects.filter(id=_wid).delete()
+        Offer.objects.create(
+            id=_wid,
+            service_request=accepted_request,
+            amount="50000.00",
+            description="Quick fix offer (withdrawn).",
+            duration_days=1,
+            status=Offer.Status.WITHDRAWN,
         )
 
         # Offer for Client B / Tech B — IDOR test
         if accepted_request_2:
-            Offer.objects.update_or_create(
-                id=uuid.uuid5(uuid.NAMESPACE_DNS, "e2e-offer-cross-client.tiqani.local"),
-                defaults={
-                    "service_request": accepted_request_2,
-                    "amount": "180000.00",
-                    "description": "Cross-client offer for IDOR testing.",
-                    "duration_days": 4,
-                    "status": Offer.Status.SUBMITTED,
-                },
+            _cid = uuid.uuid5(uuid.NAMESPACE_DNS, "e2e-offer-cross-client.tiqani.local")
+            Offer.objects.filter(id=_cid).delete()
+            Offer.objects.create(
+                id=_cid,
+                service_request=accepted_request_2,
+                amount="180000.00",
+                description="Cross-client offer for IDOR testing.",
+                duration_days=4,
+                status=Offer.Status.SUBMITTED,
             )
 
         self.stdout.write(f"  Created offer fixtures.")
