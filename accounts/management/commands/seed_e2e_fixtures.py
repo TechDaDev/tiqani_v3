@@ -1039,7 +1039,30 @@ class Command(BaseCommand):
             )
             return c
 
+        import uuid
+        def _pay_id(label):
+            return uuid.uuid5(uuid.NAMESPACE_DNS, f"e2e-pay-{label}.tiqani.local")
+
+        def _fund(label):
+            """Create a PAID PaymentIntent so contract is 'funded' per backend checks."""
+            from wallet.models import PaymentIntent
+            c = Contract.objects.get(id=self._exec_contract_id(label))
+            PaymentIntent.objects.update_or_create(
+                id=_pay_id(f"exec-{label}"),
+                defaults={
+                    "contract": c,
+                    "user": client_user,
+                    "amount": c.escrow_amount or Decimal("100000.00"),
+                    "currency": "IQD",
+                    "purpose": PaymentIntent.Purpose.CONTRACT_FUNDING,
+                    "provider": "sandbox",
+                    "status": PaymentIntent.Status.PAID,
+                    "paid_at": timezone.now(),
+                },
+            )
+
         _make("activation")
+        _fund("activation")
         ExecutionMilestone.objects.update_or_create(
             id=self._milestone_id("act-ms"), defaults={"contract_id": self._exec_contract_id("activation"), "sequence": 1, "title": "First", "status": ExecutionMilestone.Status.DRAFT},
         )
