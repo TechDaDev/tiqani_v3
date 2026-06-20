@@ -24,6 +24,78 @@ from .views import (
     PublicVerifyPdfView,
 )
 
+# ──────────────────────────────────────────────
+#  Phase 8 — Contract Execution
+# ──────────────────────────────────────────────
+
+from .execution_views import (
+    ContractExecutionEligibilityView,
+    ContractActivateView,
+    MilestoneListCreateView,
+    MilestoneDetailView,
+    MilestoneReorderView,
+    MilestoneStartView,
+    DeliverableSubmitView,
+    SubmissionListView,
+    RevisionRequestView,
+    MilestoneApproveView,
+    CompletionRequestView,
+    CompletionRejectView,
+    CompletionConfirmView,
+    ExecutionHistoryView,
+)
+
+execution_urlpatterns = [
+    # Eligibility & Activation
+    path("<uuid:contract_id>/execution/eligibility/",
+         ContractExecutionEligibilityView.as_view(),
+         name="contract-execution-eligibility"),
+    path("<uuid:contract_id>/activate/",
+         ContractActivateView.as_view(),
+         name="contract-activate"),
+    # Milestones
+    path("<uuid:contract_id>/milestones/",
+         MilestoneListCreateView.as_view(),
+         name="milestone-list"),
+    path("<uuid:contract_id>/milestones/reorder/",
+         MilestoneReorderView.as_view(),
+         name="milestone-reorder"),
+    path("milestones/<uuid:milestone_id>/",
+         MilestoneDetailView.as_view(),
+         name="milestone-detail"),
+    path("milestones/<uuid:milestone_id>/start/",
+         MilestoneStartView.as_view(),
+         name="milestone-start"),
+    # Deliverables
+    path("milestones/<uuid:milestone_id>/submissions/",
+         SubmissionListView.as_view(),
+         name="submission-list"),
+    path("milestones/<uuid:milestone_id>/submit/",
+         DeliverableSubmitView.as_view(),
+         name="deliverable-submit"),
+    # Revisions & Approval
+    path("milestones/<uuid:milestone_id>/revision/",
+         RevisionRequestView.as_view(),
+         name="milestone-revision"),
+    path("milestones/<uuid:milestone_id>/approve/",
+         MilestoneApproveView.as_view(),
+         name="milestone-approve"),
+    # Completion
+    path("<uuid:contract_id>/completion-request/",
+         CompletionRequestView.as_view(),
+         name="completion-request"),
+    path("<uuid:contract_id>/completion-reject/",
+         CompletionRejectView.as_view(),
+         name="completion-reject"),
+    path("<uuid:contract_id>/complete/",
+         CompletionConfirmView.as_view(),
+         name="completion-confirm"),
+    # History
+    path("<uuid:contract_id>/execution-history/",
+         ExecutionHistoryView.as_view(),
+         name="execution-history"),
+]
+
 urlpatterns = [
     # --- Contract CRUD & Actions ---
     path("", ContractListCreateView.as_view(), name="contract-list"),
@@ -53,6 +125,9 @@ urlpatterns = [
     # --- Public Verification ---
     path("verify/<str:verification_code>/", PublicVerifyCodeView.as_view(), name="contract-public-verify-code"),
     path("verify-pdf/", PublicVerifyPdfView.as_view(), name="contract-public-verify-pdf"),
+
+    # --- Phase 8: Execution ---
+    *execution_urlpatterns,
 ]
 
 # ──────────────────────────────────────────────

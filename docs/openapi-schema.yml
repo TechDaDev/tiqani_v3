@@ -122,8 +122,10 @@ paths:
         schema:
           type: string
           enum:
+          - active
           - canceled
           - completed
+          - completion_requested
           - draft
           - in_progress
           - pending_acceptance
@@ -137,6 +139,8 @@ paths:
           * `pending_signatures` - Pending Signatures
           * `pending_finalization` - Pending Finalization
           * `in_progress` - In Progress
+          * `active` - Active
+          * `completion_requested` - Completion Requested
           * `completed` - Completed
           * `canceled` - Canceled
       tags:
@@ -2940,10 +2944,86 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/contracts/{contract_id}/activate/:
+    post:
+      operationId: contracts_activate_create
+      description: Activate contract execution.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/contracts/{contract_id}/cancel/:
     post:
       operationId: contracts_cancel_create
       description: 'POST: Cancel contract.'
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/contracts/{contract_id}/complete/:
+    post:
+      operationId: contracts_complete_create
+      description: Client confirms contract completion.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/contracts/{contract_id}/completion-reject/:
+    post:
+      operationId: contracts_completion_reject_create
+      description: Client rejects completion request.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/contracts/{contract_id}/completion-request/:
+    post:
+      operationId: contracts_completion_request_create
+      description: Technician requests contract completion.
       parameters:
       - in: path
         name: contract_id
@@ -3009,6 +3089,44 @@ paths:
           description: Permission denied.
         '404':
           description: Final document not found.
+  /api/contracts/{contract_id}/execution-history/:
+    get:
+      operationId: contracts_execution_history_retrieve
+      description: Get execution history for a contract.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/contracts/{contract_id}/execution/eligibility/:
+    get:
+      operationId: contracts_execution_eligibility_retrieve
+      description: Check if contract can start execution.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/contracts/{contract_id}/extension-requests/:
     get:
       operationId: contracts_extension_requests_retrieve
@@ -3143,6 +3261,100 @@ paths:
           description: Invalid state for freezing.
         '403':
           description: Permission denied.
+  /api/contracts/{contract_id}/milestones/:
+    get:
+      operationId: contracts_milestones_list
+      description: List or create milestones for a contract.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedExecutionMilestoneListList'
+          description: ''
+    post:
+      operationId: contracts_milestones_create
+      description: List or create milestones for a contract.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecutionMilestoneCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ExecutionMilestoneCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ExecutionMilestoneCreateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionMilestoneCreate'
+          description: ''
+  /api/contracts/{contract_id}/milestones/reorder/:
+    post:
+      operationId: contracts_milestones_reorder_create
+      description: Reorder milestones.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/contracts/{contract_id}/request-signature-otp/:
     post:
       operationId: contracts_request_signature_otp_create
@@ -3338,6 +3550,157 @@ paths:
         required: true
       - in: path
         name: stage_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/contracts/milestones/{milestone_id}/:
+    get:
+      operationId: contracts_milestones_retrieve
+      description: Retrieve or update a milestone.
+      parameters:
+      - in: path
+        name: milestone_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionMilestoneDetail'
+          description: ''
+    patch:
+      operationId: contracts_milestones_partial_update
+      description: Retrieve or update a milestone.
+      parameters:
+      - in: path
+        name: milestone_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedExecutionMilestoneUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedExecutionMilestoneUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedExecutionMilestoneUpdateRequest'
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionMilestoneUpdate'
+          description: ''
+  /api/contracts/milestones/{milestone_id}/approve/:
+    post:
+      operationId: contracts_milestones_approve_create
+      description: Client approves a milestone.
+      parameters:
+      - in: path
+        name: milestone_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/contracts/milestones/{milestone_id}/revision/:
+    post:
+      operationId: contracts_milestones_revision_create
+      description: Client requests revision on a submission.
+      parameters:
+      - in: path
+        name: milestone_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/contracts/milestones/{milestone_id}/start/:
+    post:
+      operationId: contracts_milestones_start_create
+      description: Technician starts work on a milestone.
+      parameters:
+      - in: path
+        name: milestone_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/contracts/milestones/{milestone_id}/submissions/:
+    get:
+      operationId: contracts_milestones_submissions_retrieve
+      description: List submissions for a milestone.
+      parameters:
+      - in: path
+        name: milestone_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/contracts/milestones/{milestone_id}/submit/:
+    post:
+      operationId: contracts_milestones_submit_create
+      description: Technician submits a deliverable.
+      parameters:
+      - in: path
+        name: milestone_id
         schema:
           type: string
           format: uuid
@@ -5176,7 +5539,7 @@ components:
           description: Calculated deadline date (start_date + duration_days)
         status:
           allOf:
-          - $ref: '#/components/schemas/Status065Enum'
+          - $ref: '#/components/schemas/Status5c1Enum'
           description: |-
             Current contract status
 
@@ -5185,6 +5548,8 @@ components:
             * `pending_signatures` - Pending Signatures
             * `pending_finalization` - Pending Finalization
             * `in_progress` - In Progress
+            * `active` - Active
+            * `completion_requested` - Completion Requested
             * `completed` - Completed
             * `canceled` - Canceled
         stage_number:
@@ -5212,6 +5577,16 @@ components:
           format: date-time
           nullable: true
           description: When the signed/final contract package was finalized
+        activated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When contract execution was activated
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When contract was completed (escrow still held)
         client:
           type: string
           format: uuid
@@ -5264,7 +5639,7 @@ components:
           maxLength: 20
         status:
           allOf:
-          - $ref: '#/components/schemas/Status065Enum'
+          - $ref: '#/components/schemas/Status5c1Enum'
           description: |-
             Current contract status
 
@@ -5273,6 +5648,8 @@ components:
             * `pending_signatures` - Pending Signatures
             * `pending_finalization` - Pending Finalization
             * `in_progress` - In Progress
+            * `active` - Active
+            * `completion_requested` - Completion Requested
             * `completed` - Completed
             * `canceled` - Canceled
         client_name:
@@ -6833,6 +7210,252 @@ components:
         * `technician_commission` - Technician Commission
         * `client_service_fee` - Client Service Fee
         * `adjustment` - Adjustment
+    ExecutionMilestoneCreate:
+      type: object
+      description: Create a draft milestone.
+      properties:
+        title:
+          type: string
+          description: Milestone title
+          maxLength: 255
+        description:
+          type: string
+          description: Detailed description of work
+        due_date:
+          type: string
+          format: date
+          nullable: true
+          description: Target completion date
+        sequence:
+          type: integer
+      required:
+      - title
+    ExecutionMilestoneCreateRequest:
+      type: object
+      description: Create a draft milestone.
+      properties:
+        title:
+          type: string
+          minLength: 1
+          description: Milestone title
+          maxLength: 255
+        description:
+          type: string
+          description: Detailed description of work
+        due_date:
+          type: string
+          format: date
+          nullable: true
+          description: Target completion date
+        sequence:
+          type: integer
+      required:
+      - title
+    ExecutionMilestoneDetail:
+      type: object
+      description: Full milestone detail with submissions and revisions.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        contract:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Parent contract
+        sequence:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          description: Order of milestone within contract
+        title:
+          type: string
+          description: Milestone title
+          maxLength: 255
+        description:
+          type: string
+          description: Detailed description of work
+        due_date:
+          type: string
+          format: date
+          nullable: true
+          description: Target completion date
+        status:
+          allOf:
+          - $ref: '#/components/schemas/StatusC37Enum'
+          readOnly: true
+          description: |-
+            Current milestone status
+
+            * `DRAFT` - Draft
+            * `PENDING` - Pending
+            * `IN_PROGRESS` - In Progress
+            * `SUBMITTED` - Submitted
+            * `REVISION_REQUESTED` - Revision Requested
+            * `APPROVED` - Approved
+            * `CANCELLED` - Cancelled
+        created_by:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+          description: User who created the milestone
+        started_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: When technician started work
+        submitted_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: When technician submitted deliverable
+        approved_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: When client approved
+        revision_count:
+          type: integer
+          readOnly: true
+          description: Number of revision cycles
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        submissions:
+          type: string
+          readOnly: true
+        revisions:
+          type: string
+          readOnly: true
+      required:
+      - approved_at
+      - contract
+      - created_at
+      - created_by
+      - id
+      - revision_count
+      - revisions
+      - sequence
+      - started_at
+      - status
+      - submissions
+      - submitted_at
+      - title
+      - updated_at
+    ExecutionMilestoneList:
+      type: object
+      description: List view for milestones (no sensitive fields).
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        contract:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Parent contract
+        sequence:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          description: Order of milestone within contract
+        title:
+          type: string
+          description: Milestone title
+          maxLength: 255
+        description:
+          type: string
+          description: Detailed description of work
+        due_date:
+          type: string
+          format: date
+          nullable: true
+          description: Target completion date
+        status:
+          allOf:
+          - $ref: '#/components/schemas/StatusC37Enum'
+          readOnly: true
+          description: |-
+            Current milestone status
+
+            * `DRAFT` - Draft
+            * `PENDING` - Pending
+            * `IN_PROGRESS` - In Progress
+            * `SUBMITTED` - Submitted
+            * `REVISION_REQUESTED` - Revision Requested
+            * `APPROVED` - Approved
+            * `CANCELLED` - Cancelled
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        started_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: When technician started work
+        submitted_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: When technician submitted deliverable
+        approved_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: When client approved
+        revision_count:
+          type: integer
+          readOnly: true
+          description: Number of revision cycles
+      required:
+      - approved_at
+      - contract
+      - created_at
+      - id
+      - revision_count
+      - sequence
+      - started_at
+      - status
+      - submitted_at
+      - title
+      - updated_at
+    ExecutionMilestoneUpdate:
+      type: object
+      description: Update a draft milestone (title, description, due_date only).
+      properties:
+        title:
+          type: string
+          description: Milestone title
+          maxLength: 255
+        description:
+          type: string
+          description: Detailed description of work
+        due_date:
+          type: string
+          format: date
+          nullable: true
+          description: Target completion date
+      required:
+      - title
     FeeModeEnum:
       enum:
       - added_on_top
@@ -7500,6 +8123,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Category'
+    PaginatedExecutionMilestoneListList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExecutionMilestoneList'
     PaginatedNotificationList:
       type: object
       required:
@@ -7679,6 +8325,23 @@ components:
           maximum: 2147483647
           minimum: 0
           description: Display order in listings
+    PatchedExecutionMilestoneUpdateRequest:
+      type: object
+      description: Update a draft milestone (title, description, due_date only).
+      properties:
+        title:
+          type: string
+          minLength: 1
+          description: Milestone title
+          maxLength: 255
+        description:
+          type: string
+          description: Detailed description of work
+        due_date:
+          type: string
+          format: date
+          nullable: true
+          description: Target completion date
     PatchedReviewUpdateRequest:
       type: object
       description: Used for PATCH /api/reviews/<id>/ — reviewer updates own review.
@@ -8536,13 +9199,15 @@ components:
         * `3` - 3 Stages
         * `4` - 4 Stages
         * `5` - 5 Stages
-    Status065Enum:
+    Status5c1Enum:
       enum:
       - draft
       - pending_acceptance
       - pending_signatures
       - pending_finalization
       - in_progress
+      - active
+      - completion_requested
       - completed
       - canceled
       type: string
@@ -8552,6 +9217,8 @@ components:
         * `pending_signatures` - Pending Signatures
         * `pending_finalization` - Pending Finalization
         * `in_progress` - In Progress
+        * `active` - Active
+        * `completion_requested` - Completion Requested
         * `completed` - Completed
         * `canceled` - Canceled
     Status940Enum:
@@ -8596,6 +9263,24 @@ components:
         * `active` - Active
         * `suspended` - Suspended
         * `blocked` - Blocked
+    StatusC37Enum:
+      enum:
+      - DRAFT
+      - PENDING
+      - IN_PROGRESS
+      - SUBMITTED
+      - REVISION_REQUESTED
+      - APPROVED
+      - CANCELLED
+      type: string
+      description: |-
+        * `DRAFT` - Draft
+        * `PENDING` - Pending
+        * `IN_PROGRESS` - In Progress
+        * `SUBMITTED` - Submitted
+        * `REVISION_REQUESTED` - Revision Requested
+        * `APPROVED` - Approved
+        * `CANCELLED` - Cancelled
     StatusE55Enum:
       enum:
       - OPEN

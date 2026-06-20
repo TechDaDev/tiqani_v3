@@ -167,6 +167,7 @@ class Command(BaseCommand):
         self._seed_messaging_fixtures()
         self._seed_offer_fixtures()
         self._seed_payment_fixtures()
+        self._seed_execution_fixtures()
 
     def _get_or_create_user(self, key, password):
         """Helper to get_or_create a fixture user."""
@@ -945,3 +946,155 @@ class Command(BaseCommand):
         )
 
         self.stdout.write(f"  Created payment fixtures.")
+
+
+    def _exec_contract_id(self, label):
+        import uuid
+        return uuid.uuid5(uuid.NAMESPACE_DNS, f"e2e-exec-{label}.tiqani.local")
+
+    def _milestone_id(self, label):
+        import uuid
+        return uuid.uuid5(uuid.NAMESPACE_DNS, f"e2e-ms-{label}.tiqani.local")
+
+    def _submission_id(self, label):
+        import uuid
+        return uuid.uuid5(uuid.NAMESPACE_DNS, f"e2e-sub-{label}.tiqani.local")
+
+    def _revision_id(self, label):
+        import uuid
+        return uuid.uuid5(uuid.NAMESPACE_DNS, f"e2e-rev-{label}.tiqani.local")
+
+    def _completion_request_id(self, label):
+        import uuid
+        return uuid.uuid5(uuid.NAMESPACE_DNS, f"e2e-cr-{label}.tiqani.local")
+
+    def _history_id(self, label):
+        import uuid
+        return uuid.uuid5(uuid.NAMESPACE_DNS, f"e2e-hist-{label}.tiqani.local")
+
+    def _seed_execution_fixtures(self):
+        from decimal import Decimal
+        from contract.models import Contract, ExecutionMilestone, DeliverableSubmission, CompletionRequest, ContractAuditEvent
+
+        try:
+            client_profile = ClientProfile.objects.get(user__email=FIXTURE_EMAILS["client"])
+            tech_profile = TechnicianProfile.objects.get(user__email=FIXTURE_EMAILS["approved_technician"])
+            pw = get_password()
+            client2_user, _ = User.objects.update_or_create(
+                username="e2e_client_b",
+                defaults={"email": "e2e-client-b@tiqani.local", "role": User.Role.CLIENT, "phone_number": "07500000099", "governorate": "Baghdad", "is_active": True},
+            )
+            if not client2_user.has_usable_password():
+                client2_user.set_password(pw)
+                client2_user.save(update_fields=["password"])
+            client2, _ = ClientProfile.objects.update_or_create(user=client2_user)
+            ClientProfile.objects.filter(pk=client2.pk).update(is_complete=True)
+
+            tech2_user, _ = User.objects.update_or_create(
+                username="e2e_tech_b",
+                defaults={"email": "e2e-tech-b@tiqani.local", "role": User.Role.TECHNICIAN, "phone_number": "07500000098", "governorate": "Basra", "is_active": True},
+            )
+            if not tech2_user.has_usable_password():
+                tech2_user.set_password(pw)
+                tech2_user.save(update_fields=["password"])
+            tech2, _ = TechnicianProfile.objects.update_or_create(
+                user=tech2_user,
+                defaults={"job_title": "Tech B", "years_of_expertise": 3, "approved": True},
+            )
+            TechnicianProfile.objects.filter(pk=tech2.pk).update(is_complete=True)
+        except (ClientProfile.DoesNotExist, TechnicianProfile.DoesNotExist):
+            self.stdout.write(self.style.WARNING("  Skipping execution fixtures: users not seeded."))
+            return
+
+        client_user = client_profile.user
+        tech_user = tech_profile.user
+
+        def _make(label, *, status="in_progress", escrow="100000.00", client=client_profile, tech=tech_profile):
+            c, _ = Contract.objects.update_or_create(
+                id=self._exec_contract_id(label),
+                defaults={
+                    "client": client, "technician": tech,
+                    "work_description": f"E2E execution -- {label}.",
+                    "agreed_amount": Decimal("100000.00"), "currency": "IQD",
+                    "status": status, "escrow_amount": Decimal(escrow),
+                    "start_date": timezone.now().date(), "duration_days": 10,
+                    "stage_number": 2, "total_paid": Decimal("0"),
+                },
+            )
+            return c
+
+        _make("activation")
+        ExecutionMilestone.objects.update_or_create(
+            id=self._milestone_id("act-ms"), defaults={"contract_id": self._exec_contract_id("activation"), "sequence": 1, "title": "First", "status": ExecutionMilestone.Status.DRAFT},
+        )
+        _make("milestone-create")
+        re = _make("milestone-reorder")
+        for i in range(1, 4):
+            ExecutionMilestone.objects.update_or_create(
+                id=self._milestone_id(f"re-ms{i}"), defaults={"contract": re, "sequence": i, "title": f"Step {i}", "status": ExecutionMilestone.Status.DRAFT},
+            )
+        _make("milestone-start", status="active")
+        ExecutionMilestone.objects.update_or_create(
+            id=self._milestone_id("st-ms"), defaults={"contract_id": self._exec_contract_id("milestone-start"), "sequence": 1, "title": "First", "status": ExecutionMilestone.Status.PENDING},
+        )
+        _make("deliverable-submit", status="active")
+        ExecutionMilestone.objects.update_or_create(
+            id=self._milestone_id("del-ms"), defaults={"contract_id": self._exec_contract_id("deliverable-submit"), "sequence": 1, "title": "Deliver", "status": ExecutionMilestone.Status.IN_PROGRESS},
+        )
+        _make("revision-request", status="active")
+        rev_ms = ExecutionMilestone.objects.update_or_create(
+            id=self._milestone_id("rev-ms"), defaults={"contract_id": self._exec_contract_id("revision-request"), "sequence": 1, "title": "Revise", "status": ExecutionMilestone.Status.SUBMITTED},
+        )[0]
+        DeliverableSubmission.objects.update_or_create(
+            id=self._submission_id("rev-sub"), defaults={"milestone": rev_ms, "submitted_by": tech_user, "version": 1, "summary": "First try"},
+        )
+        _make("resubmission", status="active")
+        resub_ms = ExecutionMilestone.objects.update_or_create(
+            id=self._milestone_id("resub-ms"), defaults={"contract_id": self._exec_contract_id("resubmission"), "sequence": 1, "title": "Resub", "status": ExecutionMilestone.Status.REVISION_REQUESTED, "revision_count": 1},
+        )[0]
+        DeliverableSubmission.objects.update_or_create(
+            id=self._submission_id("resub-sub"), defaults={"milestone": resub_ms, "submitted_by": tech_user, "version": 1, "summary": "Original"},
+        )
+        _make("milestone-approval", status="active")
+        app_ms = ExecutionMilestone.objects.update_or_create(
+            id=self._milestone_id("app-ms"), defaults={"contract_id": self._exec_contract_id("milestone-approval"), "sequence": 1, "title": "Approve", "status": ExecutionMilestone.Status.SUBMITTED},
+        )[0]
+        DeliverableSubmission.objects.update_or_create(
+            id=self._submission_id("app-sub"), defaults={"milestone": app_ms, "submitted_by": tech_user, "version": 1, "summary": "Review me"},
+        )
+        _make("completion-request", status="active")
+        ExecutionMilestone.objects.update_or_create(
+            id=self._milestone_id("cr-ms"), defaults={"contract_id": self._exec_contract_id("completion-request"), "sequence": 1, "title": "Only", "status": ExecutionMilestone.Status.APPROVED},
+        )
+        _make("completion-confirm", status="completion_requested")
+        ExecutionMilestone.objects.update_or_create(
+            id=self._milestone_id("cf-ms"), defaults={"contract_id": self._exec_contract_id("completion-confirm"), "sequence": 1, "title": "Done", "status": ExecutionMilestone.Status.APPROVED},
+        )
+        CompletionRequest.objects.update_or_create(
+            id=self._completion_request_id("cf-cr"), defaults={"contract_id": self._exec_contract_id("completion-confirm"), "requested_by": tech_user, "completion_message": "All done", "status": CompletionRequest.Status.PENDING},
+        )
+        _make("completion-reject", status="completion_requested")
+        ExecutionMilestone.objects.update_or_create(
+            id=self._milestone_id("rj-ms"), defaults={"contract_id": self._exec_contract_id("completion-reject"), "sequence": 1, "title": "Rev", "status": ExecutionMilestone.Status.APPROVED},
+        )
+        CompletionRequest.objects.update_or_create(
+            id=self._completion_request_id("rj-cr"), defaults={"contract_id": self._exec_contract_id("completion-reject"), "requested_by": tech_user, "completion_message": "Ready", "status": CompletionRequest.Status.PENDING},
+        )
+        _make("execution-history", status="active")
+        ContractAuditEvent.objects.update_or_create(
+            id=self._history_id("h1"), defaults={"contract_id": self._exec_contract_id("execution-history"), "event_type": "CONTRACT_ACTIVATED", "actor": client_user},
+        )
+        ContractAuditEvent.objects.update_or_create(
+            id=self._history_id("h2"), defaults={"contract_id": self._exec_contract_id("execution-history"), "event_type": "MILESTONE_CREATED", "actor": client_user},
+        )
+        _make("client-b-only", client=client2, tech=tech_profile)
+        _make("tech-b-only", client=client_profile, tech=tech2)
+        _make("completed", status="completed", escrow="100000.00")
+        ExecutionMilestone.objects.update_or_create(
+            id=self._milestone_id("co-ms"), defaults={"contract_id": self._exec_contract_id("completed"), "sequence": 1, "title": "Final", "status": ExecutionMilestone.Status.APPROVED, "approved_at": timezone.now()},
+        )
+        CompletionRequest.objects.update_or_create(
+            id=self._completion_request_id("co-cr"), defaults={"contract_id": self._exec_contract_id("completed"), "requested_by": tech_user, "completion_message": "Complete", "status": CompletionRequest.Status.CONFIRMED},
+        )
+
+        self.stdout.write("  Created execution fixtures.")
