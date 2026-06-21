@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 
 from .models import (
+    ContractSettlement,
     PlatformFeeConfig,
     ContractPaymentBreakdown,
     PaymentIntent,
@@ -14,14 +15,24 @@ from .models import (
 )
 from .serializers import (
     WalletSerializer,
+    WalletBalanceSerializer,
     WalletTransactionSerializer,
     PlatformFeeConfigSerializer,
     ContractPaymentBreakdownSerializer,
     PaymentIntentSerializer,
     WithdrawalRequestSerializer,
     WithdrawalRequestCreateSerializer,
+    SettlementEligibilitySerializer,
+    ContractSettlementSerializer,
+    SettlementCreateSerializer,
+    AdminWithdrawalActionSerializer,
 )
 from . import services as svc
+from .settlement_services import (
+    check_settlement_eligibility,
+    settle_completed_contract,
+    get_financial_summary,
+)
 
 
 class IsAdminUser(IsAuthenticated):
@@ -318,3 +329,220 @@ class ContractFundingStatusView(APIView):
             data["message"] = "Contract funding status (read-only for technicians)."
 
         return Response(data, status=status.HTTP_200_OK)
+
+
+# ══════════════════════════════════════════════
+#  Phase 9 — Settlement
+# ══════════════════════════════════════════════
+
+
+class SettlementEligibilityView(APIView):
+    """Check if a completed contract is eligible for escrow settlement."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, contract_id):
+        from contract.models import Contract
+        try:
+            contract = Contract.objects.get(id=contract_id, is_delete=False)
+        except Contract.DoesNotExist:
+            return Response({"detail": "Contract not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        eligible, reason = check_settlement_eligibility(contract, request.user)
+        serializer = SettlementEligibilitySerializer({"eligible": eligible, "reason": reason if not eligible else None})
+        return Response(serializer.data)
+
+
+class SettlementCreateView(APIView):
+    """Release escrow for a completed contract."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, contract_id):
+        from contract.models import Contract
+        try:
+            contract = Contract.objects.get(id=contract_id, is_delete=False)
+        except Contract.DoesNotExist:
+            return Response({"detail": "Contract not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = SettlementCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            settlement = settle_completed_contract(
+                contract_id=contract_id,
+                actor=request.user,
+                idempotency_key=serializer.validated_data.get("idempotency_key"),
+            )
+            return Response(
+                ContractSettlementSerializer(settlement).data,
+                status=status.HTTP_201_CREATED,
+            )
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class SettlementDetailView(APIView):
+    """Get settlement for a contract."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, contract_id):
+        from contract.models import Contract
+        try:
+            contract = Contract.objects.get(id=contract_id, is_delete=False)
+        except Contract.DoesNotExist:
+            return Response({"detail": "Contract not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        is_participant = (
+            hasattr(request.user, "client_profile") and contract.client.user == request.user
+        ) or (
+            hasattr(request.user, "technician_profile") and contract.technician.user == request.user
+        )
+        if not is_participant and not request.user.is_staff:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        settlement = ContractSettlement.objects.filter(
+            contract=contract
+        ).order_by("-created_at").first()
+        if not settlement:
+            return Response({"detail": "No settlement found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = ContractSettlementSerializer(settlement)
+        return Response(serializer.data)
+
+
+class ContractFinancialSummaryView(APIView):
+    """Get full financial summary for a contract."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, contract_id):
+        from contract.models import Contract
+        try:
+            contract = Contract.objects.get(id=contract_id, is_delete=False)
+        except Contract.DoesNotExist:
+            return Response({"detail": "Contract not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        is_participant = (
+            hasattr(request.user, "client_profile") and contract.client.user == request.user
+        ) or (
+            hasattr(request.user, "technician_profile") and contract.technician.user == request.user
+        )
+        if not is_participant and not request.user.is_staff:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            summary = get_financial_summary(contract_id)
+            return Response(summary)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ══════════════════════════════════════════════
+#  Phase 9 — Wallet
+# ══════════════════════════════════════════════
+
+
+class WalletAvailableBalanceView(APIView):
+    """Get technician's available balance."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        wallet = request.user.wallet
+        reserved = svc.get_available_balance(wallet)
+        total = wallet.balance
+        available = svc.get_available_balance(wallet)
+        serializer = WalletBalanceSerializer({
+            "total_balance": total,
+            "reserved_balance": total - available,
+            "available_balance": available,
+            "currency": "IQD",
+        })
+        return Response(serializer.data)
+
+
+# ══════════════════════════════════════════════
+#  Phase 9 — Withdrawals (enhanced)
+# ══════════════════════════════════════════════
+
+
+class WithdrawalCancelView(APIView):
+    """Cancel a pending or approved withdrawal request."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, withdrawal_id):
+        wr = get_object_or_404(WithdrawalRequest, id=withdrawal_id)
+        try:
+            wr = svc.cancel_withdrawal_request(wr, request.user)
+            return Response(WithdrawalRequestSerializer(wr).data)
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ══════════════════════════════════════════════
+#  Phase 9 — Staff Withdrawal Management
+# ══════════════════════════════════════════════
+
+
+class AdminWithdrawalListView(APIView):
+    """List all withdrawal requests (staff only)."""
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        status_filter = request.query_params.get("status")
+        qs = WithdrawalRequest.objects.all()
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        qs = qs.order_by("-created_at")
+        serializer = WithdrawalRequestSerializer(qs, many=True)
+        return Response(serializer.data)
+
+
+class AdminWithdrawalProcessView(APIView):
+    """Move withdrawal from APPROVED to PROCESSING."""
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, withdrawal_id):
+        wr = get_object_or_404(WithdrawalRequest, id=withdrawal_id)
+        try:
+            wr = svc.process_withdrawal_request(wr, request.user)
+            return Response(WithdrawalRequestSerializer(wr).data)
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class AdminWithdrawalSandboxConfirmView(APIView):
+    """Complete sandbox payout for a withdrawal."""
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, withdrawal_id):
+        wr = get_object_or_404(WithdrawalRequest, id=withdrawal_id)
+        serializer = AdminWithdrawalActionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            wr = svc.confirm_withdrawal_payout(
+                wr,
+                request.user,
+                simulate_failure=serializer.validated_data.get("simulate_failure", False),
+            )
+            return Response(WithdrawalRequestSerializer(wr).data)
+        except (ValueError, RuntimeError) as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class AdminWithdrawalRetryView(APIView):
+    """Retry a failed withdrawal payout."""
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, withdrawal_id):
+        wr = get_object_or_404(WithdrawalRequest, id=withdrawal_id)
+        serializer = AdminWithdrawalActionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            wr = svc.retry_failed_withdrawal(
+                wr,
+                request.user,
+                simulate_failure=serializer.validated_data.get("simulate_failure", False),
+            )
+            return Response(WithdrawalRequestSerializer(wr).data)
+        except (ValueError, RuntimeError) as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)

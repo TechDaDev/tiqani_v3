@@ -1,7 +1,7 @@
-"""Fee calculation, payment intent, and contract funding services."""
+"""Fee calculation, payment intent, contract funding, and withdrawal services."""
 
 from decimal import Decimal, ROUND_HALF_UP
-from django.db import transaction
+from django.db import models, transaction
 from django.utils import timezone
 from django.conf import settings
 
@@ -217,18 +217,49 @@ def record_stage_release_with_fees(stage):
     return stage
 
 
+# ── Phase 9: Enhanced Withdrawal Service ──
+
+
+def get_available_balance(wallet):
+    """
+    Calculate available balance: wallet.balance - SUM(pending + approved withdrawal amounts).
+    """
+    reserved = WithdrawalRequest.objects.filter(
+        wallet=wallet,
+        status__in=[
+            WithdrawalRequest.Status.PENDING,
+            WithdrawalRequest.Status.APPROVED,
+            WithdrawalRequest.Status.PROCESSING,
+        ],
+    ).aggregate(total=models.Sum("amount"))["total"] or Decimal("0")
+
+    available = wallet.balance - reserved
+    if available < 0:
+        available = Decimal("0.00")
+    return _quantize(available)
+
+
+WITHDRAWAL_MINIMUM = Decimal("1000.00")
+
+
 @transaction.atomic
 def create_withdrawal_request(user, amount, method="", notes=""):
-    """Create a withdrawal request."""
-    wallet = user.wallet
+    """Create a withdrawal request with available-balance check."""
+    wallet = Wallet.objects.select_for_update().get(user=user)
     amount = Decimal(str(amount))
 
     if amount <= 0:
         raise ValueError("Withdrawal amount must be positive.")
 
-    if wallet.balance < amount:
+    if amount < WITHDRAWAL_MINIMUM:
         raise ValueError(
-            f"Insufficient balance. You have {wallet.balance} but requested {amount}."
+            f"Minimum withdrawal amount is {WITHDRAWAL_MINIMUM}. Requested: {amount}."
+        )
+
+    available = get_available_balance(wallet)
+    if amount > available:
+        raise ValueError(
+            f"Insufficient available balance. You have {available} available but requested {amount}."
         )
 
     req = WithdrawalRequest.objects.create(
@@ -239,7 +270,6 @@ def create_withdrawal_request(user, amount, method="", notes=""):
         notes=notes,
     )
 
-    # Notify admins
     from notification.services import notify_withdrawal_requested
     try:
         notify_withdrawal_requested(req, user)
@@ -251,31 +281,16 @@ def create_withdrawal_request(user, amount, method="", notes=""):
 
 @transaction.atomic
 def approve_withdrawal_request(withdrawal_request, admin_user, note=""):
-    """Approve a withdrawal (internal ledger deduction)."""
+    """Approve a withdrawal. Balance deduction occurs at processing, not approval."""
     if withdrawal_request.status != WithdrawalRequest.Status.PENDING:
         raise ValueError("Only pending requests can be approved.")
-
-    wallet = withdrawal_request.wallet
-    if wallet.balance < withdrawal_request.amount:
-        raise ValueError("Insufficient balance.")
-
-    wallet.balance -= withdrawal_request.amount
-    wallet.save(update_fields=["balance"])
-
-    WalletTransaction.objects.create(
-        wallet=wallet,
-        transaction_type=WalletTransaction.Type.WITHDRAWAL,
-        amount=withdrawal_request.amount,
-        description=f"Withdrawal approved by {admin_user.username}: {withdrawal_request.id}",
-    )
 
     withdrawal_request.status = WithdrawalRequest.Status.APPROVED
     withdrawal_request.admin_note = note
     withdrawal_request.reviewed_at = timezone.now()
     withdrawal_request.save(update_fields=["status", "admin_note", "reviewed_at"])
 
-    # Notify
-    from notification.services import notify_withdrawal_approved, notify_wallet_transaction
+    from notification.services import notify_withdrawal_approved
     try:
         notify_withdrawal_approved(withdrawal_request, admin_user)
     except Exception:
@@ -295,12 +310,156 @@ def reject_withdrawal_request(withdrawal_request, admin_user, note=""):
     withdrawal_request.reviewed_at = timezone.now()
     withdrawal_request.save(update_fields=["status", "admin_note", "reviewed_at"])
 
-    # Notify
     from notification.services import notify_withdrawal_rejected
     try:
         notify_withdrawal_rejected(withdrawal_request, admin_user)
     except Exception:
         pass
+
+    return withdrawal_request
+
+
+@transaction.atomic
+def process_withdrawal_request(withdrawal_request, admin_user):
+    """
+    Move withdrawal from APPROVED to PROCESSING.
+    Deduct wallet balance. Create withdrawal transaction.
+    """
+    if withdrawal_request.status != WithdrawalRequest.Status.APPROVED:
+        raise ValueError("Only approved requests can be processed.")
+
+    wallet = Wallet.objects.select_for_update().get(
+        user=withdrawal_request.user
+    )
+
+    if wallet.balance < withdrawal_request.amount:
+        raise ValueError("Insufficient balance for payout.")
+
+    # Deduct wallet
+    wallet.balance -= withdrawal_request.amount
+    wallet.save(update_fields=["balance"])
+
+    txn = WalletTransaction.objects.create(
+        wallet=wallet,
+        contract=None,
+        transaction_type=WalletTransaction.Type.WITHDRAWAL,
+        amount=withdrawal_request.amount,
+        description=f"Withdrawal processing by {admin_user.username}: {withdrawal_request.id}",
+    )
+
+    withdrawal_request.status = WithdrawalRequest.Status.PROCESSING
+    withdrawal_request.save(update_fields=["status"])
+
+    return withdrawal_request
+
+
+@transaction.atomic
+def confirm_withdrawal_payout(withdrawal_request, admin_user, simulate_failure=False):
+    """
+    Complete a sandbox payout. Called after sandbox gateway confirms success.
+    Deducts if not already deducted. Sets status to PAID or FAILED.
+    """
+    from .sandbox_payout_gateway import (
+        is_sandbox_payout_enabled,
+        sandbox_process_payout,
+    )
+
+    if not is_sandbox_payout_enabled():
+        raise RuntimeError("Sandbox payout gateway is not enabled.")
+
+    if withdrawal_request.status not in (
+        WithdrawalRequest.Status.PROCESSING,
+        WithdrawalRequest.Status.APPROVED,
+    ):
+        raise ValueError(
+            f"Cannot process payout for status '{withdrawal_request.status}'."
+        )
+
+    # Ensure wallet deducted if still APPROVED (not yet processed)
+    if withdrawal_request.status == WithdrawalRequest.Status.APPROVED:
+        wallet = Wallet.objects.select_for_update().get(
+            user=withdrawal_request.user
+        )
+        if wallet.balance < withdrawal_request.amount:
+            raise ValueError("Insufficient balance.")
+        wallet.balance -= withdrawal_request.amount
+        wallet.save(update_fields=["balance"])
+        WalletTransaction.objects.create(
+            wallet=wallet,
+            transaction_type=WalletTransaction.Type.WITHDRAWAL,
+            amount=withdrawal_request.amount,
+            description=f"Withdrawal payout by {admin_user.username}: {withdrawal_request.id}",
+        )
+        withdrawal_request.status = WithdrawalRequest.Status.PROCESSING
+        withdrawal_request.save(update_fields=["status"])
+
+    # Call sandbox gateway
+    result = sandbox_process_payout(
+        amount=withdrawal_request.amount,
+        currency=withdrawal_request.currency,
+        withdrawal_id=str(withdrawal_request.id),
+        recipient_username=withdrawal_request.user.username,
+        simulate_failure=simulate_failure,
+    )
+
+    if result["success"]:
+        withdrawal_request.status = WithdrawalRequest.Status.PAID
+        withdrawal_request.paid_at = timezone.now()
+        withdrawal_request.failure_code = ""
+        withdrawal_request.failure_message = ""
+        withdrawal_request.save(
+            update_fields=["status", "paid_at", "failure_code", "failure_message"]
+        )
+
+        from notification.services import notify_wallet_transaction
+        try:
+            last_txn = withdrawal_request.wallet.transactions.order_by("-created_at").first()
+            if last_txn:
+                notify_wallet_transaction(last_txn)
+        except Exception:
+            pass
+    else:
+        withdrawal_request.status = WithdrawalRequest.Status.FAILED
+        withdrawal_request.failure_code = result.get("error_code", "unknown")
+        withdrawal_request.failure_message = result.get("error_message", "Unknown error")
+        withdrawal_request.save(
+            update_fields=["status", "failure_code", "failure_message"]
+        )
+
+    return withdrawal_request
+
+
+@transaction.atomic
+def retry_failed_withdrawal(withdrawal_request, admin_user, simulate_failure=False):
+    """Retry a failed payout."""
+    if withdrawal_request.status != WithdrawalRequest.Status.FAILED:
+        raise ValueError("Only failed requests can be retried.")
+
+    # Reset to PROCESSING
+    withdrawal_request.status = WithdrawalRequest.Status.PROCESSING
+    withdrawal_request.failure_code = ""
+    withdrawal_request.failure_message = ""
+    withdrawal_request.save(update_fields=["status", "failure_code", "failure_message"])
+
+    return confirm_withdrawal_payout(
+        withdrawal_request, admin_user, simulate_failure=simulate_failure
+    )
+
+
+@transaction.atomic
+def cancel_withdrawal_request(withdrawal_request, user):
+    """Cancel a pending/approved withdrawal request. No balance effect since deducted at processing."""
+    if withdrawal_request.status not in (
+        WithdrawalRequest.Status.PENDING,
+        WithdrawalRequest.Status.APPROVED,
+    ):
+        raise ValueError("Only pending or approved requests can be canceled.")
+
+    if not user.is_staff and withdrawal_request.user != user:
+        raise ValueError("You can only cancel your own withdrawal requests.")
+
+    withdrawal_request.status = WithdrawalRequest.Status.CANCELED
+    withdrawal_request.save(update_fields=["status"])
 
     return withdrawal_request
 
