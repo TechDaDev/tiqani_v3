@@ -16,7 +16,7 @@ class WithdrawalTest(APITestCase):
             username="tech", email="t@test.com", password="pass", role="technician",
         )
         wallet, _ = Wallet.objects.get_or_create(user=self.user)
-        wallet.balance = Decimal("5000.00")
+        wallet.balance = Decimal("100000.00")
         wallet.save(update_fields=["balance"])
 
         self.admin = User.objects.create_user(
@@ -32,7 +32,12 @@ class WithdrawalTest(APITestCase):
 
     def test_cannot_withdraw_more_than_balance(self):
         self.client.force_authenticate(user=self.user)
-        resp = self.client.post(self.list_url, {"amount": "99999.00"}, format="json")
+        resp = self.client.post(self.list_url, {"amount": "999999.00"}, format="json")
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_cannot_withdraw_below_minimum(self):
+        self.client.force_authenticate(user=self.user)
+        resp = self.client.post(self.list_url, {"amount": "100.00"}, format="json")
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_anonymous_cannot_create(self):
@@ -59,7 +64,7 @@ class WithdrawalTest(APITestCase):
 
     def test_non_admin_cannot_approve(self):
         self.client.force_authenticate(user=self.user)
-        resp = self.client.post(self.list_url, {"amount": "100.00"}, format="json")
+        resp = self.client.post(self.list_url, {"amount": "2000.00"}, format="json")
         wr_id = resp.data["id"]
 
         other = User.objects.create_user(

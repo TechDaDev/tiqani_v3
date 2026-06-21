@@ -71,16 +71,16 @@ class PaymentFixtureResetTest(TestCase):
         self.assertEqual(self._get_pending_intents().count(), 1)
 
     def test_fixture_paid_intent_count(self):
-        """Should have exactly 2 paid intents (funded-view + legacy funded)."""
-        self.assertEqual(self._get_paid_intents().count(), 2)
+        """Should have exactly 3 paid intents (funded-view + legacy funded + execution activation)."""
+        self.assertEqual(self._get_paid_intents().count(), 3)
 
     def test_fixture_failed_intent_count(self):
         """Should have exactly 1 failed intent (failure contract)."""
         self.assertEqual(self._get_failed_intents().count(), 1)
 
     def test_all_intents_total(self):
-        """4 total: 1 pending + 2 paid + 1 failed."""
-        self.assertEqual(self._get_all_intents().count(), 4)
+        """5 total: 1 pending + 3 paid + 1 failed."""
+        self.assertEqual(self._get_all_intents().count(), 5)
 
     def test_wallet_transaction_count(self):
         """Exactly 2 wallet transactions (funded-view deposit + escrow)."""

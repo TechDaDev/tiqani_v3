@@ -104,7 +104,7 @@ def settle_completed_contract(
     """
     contract = (
         Contract.objects.select_for_update()
-        .select_related("payment_breakdown", "client__user", "technician__user")
+        .select_related("client__user", "technician__user")
         .get(id=contract_id)
     )
 
@@ -253,7 +253,7 @@ def settle_completed_contract(
         contract=contract,
         event_type="ESCROW_RELEASED",
         actor=actor,
-        metadata={
+        payload={
             "settlement_id": str(settlement.id),
             "released_principal": str(released_principal),
             "technician_net": str(tech_net),
