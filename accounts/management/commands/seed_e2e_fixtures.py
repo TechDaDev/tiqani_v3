@@ -141,14 +141,43 @@ class Command(BaseCommand):
         # Delete wallet transactions first (PROTECT fkey on wallet)
         from django.db.models import Q
         user_ids = [u.pk for u in users]
-        WalletTransaction.objects.filter(wallet__user_id__in=user_ids).delete()
-        # Delete payment intents (some have wallet references)
-        PaymentIntent.objects.filter(user_id__in=user_ids).delete()
-        # Delete contracts referencing these users (via client/technician profiles)
         from accounts.models import ClientProfile, TechnicianProfile
         cp_ids = list(ClientProfile.objects.filter(user_id__in=user_ids).values_list("pk", flat=True))
         tp_ids = list(TechnicianProfile.objects.filter(user_id__in=user_ids).values_list("pk", flat=True))
+
+        # Phase 9 — delete in dependency-safe order
+        from wallet.models import (
+            ContractSettlement, PlatformWalletTransaction, PlatformEarning,
+            WithdrawalRequest,
+        )
+        from contract.models import ContractAuditEvent
         from contract.models import Contract
+
+        contract_ids = list(
+            Contract.objects.filter(
+                client_id__in=cp_ids
+            ).values_list("pk", flat=True)
+        ) + list(
+            Contract.objects.filter(
+                technician_id__in=tp_ids
+            ).values_list("pk", flat=True)
+        )
+
+        # Payout audit records
+        WithdrawalRequest.objects.filter(user_id__in=user_ids).delete()
+        # Settlement audit events
+        ContractAuditEvent.objects.filter(contract_id__in=contract_ids).delete()
+        # Platform wallet transactions
+        PlatformWalletTransaction.objects.filter(source_user_id__in=user_ids).delete()
+        # Platform earnings
+        PlatformEarning.objects.filter(contract_id__in=contract_ids).delete()
+        # Wallet transactions
+        WalletTransaction.objects.filter(wallet__user_id__in=user_ids).delete()
+        # Settlements
+        ContractSettlement.objects.filter(contract_id__in=contract_ids).delete()
+        # Payment intents
+        PaymentIntent.objects.filter(user_id__in=user_ids).delete()
+        # Contracts
         Contract.objects.filter(client_id__in=cp_ids).delete()
         Contract.objects.filter(technician_id__in=tp_ids).delete()
 
@@ -168,6 +197,7 @@ class Command(BaseCommand):
         self._seed_offer_fixtures()
         self._seed_payment_fixtures()
         self._seed_execution_fixtures()
+        self._seed_phase9_fixtures()
 
     def _get_or_create_user(self, key, password):
         """Helper to get_or_create a fixture user."""
@@ -722,6 +752,251 @@ class Command(BaseCommand):
             )
 
         self.stdout.write(f"  Created offer fixtures.")
+
+    def _p9_id(self, label):
+        import uuid
+        return uuid.uuid5(uuid.NAMESPACE_DNS, f"e2e-p9-{label}.tiqani.local")
+
+    def _seed_phase9_fixtures(self):
+        """Create deterministic Phase 9 fixtures for settlement, wallet, and withdrawal tests."""
+        from decimal import Decimal
+        import uuid
+        from wallet.models import (
+            PaymentIntent, WalletTransaction, Wallet,
+            WithdrawalRequest, ContractSettlement, PlatformWallet,
+            PlatformEarning,
+        )
+        from wallet.settlement_services import settle_completed_contract
+        from wallet import services as svc
+        from contract.models import Contract, ContractAuditEvent
+
+        try:
+            client_profile = ClientProfile.objects.get(user__email=FIXTURE_EMAILS["client"])
+            tech_profile = TechnicianProfile.objects.get(user__email=FIXTURE_EMAILS["approved_technician"])
+            tech2_profile = TechnicianProfile.objects.get(user__email=FIXTURE_EMAILS["second_approved"])
+        except (ClientProfile.DoesNotExist, TechnicianProfile.DoesNotExist):
+            self.stdout.write(self.style.WARNING("  Skipping Phase 9 fixtures: users not seeded."))
+            return
+
+        client_user = client_profile.user
+        tech_user = tech_profile.user
+
+        # Ensure wallets
+        Wallet.objects.get_or_create(user=client_user, defaults={"balance": Decimal("0")})
+        Wallet.objects.get_or_create(user=tech_user, defaults={"balance": Decimal("0")})
+
+        def _pay_id(label):
+            return uuid.uuid5(uuid.NAMESPACE_DNS, f"e2e-pay-{label}.tiqani.local")
+
+        # ── 1. Settlement-eligible completed+funded contract ──
+        c_eligible, _ = Contract.objects.update_or_create(
+            id=self._p9_id("eligible"),
+            defaults={
+                "client": client_profile, "technician": tech_profile,
+                "agreed_amount": Decimal("500000.00"), "currency": "IQD",
+                "status": "completed", "escrow_amount": Decimal("500000.00"),
+                "total_paid": Decimal("525000.00"),
+                "work_description": "E2E Phase 9 settlement-eligible fixture.",
+                "start_date": timezone.now().date(), "duration_days": 10,
+            },
+        )
+        PaymentIntent.objects.update_or_create(
+            id=_pay_id("p9-eligible"),
+            defaults={
+                "contract": c_eligible, "user": client_user,
+                "amount": Decimal("525000.00"), "purpose": PaymentIntent.Purpose.CONTRACT_FUNDING,
+                "status": PaymentIntent.Status.PAID, "paid_at": timezone.now(),
+            },
+        )
+        from wallet.services import ensure_contract_payment_breakdown
+        ensure_contract_payment_breakdown(c_eligible)
+
+        # ── 2. Already settled contract ──
+        c_settled, _ = Contract.objects.update_or_create(
+            id=self._p9_id("already-settled"),
+            defaults={
+                "client": client_profile, "technician": tech_profile,
+                "agreed_amount": Decimal("300000.00"), "currency": "IQD",
+                "status": "completed", "escrow_amount": Decimal("0.00"),
+                "total_paid": Decimal("315000.00"),
+                "work_description": "E2E Phase 9 already-settled fixture.",
+                "start_date": timezone.now().date(), "duration_days": 10,
+            },
+        )
+        PaymentIntent.objects.update_or_create(
+            id=_pay_id("p9-settled"),
+            defaults={
+                "contract": c_settled, "user": client_user,
+                "amount": Decimal("315000.00"), "purpose": PaymentIntent.Purpose.CONTRACT_FUNDING,
+                "status": PaymentIntent.Status.PAID, "paid_at": timezone.now(),
+            },
+        )
+        ensure_contract_payment_breakdown(c_settled)
+        settle_completed_contract(
+            contract_id=str(c_settled.id), actor=client_user,
+            idempotency_key="p9-seed-already-settled",
+        )
+
+        # ── 3. Active/ineligible contract ──
+        c_active, _ = Contract.objects.update_or_create(
+            id=self._p9_id("active"),
+            defaults={
+                "client": client_profile, "technician": tech_profile,
+                "agreed_amount": Decimal("200000.00"), "currency": "IQD",
+                "status": "active", "escrow_amount": Decimal("0.00"),
+                "work_description": "E2E Phase 9 active ineligible fixture.",
+                "start_date": timezone.now().date(), "duration_days": 10,
+            },
+        )
+
+        # ── 4. Completed but unfunded ──
+        c_unfunded, _ = Contract.objects.update_or_create(
+            id=self._p9_id("unfunded"),
+            defaults={
+                "client": client_profile, "technician": tech_profile,
+                "agreed_amount": Decimal("150000.00"), "currency": "IQD",
+                "status": "completed", "escrow_amount": Decimal("0.00"),
+                "work_description": "E2E Phase 9 completed but unfunded.",
+                "start_date": timezone.now().date(), "duration_days": 10,
+            },
+        )
+        ensure_contract_payment_breakdown(c_unfunded)
+
+        # ── 5. Completed with zero escrow ──
+        c_zero_escrow, _ = Contract.objects.update_or_create(
+            id=self._p9_id("zero-escrow"),
+            defaults={
+                "client": client_profile, "technician": tech_profile,
+                "agreed_amount": Decimal("100000.00"), "currency": "IQD",
+                "status": "completed", "escrow_amount": Decimal("0.00"),
+                "work_description": "E2E Phase 9 zero escrow.",
+                "start_date": timezone.now().date(), "duration_days": 10,
+            },
+        )
+        ensure_contract_payment_breakdown(c_zero_escrow)
+
+        # ── 6. Duplicate settlement scenario ──
+        c_dup, _ = Contract.objects.update_or_create(
+            id=self._p9_id("duplicate"),
+            defaults={
+                "client": client_profile, "technician": tech_profile,
+                "agreed_amount": Decimal("400000.00"), "currency": "IQD",
+                "status": "completed", "escrow_amount": Decimal("400000.00"),
+                "total_paid": Decimal("420000.00"),
+                "work_description": "E2E Phase 9 duplicate settlement fixture.",
+                "start_date": timezone.now().date(), "duration_days": 10,
+            },
+        )
+        PaymentIntent.objects.update_or_create(
+            id=_pay_id("p9-dup"),
+            defaults={
+                "contract": c_dup, "user": client_user,
+                "amount": Decimal("420000.00"), "purpose": PaymentIntent.Purpose.CONTRACT_FUNDING,
+                "status": PaymentIntent.Status.PAID, "paid_at": timezone.now(),
+            },
+        )
+        ensure_contract_payment_breakdown(c_dup)
+
+        # ── 7. Wallet with available balance (for tech_user) ──
+        tech_wallet = Wallet.objects.get(user=tech_user)
+        tech_wallet.balance = Decimal("100000.00")
+        tech_wallet.save(update_fields=["balance"])
+
+        # ── 8. Withdrawal eligible ──
+        svc.create_withdrawal_request(
+            tech_user, Decimal("10000.00"),
+            method="sandbox", notes="E2E withdrawal eligible",
+        )
+
+        # ── 9. Withdrawal pending ──
+        wr_pending = svc.create_withdrawal_request(
+            tech_user, Decimal("20000.00"),
+            method="sandbox", notes="E2E withdrawal pending",
+        )
+
+        # ── 10. Withdrawal approved ──
+        staff = User.objects.filter(is_staff=True, is_superuser=True).first()
+        if staff:
+            wr_approved = svc.create_withdrawal_request(
+                tech_user, Decimal("15000.00"),
+                method="sandbox", notes="E2E withdrawal approved",
+            )
+            svc.approve_withdrawal_request(wr_approved, staff, "Approved via seed")
+
+        # ── 11. Withdrawal processing ──
+        if staff:
+            wr_processing = svc.create_withdrawal_request(
+                tech_user, Decimal("5000.00"),
+                method="sandbox", notes="E2E withdrawal processing",
+            )
+            svc.approve_withdrawal_request(wr_processing, staff, "Processing via seed")
+            svc.process_withdrawal_request(wr_processing, staff)
+
+        # ── 12. Withdrawal paid ──
+        if staff:
+            wr_paid = svc.create_withdrawal_request(
+                tech_user, Decimal("5000.00"),
+                method="sandbox", notes="E2E withdrawal paid",
+            )
+            svc.approve_withdrawal_request(wr_paid, staff, "Paid via seed")
+            svc.confirm_withdrawal_payout(wr_paid, staff, simulate_failure=False)
+
+        # ── 13. Withdrawal failed ──
+        if staff:
+            wr_failed = svc.create_withdrawal_request(
+                tech_user, Decimal("5000.00"),
+                method="sandbox", notes="E2E withdrawal failed",
+            )
+            svc.approve_withdrawal_request(wr_failed, staff, "Failed via seed")
+            svc.confirm_withdrawal_payout(wr_failed, staff, simulate_failure=True)
+
+        # ── 14. Insufficient balance test ──
+
+        # ── 15. Settlement IDOR contract ──
+        c_idor, _ = Contract.objects.update_or_create(
+            id=self._p9_id("idor"),
+            defaults={
+                "client": client_profile, "technician": tech_profile,
+                "agreed_amount": Decimal("250000.00"), "currency": "IQD",
+                "status": "completed", "escrow_amount": Decimal("250000.00"),
+                "total_paid": Decimal("262500.00"),
+                "work_description": "E2E Phase 9 IDOR settlement fixture.",
+                "start_date": timezone.now().date(), "duration_days": 10,
+            },
+        )
+        PaymentIntent.objects.update_or_create(
+            id=_pay_id("p9-idor"),
+            defaults={
+                "contract": c_idor, "user": client_user,
+                "amount": Decimal("262500.00"), "purpose": PaymentIntent.Purpose.CONTRACT_FUNDING,
+                "status": PaymentIntent.Status.PAID, "paid_at": timezone.now(),
+            },
+        )
+        ensure_contract_payment_breakdown(c_idor)
+
+        # ── 16. Reconciliation mismatch contract (will settle, then break) ──
+        c_mismatch, _ = Contract.objects.update_or_create(
+            id=self._p9_id("mismatch"),
+            defaults={
+                "client": client_profile, "technician": tech_profile,
+                "agreed_amount": Decimal("350000.00"), "currency": "IQD",
+                "status": "completed", "escrow_amount": Decimal("350000.00"),
+                "total_paid": Decimal("367500.00"),
+                "work_description": "E2E Phase 9 reconciliation mismatch fixture.",
+                "start_date": timezone.now().date(), "duration_days": 10,
+            },
+        )
+        PaymentIntent.objects.update_or_create(
+            id=_pay_id("p9-mismatch"),
+            defaults={
+                "contract": c_mismatch, "user": client_user,
+                "amount": Decimal("367500.00"), "purpose": PaymentIntent.Purpose.CONTRACT_FUNDING,
+                "status": PaymentIntent.Status.PAID, "paid_at": timezone.now(),
+            },
+        )
+        ensure_contract_payment_breakdown(c_mismatch)
+
+        self.stdout.write("  Created Phase 9 fixtures.")
 
     def _report(self):
         """Print a summary of created fixtures."""
