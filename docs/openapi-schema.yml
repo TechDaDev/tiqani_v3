@@ -938,14 +938,18 @@ paths:
           enum:
           - approved
           - canceled
+          - failed
           - paid
           - pending
+          - processing
           - rejected
         description: |-
           * `pending` - Pending
           * `approved` - Approved
+          * `processing` - Processing
           * `rejected` - Rejected
           * `paid` - Paid
+          * `failed` - Failed
           * `canceled` - Canceled
       - in: query
         name: user
@@ -5024,9 +5028,109 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/wallet/admin/withdrawals/:
+    get:
+      operationId: wallet_admin_withdrawals_retrieve
+      description: List all withdrawal requests (staff only).
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wallet/admin/withdrawals/{withdrawal_id}/process/:
+    post:
+      operationId: wallet_admin_withdrawals_process_create
+      description: Move withdrawal from APPROVED to PROCESSING.
+      parameters:
+      - in: path
+        name: withdrawal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wallet/admin/withdrawals/{withdrawal_id}/retry/:
+    post:
+      operationId: wallet_admin_withdrawals_retry_create
+      description: Retry a failed withdrawal payout.
+      parameters:
+      - in: path
+        name: withdrawal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wallet/admin/withdrawals/{withdrawal_id}/sandbox-confirm/:
+    post:
+      operationId: wallet_admin_withdrawals_sandbox_confirm_create
+      description: Complete sandbox payout for a withdrawal.
+      parameters:
+      - in: path
+        name: withdrawal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wallet/available-balance/:
+    get:
+      operationId: wallet_available_balance_retrieve
+      description: Get technician's available balance.
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/wallet/contracts/{contract_id}/breakdown/:
     get:
       operationId: wallet_contracts_breakdown_retrieve
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wallet/contracts/{contract_id}/financial-summary/:
+    get:
+      operationId: wallet_contracts_financial_summary_retrieve
+      description: Get full financial summary for a contract.
       parameters:
       - in: path
         name: contract_id
@@ -5081,6 +5185,63 @@ paths:
   /api/wallet/contracts/{contract_id}/funding/status/:
     get:
       operationId: wallet_contracts_funding_status_retrieve
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wallet/contracts/{contract_id}/settlement/:
+    get:
+      operationId: wallet_contracts_settlement_retrieve
+      description: Get settlement for a contract.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wallet/contracts/{contract_id}/settlement/eligibility/:
+    get:
+      operationId: wallet_contracts_settlement_eligibility_retrieve
+      description: Check if a completed contract is eligible for escrow settlement.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wallet/contracts/{contract_id}/settlements/:
+    post:
+      operationId: wallet_contracts_settlements_create
+      description: Release escrow for a completed contract.
       parameters:
       - in: path
         name: contract_id
@@ -5246,6 +5407,25 @@ paths:
   /api/wallet/withdrawals/{withdrawal_id}/approve/:
     post:
       operationId: wallet_withdrawals_approve_create
+      parameters:
+      - in: path
+        name: withdrawal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wallet/withdrawals/{withdrawal_id}/cancel/:
+    post:
+      operationId: wallet_withdrawals_cancel_create
+      description: Cancel a pending or approved withdrawal request.
       parameters:
       - in: path
         name: withdrawal_id
@@ -6826,6 +7006,15 @@ components:
           type: string
           format: date-time
           nullable: true
+        idempotency_key:
+          type: string
+          nullable: true
+          maxLength: 64
+        failure_code:
+          type: string
+          maxLength: 100
+        failure_message:
+          type: string
         user:
           type: string
           format: uuid
@@ -6852,15 +7041,19 @@ components:
       enum:
       - pending
       - approved
+      - processing
       - rejected
       - paid
+      - failed
       - canceled
       type: string
       description: |-
         * `pending` - Pending
         * `approved` - Approved
+        * `processing` - Processing
         * `rejected` - Rejected
         * `paid` - Paid
+        * `failed` - Failed
         * `canceled` - Canceled
     AttachmentUploadRequest:
       type: object

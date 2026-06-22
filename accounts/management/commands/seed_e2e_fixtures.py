@@ -812,12 +812,13 @@ class Command(BaseCommand):
         ensure_contract_payment_breakdown(c_eligible)
 
         # ── 2. Already settled contract ──
+        # Start with full escrow so settle_completed_contract succeeds
         c_settled, _ = Contract.objects.update_or_create(
             id=self._p9_id("already-settled"),
             defaults={
                 "client": client_profile, "technician": tech_profile,
                 "agreed_amount": Decimal("300000.00"), "currency": "IQD",
-                "status": "completed", "escrow_amount": Decimal("0.00"),
+                "status": "completed", "escrow_amount": Decimal("300000.00"),
                 "total_paid": Decimal("315000.00"),
                 "work_description": "E2E Phase 9 already-settled fixture.",
                 "start_date": timezone.now().date(), "duration_days": 10,
