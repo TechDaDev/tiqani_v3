@@ -163,6 +163,21 @@ class Command(BaseCommand):
             ).values_list("pk", flat=True)
         )
 
+        # Phase 10 — dispute cleanup
+        from dispute.models import (
+            ContractDispute, DisputeStatement, DisputeEvidence,
+            DisputeResolution, DisputeAuditEvent, RefundRecord,
+            ChargebackEvent, UserFinancialLiability,
+        )
+        UserFinancialLiability.objects.filter(user_id__in=user_ids).delete()
+        ChargebackEvent.objects.filter(contract_id__in=contract_ids).delete()
+        RefundRecord.objects.filter(contract_id__in=contract_ids).delete()
+        DisputeAuditEvent.objects.filter(dispute__contract_id__in=contract_ids).delete()
+        DisputeResolution.objects.filter(dispute__contract_id__in=contract_ids).delete()
+        DisputeEvidence.objects.filter(dispute__contract_id__in=contract_ids).delete()
+        DisputeStatement.objects.filter(dispute__contract_id__in=contract_ids).delete()
+        ContractDispute.objects.filter(contract_id__in=contract_ids).delete()
+
         # Payout audit records
         WithdrawalRequest.objects.filter(user_id__in=user_ids).delete()
         # Settlement audit events
@@ -198,6 +213,7 @@ class Command(BaseCommand):
         self._seed_payment_fixtures()
         self._seed_execution_fixtures()
         self._seed_phase9_fixtures()
+        self._seed_phase10_fixtures()
 
     def _get_or_create_user(self, key, password):
         """Helper to get_or_create a fixture user."""
@@ -999,6 +1015,592 @@ class Command(BaseCommand):
 
         self.stdout.write("  Created Phase 9 fixtures.")
 
+    def _p10_id(self, label):
+        import uuid
+        return uuid.uuid5(uuid.NAMESPACE_DNS, f"e2e-p10-{label}.tiqani.local")
+
+    def _dispute_id(self, label):
+        import uuid
+        return uuid.uuid5(uuid.NAMESPACE_DNS, f"e2e-dispute-{label}.tiqani.local")
+
+    def _refund_id(self, label):
+        import uuid
+        return uuid.uuid5(uuid.NAMESPACE_DNS, f"e2e-refund-{label}.tiqani.local")
+
+    def _chargeback_id(self, label):
+        import uuid
+        return uuid.uuid5(uuid.NAMESPACE_DNS, f"e2e-cb-{label}.tiqani.local")
+
+    def _evidence_id(self, label):
+        import uuid
+        return uuid.uuid5(uuid.NAMESPACE_DNS, f"e2e-evidence-{label}.tiqani.local")
+
+    def _liability_id(self, label):
+        import uuid
+        return uuid.uuid5(uuid.NAMESPACE_DNS, f"e2e-liability-{label}.tiqani.local")
+
+    @transaction.atomic
+    def _seed_phase10_fixtures(self):
+        """Create deterministic Phase 10 fixtures for dispute, refund, chargeback, and liability tests."""
+        import uuid
+        from decimal import Decimal
+        from django.utils import timezone
+        from contract.models import Contract
+        from wallet.models import (
+            PaymentIntent, WalletTransaction, Wallet,
+            ContractSettlement, PlatformWallet, PlatformEarning,
+            PlatformWalletTransaction,
+        )
+        from wallet.services import ensure_contract_payment_breakdown
+        from wallet.settlement_services import settle_completed_contract
+        from dispute.services import (
+            open_dispute, add_dispute_statement, add_dispute_evidence,
+            cancel_dispute, check_dispute_eligibility, derive_dispute_category,
+            assign_staff, start_review, start_mediation, propose_resolution,
+            resolve_dispute, reject_dispute, close_dispute,
+            create_sandbox_chargeback,
+        )
+        from dispute.models import (
+            ContractDispute, DisputeStatement, DisputeEvidence,
+            DisputeResolution, DisputeAuditEvent, RefundRecord,
+            ChargebackEvent, UserFinancialLiability,
+            DisputeReason, DisputeStatus, ResolutionType,
+            RefundSourceType, RefundStatus, EvidenceType,
+            ChargebackStatus, LiabilityStatus,
+        )
+
+        try:
+            client_profile = ClientProfile.objects.get(user__email=FIXTURE_EMAILS["client"])
+            tech_profile = TechnicianProfile.objects.get(user__email=FIXTURE_EMAILS["approved_technician"])
+        except (ClientProfile.DoesNotExist, TechnicianProfile.DoesNotExist):
+            self.stdout.write(self.style.WARNING("  Skipping Phase 10 fixtures: users not seeded."))
+            return
+
+        client_user = client_profile.user
+        tech_user = tech_profile.user
+
+        # Ensure wallets
+        Wallet.objects.get_or_create(user=client_user, defaults={"balance": Decimal("0")})
+        Wallet.objects.get_or_create(user=tech_user, defaults={"balance": Decimal("0")})
+
+        # Ensure PlatformWallet exists
+        PlatformWallet.objects.get_or_create(key=PlatformWallet.GLOBAL_KEY, defaults={
+            "balance": Decimal("0"), "currency": "IQD",
+            "total_fees_collected": Decimal("0"),
+            "total_client_fees": Decimal("0"), "total_technician_fees": Decimal("0"),
+        })
+
+        def _make_contract(label, *, status="in_progress", escrow="500000.00",
+                           amount="500000.00", client=client_profile, tech=tech_profile):
+            c, _ = Contract.objects.update_or_create(
+                id=self._p10_id(label),
+                defaults={
+                    "client": client, "technician": tech,
+                    "work_description": f"E2E Phase 10 -- {label}.",
+                    "agreed_amount": Decimal(amount), "currency": "IQD",
+                    "status": status, "escrow_amount": Decimal(escrow),
+                    "start_date": timezone.now().date(), "duration_days": 10,
+                    "stage_number": 1,
+                },
+            )
+            return c
+
+        def _fund_contract(c, label):
+            pi, _ = PaymentIntent.objects.update_or_create(
+                id=uuid.uuid5(uuid.NAMESPACE_DNS, f"e2e-pay-p10-{label}.tiqani.local"),
+                defaults={
+                    "contract": c, "user": client_user,
+                    "amount": c.escrow_amount or c.agreed_amount,
+                    "currency": "IQD",
+                    "purpose": PaymentIntent.Purpose.CONTRACT_FUNDING,
+                    "provider": "sandbox",
+                    "status": PaymentIntent.Status.PAID,
+                    "paid_at": timezone.now(),
+                },
+            )
+            wallet = client_user.wallet
+            wallet.balance += pi.amount
+            wallet.save(update_fields=["balance"])
+
+        def _pay_id(label):
+            import uuid
+            return uuid.uuid5(uuid.NAMESPACE_DNS, f"e2e-pay-p10-{label}.tiqani.local")
+
+        def _settle(c, label):
+            settle_completed_contract(
+                contract_id=str(c.id), actor=client_user,
+                idempotency_key=f"p10-seed-{label}",
+            )
+
+        staff_user = User.objects.filter(is_staff=True, is_superuser=True).first()
+
+        # ═══════════════════════════════════════════
+        # 1. Active contract — eligible for dispute
+        # ═══════════════════════════════════════════
+        c_active = _make_contract("active-eligible")
+        _fund_contract(c_active, "active-eligible")
+        ensure_contract_payment_breakdown(c_active)
+
+        # 2. Completion-requested contract
+        c_completion_req = _make_contract("completion-requested", status="completion_requested")
+        _fund_contract(c_completion_req, "completion-requested")
+        ensure_contract_payment_breakdown(c_completion_req)
+
+        # 3. Completed pre-settlement contract
+        c_pre_settle = _make_contract("pre-settlement", status="completed")
+        _fund_contract(c_pre_settle, "pre-settlement")
+        ensure_contract_payment_breakdown(c_pre_settle)
+
+        # 4. Settled recoverable contract
+        c_settled_rec = _make_contract("settled-recoverable", status="completed")
+        _fund_contract(c_settled_rec, "settled-recoverable")
+        ensure_contract_payment_breakdown(c_settled_rec)
+        _settle(c_settled_rec, "settled-recoverable")
+        # Credit technician wallet so reversal works
+        tech_wallet = Wallet.objects.get(user=tech_user)
+        tech_wallet.balance += Decimal("500000.00")
+        tech_wallet.save(update_fields=["balance"])
+
+        # 5. Settled partially recoverable
+        c_settled_partial = _make_contract("settled-partial", status="completed")
+        _fund_contract(c_settled_partial, "settled-partial")
+        ensure_contract_payment_breakdown(c_settled_partial)
+        _settle(c_settled_partial, "settled-partial")
+        tech_wallet.balance += Decimal("300000.00")
+        tech_wallet.save(update_fields=["balance"])
+
+        # 6. Settled non-recoverable (tech wallet empty)
+        c_settled_nonrec = _make_contract("settled-nonrec", status="completed")
+        _fund_contract(c_settled_nonrec, "settled-nonrec")
+        ensure_contract_payment_breakdown(c_settled_nonrec)
+        _settle(c_settled_nonrec, "settled-nonrec")
+        # tech wallet balance stays as is for non-recoverable scenario
+
+        # ═══════════════════════════════════════════
+        # Client-opened dispute
+        # ═══════════════════════════════════════════
+        d_open = open_dispute(
+            contract_id=str(c_active.id),
+            opened_by=client_user,
+            reason=DisputeReason.WORK_NOT_DELIVERED,
+            statement="Work was never delivered as agreed.",
+            claimed_amount=Decimal("500000.00"),
+        )
+
+        # ═══════════════════════════════════════════
+        # Technician-opened dispute
+        # ═══════════════════════════════════════════
+        d_tech = open_dispute(
+            contract_id=str(c_completion_req.id),
+            opened_by=tech_user,
+            reason=DisputeReason.CLIENT_NON_COOPERATION,
+            statement="Client is not providing necessary information.",
+            claimed_amount=Decimal("500000.00"),
+        )
+
+        # ═══════════════════════════════════════════
+        # Awaiting response dispute
+        # ═══════════════════════════════════════════
+        d_await = open_dispute(
+            contract_id=str(c_pre_settle.id),
+            opened_by=client_user,
+            reason=DisputeReason.QUALITY_NOT_AS_AGREED,
+            statement="Quality of work is below agreed standards.",
+            claimed_amount=Decimal("300000.00"),
+        )
+
+        # ═══════════════════════════════════════════
+        # Under review dispute
+        # ═══════════════════════════════════════════
+        c_review_contract = _make_contract("review-contract", status="completed")
+        _fund_contract(c_review_contract, "review-contract")
+        ensure_contract_payment_breakdown(c_review_contract)
+        d_review = open_dispute(
+            contract_id=str(c_review_contract.id),
+            opened_by=tech_user,
+            reason=DisputeReason.SCOPE_CHANGE,
+            statement="Scope was changed after work started.",
+            claimed_amount=Decimal("200000.00"),
+        )
+        if staff_user:
+            assign_staff(dispute_id=str(d_review.id), staff_user=staff_user)
+            start_review(dispute_id=str(d_review.id), actor=staff_user)
+
+        # ═══════════════════════════════════════════
+        # Mediation dispute
+        # ═══════════════════════════════════════════
+        c_med_contract = _make_contract("mediation-contract", status="completed")
+        _fund_contract(c_med_contract, "mediation-contract")
+        ensure_contract_payment_breakdown(c_med_contract)
+        d_med = open_dispute(
+            contract_id=str(c_med_contract.id),
+            opened_by=client_user,
+            reason=DisputeReason.MISREPRESENTATION,
+            statement="Services were misrepresented during discussion.",
+            claimed_amount=Decimal("400000.00"),
+        )
+        if staff_user:
+            assign_staff(dispute_id=str(d_med.id), staff_user=staff_user)
+            start_review(dispute_id=str(d_med.id), actor=staff_user)
+            start_mediation(dispute_id=str(d_med.id), actor=staff_user)
+
+        # ═══════════════════════════════════════════
+        # Resolution proposed dispute
+        # ═══════════════════════════════════════════
+        c_prop_contract = _make_contract("proposed-contract", status="completed")
+        _fund_contract(c_prop_contract, "proposed-contract")
+        ensure_contract_payment_breakdown(c_prop_contract)
+        d_prop = open_dispute(
+            contract_id=str(c_prop_contract.id),
+            opened_by=client_user,
+            reason=DisputeReason.WORK_INCOMPLETE,
+            statement="Work remains incomplete after deadline.",
+            claimed_amount=Decimal("350000.00"),
+        )
+        if staff_user:
+            assign_staff(dispute_id=str(d_prop.id), staff_user=staff_user)
+            start_review(dispute_id=str(d_prop.id), actor=staff_user)
+            propose_resolution(dispute_id=str(d_prop.id), actor=staff_user,
+                               resolution_data={"resolution_type": ResolutionType.SPLIT_RESOLUTION,
+                                                "resolution_reason": "Proposed split"})
+
+        # ═══════════════════════════════════════════
+        # Full refund dispute (pre-settlement, resolved)
+        # ═══════════════════════════════════════════
+        c_full_refund = _make_contract("full-refund", status="completed")
+        _fund_contract(c_full_refund, "full-refund")
+        ensure_contract_payment_breakdown(c_full_refund)
+        d_full = open_dispute(
+            contract_id=str(c_full_refund.id),
+            opened_by=client_user,
+            reason=DisputeReason.DUPLICATE_PAYMENT,
+            statement="Payment was processed twice.",
+            claimed_amount=Decimal("500000.00"),
+        )
+        if staff_user:
+            assign_staff(dispute_id=str(d_full.id), staff_user=staff_user)
+            start_review(dispute_id=str(d_full.id), actor=staff_user)
+            resolve_dispute(
+                dispute_id=str(d_full.id), actor=staff_user,
+                resolution_type=ResolutionType.FULL_CLIENT_REFUND,
+                client_refund_amount=Decimal("500000.00"),
+                technician_retained_amount=Decimal("0"),
+                escrow_released_amount=Decimal("500000.00"),
+                platform_fee_reversal_amount=Decimal("0"),
+                resolution_reason="Full refund approved",
+                idempotency_key="p10-seed-full-refund",
+            )
+
+        # ═══════════════════════════════════════════
+        # Partial refund dispute (resolved)
+        # ═══════════════════════════════════════════
+        c_partial = _make_contract("partial-refund", status="completed")
+        _fund_contract(c_partial, "partial-refund")
+        ensure_contract_payment_breakdown(c_partial)
+        d_partial = open_dispute(
+            contract_id=str(c_partial.id),
+            opened_by=client_user,
+            reason=DisputeReason.QUALITY_NOT_AS_AGREED,
+            statement="Partial quality issues warrant partial refund.",
+            claimed_amount=Decimal("500000.00"),
+        )
+        if staff_user:
+            assign_staff(dispute_id=str(d_partial.id), staff_user=staff_user)
+            start_review(dispute_id=str(d_partial.id), actor=staff_user)
+            resolve_dispute(
+                dispute_id=str(d_partial.id), actor=staff_user,
+                resolution_type=ResolutionType.PARTIAL_CLIENT_REFUND,
+                client_refund_amount=Decimal("200000.00"),
+                technician_retained_amount=Decimal("300000.00"),
+                escrow_released_amount=Decimal("200000.00"),
+                resolution_reason="Partial refund for incomplete work",
+                idempotency_key="p10-seed-partial-refund",
+            )
+
+        # ═══════════════════════════════════════════
+        # Technician award dispute (resolved)
+        # ═══════════════════════════════════════════
+        c_tech_award = _make_contract("tech-award", status="completed")
+        _fund_contract(c_tech_award, "tech-award")
+        ensure_contract_payment_breakdown(c_tech_award)
+        d_tech_award = open_dispute(
+            contract_id=str(c_tech_award.id),
+            opened_by=client_user,
+            reason=DisputeReason.FRAUD_SUSPECTED,
+            statement="Fraud suspected.",
+            claimed_amount=Decimal("500000.00"),
+        )
+        if staff_user:
+            assign_staff(dispute_id=str(d_tech_award.id), staff_user=staff_user)
+            start_review(dispute_id=str(d_tech_award.id), actor=staff_user)
+            resolve_dispute(
+                dispute_id=str(d_tech_award.id), actor=staff_user,
+                resolution_type=ResolutionType.FULL_TECHNICIAN_AWARD,
+                client_refund_amount=Decimal("0"),
+                technician_retained_amount=Decimal("500000.00"),
+                escrow_released_amount=Decimal("500000.00"),
+                resolution_reason="Technician award approved",
+                idempotency_key="p10-seed-tech-award",
+            )
+
+        # ═══════════════════════════════════════════
+        # Split resolution dispute (resolved)
+        # ═══════════════════════════════════════════
+        c_split = _make_contract("split-resolution", status="completed")
+        _fund_contract(c_split, "split-resolution")
+        ensure_contract_payment_breakdown(c_split)
+        d_split = open_dispute(
+            contract_id=str(c_split.id),
+            opened_by=client_user,
+            reason=DisputeReason.SCOPE_CHANGE,
+            statement="Scope changed mid-project.",
+            claimed_amount=Decimal("500000.00"),
+        )
+        if staff_user:
+            assign_staff(dispute_id=str(d_split.id), staff_user=staff_user)
+            start_review(dispute_id=str(d_split.id), actor=staff_user)
+            resolve_dispute(
+                dispute_id=str(d_split.id), actor=staff_user,
+                resolution_type=ResolutionType.SPLIT_RESOLUTION,
+                client_refund_amount=Decimal("250000.00"),
+                technician_retained_amount=Decimal("250000.00"),
+                escrow_released_amount=Decimal("250000.00"),
+                resolution_reason="Split resolution agreed",
+                idempotency_key="p10-seed-split",
+            )
+
+        # ═══════════════════════════════════════════
+        # Rejected dispute
+        # ═══════════════════════════════════════════
+        c_rejected = _make_contract("rejected-dispute", status="completed")
+        _fund_contract(c_rejected, "rejected-dispute")
+        ensure_contract_payment_breakdown(c_rejected)
+        d_rejected = open_dispute(
+            contract_id=str(c_rejected.id),
+            opened_by=client_user,
+            reason=DisputeReason.OTHER,
+            statement="This dispute should be rejected.",
+            claimed_amount=Decimal("100000.00"),
+        )
+        if staff_user:
+            assign_staff(dispute_id=str(d_rejected.id), staff_user=staff_user)
+            start_review(dispute_id=str(d_rejected.id), actor=staff_user)
+            reject_dispute(dispute_id=str(d_rejected.id), actor=staff_user,
+                           reason="Claim is without merit")
+
+        # ═══════════════════════════════════════════
+        # Closed dispute
+        # ═══════════════════════════════════════════
+        c_closed = _make_contract("closed-dispute", status="completed")
+        _fund_contract(c_closed, "closed-dispute")
+        ensure_contract_payment_breakdown(c_closed)
+        d_closed = open_dispute(
+            contract_id=str(c_closed.id),
+            opened_by=client_user,
+            reason=DisputeReason.PAYMENT_OR_SETTLEMENT_ERROR,
+            statement="Payment error occurred.",
+            claimed_amount=Decimal("500000.00"),
+        )
+        if staff_user:
+            assign_staff(dispute_id=str(d_closed.id), staff_user=staff_user)
+            start_review(dispute_id=str(d_closed.id), actor=staff_user)
+            reject_dispute(dispute_id=str(d_closed.id), actor=staff_user,
+                           reason="No error found")
+            close_dispute(dispute_id=str(d_closed.id), actor=staff_user)
+
+        # ═══════════════════════════════════════════
+        # Post-settlement refund dispute (resolved via wallet reversal)
+        # ═══════════════════════════════════════════
+        # Already settled contract
+        d_post_settle = open_dispute(
+            contract_id=str(c_settled_rec.id),
+            opened_by=client_user,
+            reason=DisputeReason.PAYMENT_OR_SETTLEMENT_ERROR,
+            statement="Post-settlement dispute.",
+            claimed_amount=Decimal("500000.00"),
+        )
+        if staff_user:
+            assign_staff(dispute_id=str(d_post_settle.id), staff_user=staff_user)
+            start_review(dispute_id=str(d_post_settle.id), actor=staff_user)
+            resolve_dispute(
+                dispute_id=str(d_post_settle.id), actor=staff_user,
+                resolution_type=ResolutionType.FULL_CLIENT_REFUND,
+                client_refund_amount=Decimal("500000.00"),
+                technician_retained_amount=Decimal("0"),
+                escrow_released_amount=Decimal("0"),
+                wallet_reversal_amount=Decimal("500000.00"),
+                platform_fee_reversal_amount=Decimal("25000.00"),
+                resolution_reason="Post-settlement full refund",
+                idempotency_key="p10-seed-post-settle",
+            )
+
+        # ═══════════════════════════════════════════
+        # Manual recovery dispute (post-settlement, tech can't fully cover)
+        # ═══════════════════════════════════════════
+        d_manual_rec = open_dispute(
+            contract_id=str(c_settled_partial.id),
+            opened_by=client_user,
+            reason=DisputeReason.PAYMENT_OR_SETTLEMENT_ERROR,
+            statement="Partial recovery needed.",
+            claimed_amount=Decimal("300000.00"),
+        )
+        if staff_user:
+            assign_staff(dispute_id=str(d_manual_rec.id), staff_user=staff_user)
+            start_review(dispute_id=str(d_manual_rec.id), actor=staff_user)
+            resolve_dispute(
+                dispute_id=str(d_manual_rec.id), actor=staff_user,
+                resolution_type=ResolutionType.MANUAL_RECOVERY_REQUIRED,
+                client_refund_amount=Decimal("300000.00"),
+                technician_retained_amount=Decimal("0"),
+                escrow_released_amount=Decimal("0"),
+                wallet_reversal_amount=Decimal("300000.00"),
+                platform_fee_reversal_amount=Decimal("15000.00"),
+                unrecoverable_amount=Decimal("50000.00"),
+                outstanding_liability_amount=Decimal("50000.00"),
+                resolution_reason="Partial recovery needed",
+                idempotency_key="p10-seed-manual-rec",
+            )
+
+        # ═══════════════════════════════════════════
+        # Refund processing (from full-refund dispute above)
+        # ═══════════════════════════════════════════
+        refund_record = RefundRecord.objects.filter(dispute=d_full).first()
+        if refund_record:
+            refund_record.status = RefundStatus.COMPLETED
+            refund_record.save(update_fields=["status"])
+
+        # ═══════════════════════════════════════════
+        # Refund failed
+        # ═══════════════════════════════════════════
+        c_refund_fail = _make_contract("refund-fail", status="completed")
+        _fund_contract(c_refund_fail, "refund-fail")
+        ensure_contract_payment_breakdown(c_refund_fail)
+        d_refund_fail = open_dispute(
+            contract_id=str(c_refund_fail.id),
+            opened_by=client_user,
+            reason=DisputeReason.WORK_NOT_DELIVERED,
+            statement="Failed refund test.",
+            claimed_amount=Decimal("500000.00"),
+            idempotency_key="p10-seed-refund-fail-dispute",
+        )
+        if staff_user:
+            assign_staff(dispute_id=str(d_refund_fail.id), staff_user=staff_user)
+            start_review(dispute_id=str(d_refund_fail.id), actor=staff_user)
+            resolve_dispute(
+                dispute_id=str(d_refund_fail.id), actor=staff_user,
+                resolution_type=ResolutionType.FULL_CLIENT_REFUND,
+                client_refund_amount=Decimal("500000.00"),
+                escrow_released_amount=Decimal("500000.00"),
+                resolution_reason="Full refund for fail test",
+                idempotency_key="p10-seed-refund-fail",
+            )
+        # Set one refund to failed status
+        fail_refund = RefundRecord.objects.filter(dispute=d_refund_fail).first()
+        if fail_refund:
+            fail_refund.status = RefundStatus.FAILED
+            fail_refund.failure_code = "sandbox_simulated_failure"
+            fail_refund.failure_message = "Simulated failure for E2E retry test"
+            fail_refund.save(update_fields=["status", "failure_code", "failure_message"])
+
+        # ═══════════════════════════════════════════
+        # Sandbox chargebacks
+        # ═══════════════════════════════════════════
+        cb_received = create_sandbox_chargeback(
+            contract_id=str(c_full_refund.id),
+            amount=Decimal("500000.00"),
+            reason_code="fraud",
+            created_by=staff_user,
+        )
+        # Force status to received for testing
+        cb_received.status = ChargebackStatus.RECEIVED
+        cb_received.save(update_fields=["status"])
+
+        # Under review chargeback
+        cb_review = create_sandbox_chargeback(
+            contract_id=str(c_partial.id),
+            amount=Decimal("200000.00"),
+            reason_code="not_as_described",
+            created_by=staff_user,
+        )
+
+        # Upheld chargeback
+        cb_upheld = create_sandbox_chargeback(
+            contract_id=str(c_closed.id),
+            amount=Decimal("500000.00"),
+            reason_code="service_not_received",
+            created_by=staff_user,
+        )
+
+        # Rejected chargeback
+        cb_rejected = create_sandbox_chargeback(
+            contract_id=str(c_rejected.id),
+            amount=Decimal("100000.00"),
+            reason_code="other",
+            created_by=staff_user,
+        )
+
+        # Partially upheld chargeback
+        cb_partial = create_sandbox_chargeback(
+            contract_id=str(c_split.id),
+            amount=Decimal("250000.00"),
+            reason_code="partial_service",
+            created_by=staff_user,
+        )
+
+        # ═══════════════════════════════════════════
+        # Liability records
+        # ═══════════════════════════════════════════
+        UserFinancialLiability.objects.update_or_create(
+            id=self._liability_id("open-liability"),
+            defaults={
+                "user": tech_user,
+                "source_dispute": d_manual_rec,
+                "original_amount": Decimal("50000.00"),
+                "recovered_amount": Decimal("0"),
+                "remaining_amount": Decimal("50000.00"),
+                "status": LiabilityStatus.OPEN,
+            },
+        )
+
+        UserFinancialLiability.objects.update_or_create(
+            id=self._liability_id("partial-liability"),
+            defaults={
+                "user": tech_user,
+                "source_dispute": d_post_settle,
+                "original_amount": Decimal("100000.00"),
+                "recovered_amount": Decimal("40000.00"),
+                "remaining_amount": Decimal("60000.00"),
+                "status": LiabilityStatus.PARTIALLY_RECOVERED,
+            },
+        )
+
+        # ═══════════════════════════════════════════
+        # Dispute evidence
+        # ═══════════════════════════════════════════
+        DisputeEvidence.objects.update_or_create(
+            id=self._evidence_id("doc-1"),
+            defaults={
+                "dispute": d_open,
+                "submitted_by": client_user,
+                "evidence_type": EvidenceType.DOCUMENT,
+                "description": "Screenshot of agreement",
+                "mime_type": "image/png",
+                "file_size": 102400,
+            },
+        )
+
+        # ═══════════════════════════════════════════
+        # Add statements for non-trivial disputes
+        # ═══════════════════════════════════════════
+        # Add statement to awaiting-response dispute
+        add_dispute_statement(
+            dispute_id=str(d_await.id),
+            submitted_by=tech_user,
+            statement="I delivered all work as agreed. The client is not being fair.",
+        )
+
+        self.stdout.write("  Created Phase 10 fixtures.")
+
     def _report(self):
         """Print a summary of created fixtures."""
         self.stdout.write()
@@ -1045,6 +1647,45 @@ class Command(BaseCommand):
         self.stdout.write(f"  Revision requests:         {exec_rev_count} fixtures")
         self.stdout.write(f"  Completion requests:       {exec_cr_count} fixtures")
         self.stdout.write(f"  Execution history events:  {exec_hist_count} fixtures")
+
+        # Phase 10 dispute counts
+        from dispute.models import (
+            ContractDispute, DisputeStatement, DisputeEvidence,
+            DisputeResolution, DisputeAuditEvent, RefundRecord,
+            ChargebackEvent, UserFinancialLiability,
+        )
+        dispute_count = ContractDispute.objects.filter(
+            contract__client__user__email__in=FIXTURE_EMAILS.values()
+        ).count()
+        statement_count = DisputeStatement.objects.filter(
+            dispute__contract__client__user__email__in=FIXTURE_EMAILS.values()
+        ).count()
+        evidence_count = DisputeEvidence.objects.filter(
+            dispute__contract__client__user__email__in=FIXTURE_EMAILS.values()
+        ).count()
+        resolution_count = DisputeResolution.objects.filter(
+            dispute__contract__client__user__email__in=FIXTURE_EMAILS.values()
+        ).count()
+        audit_count = DisputeAuditEvent.objects.filter(
+            dispute__contract__client__user__email__in=FIXTURE_EMAILS.values()
+        ).count()
+        refund_count = RefundRecord.objects.filter(
+            contract__client__user__email__in=FIXTURE_EMAILS.values()
+        ).count()
+        chargeback_count = ChargebackEvent.objects.filter(
+            contract__client__user__email__in=FIXTURE_EMAILS.values()
+        ).count()
+        liability_count = UserFinancialLiability.objects.filter(
+            user__email__in=FIXTURE_EMAILS.values()
+        ).count()
+        self.stdout.write(f"  Disputes:            {dispute_count} fixtures")
+        self.stdout.write(f"  Dispute statements:  {statement_count} fixtures")
+        self.stdout.write(f"  Dispute evidence:    {evidence_count} fixtures")
+        self.stdout.write(f"  Dispute resolutions: {resolution_count} fixtures")
+        self.stdout.write(f"  Dispute audit events:{audit_count} fixtures")
+        self.stdout.write(f"  Refunds:             {refund_count} fixtures")
+        self.stdout.write(f"  Chargebacks:         {chargeback_count} fixtures")
+        self.stdout.write(f"  Liabilities:         {liability_count} fixtures")
         self.stdout.write()
         self.stdout.write("  Credentials: Set via E2E_FIXTURE_PASSWORD environment variable.")
         self.stdout.write("  Production guard: Active (use --force to override).")
