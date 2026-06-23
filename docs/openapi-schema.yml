@@ -90,6 +90,144 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaginatedAdminActivityList'
           description: ''
+  /api/admin/chargebacks/:
+    get:
+      operationId: admin_chargebacks_retrieve
+      description: List all chargebacks.
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/chargebacks/{chargeback_id}/:
+    get:
+      operationId: admin_chargebacks_retrieve_2
+      description: Get chargeback details.
+      parameters:
+      - in: path
+        name: chargeback_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/chargebacks/{chargeback_id}/sandbox-partial/:
+    post:
+      operationId: admin_chargebacks_sandbox_partial_create
+      description: 'Sandbox: partial chargeback.'
+      parameters:
+      - in: path
+        name: chargeback_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/chargebacks/{chargeback_id}/sandbox-reject/:
+    post:
+      operationId: admin_chargebacks_sandbox_reject_create
+      description: 'Sandbox: reject chargeback.'
+      parameters:
+      - in: path
+        name: chargeback_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/chargebacks/{chargeback_id}/sandbox-uphold/:
+    post:
+      operationId: admin_chargebacks_sandbox_uphold_create
+      description: 'Sandbox: uphold chargeback.'
+      parameters:
+      - in: path
+        name: chargeback_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/chargebacks/{chargeback_id}/start-review/:
+    post:
+      operationId: admin_chargebacks_start_review_create
+      description: Start chargeback review.
+      parameters:
+      - in: path
+        name: chargeback_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/chargebacks/{chargeback_id}/submit-evidence/:
+    post:
+      operationId: admin_chargebacks_submit_evidence_create
+      description: Submit evidence for chargeback.
+      parameters:
+      - in: path
+        name: chargeback_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/chargebacks/sandbox-create/:
+    post:
+      operationId: admin_chargebacks_sandbox_create_create
+      description: Create a sandbox chargeback event.
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/admin/contracts/:
     get:
       operationId: admin_contracts_list
@@ -756,6 +894,208 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/admin/disputes/:
+    get:
+      operationId: admin_disputes_retrieve
+      description: List all disputes for staff.
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/disputes/{dispute_id}/:
+    get:
+      operationId: admin_disputes_retrieve_2
+      description: Full dispute detail for staff.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/disputes/{dispute_id}/assign/:
+    post:
+      operationId: admin_disputes_assign_create
+      description: Assign staff to a dispute.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/disputes/{dispute_id}/close/:
+    post:
+      operationId: admin_disputes_close_create
+      description: Close a resolved/rejected dispute.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/disputes/{dispute_id}/propose-resolution/:
+    post:
+      operationId: admin_disputes_propose_resolution_create
+      description: Propose resolution (no financial execution).
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/disputes/{dispute_id}/reconciliation/:
+    get:
+      operationId: admin_disputes_reconciliation_retrieve
+      description: Get reconciliation data for a dispute.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/disputes/{dispute_id}/refunds/:
+    post:
+      operationId: admin_disputes_refunds_create
+      description: Staff-initiated refund for a dispute.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/disputes/{dispute_id}/reject/:
+    post:
+      operationId: admin_disputes_reject_create
+      description: Reject a dispute.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/disputes/{dispute_id}/resolve/:
+    post:
+      operationId: admin_disputes_resolve_create
+      description: Resolve a dispute with full financial execution.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/disputes/{dispute_id}/start-mediation/:
+    post:
+      operationId: admin_disputes_start_mediation_create
+      description: Start mediation.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/disputes/{dispute_id}/start-review/:
+    post:
+      operationId: admin_disputes_start_review_create
+      description: Start review of a dispute.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/admin/finance/payment-intents/:
     get:
       operationId: admin_finance_payment_intents_list
@@ -1036,6 +1376,44 @@ paths:
               schema:
                 $ref: '#/components/schemas/AdminWithdrawalAction'
           description: ''
+  /api/admin/refunds/{refund_id}/retry/:
+    post:
+      operationId: admin_refunds_retry_create
+      description: Retry a failed refund.
+      parameters:
+      - in: path
+        name: refund_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/refunds/{refund_id}/sandbox-confirm/:
+    post:
+      operationId: admin_refunds_sandbox_confirm_create
+      description: Sandbox confirm a refund.
+      parameters:
+      - in: path
+        name: refund_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/admin/reviews/:
     get:
       operationId: admin_reviews_list
@@ -2967,6 +3345,25 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/contracts/{contract_id}/active-dispute/:
+    get:
+      operationId: contracts_active_dispute_retrieve
+      description: Get the active dispute for a contract, if any.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/contracts/{contract_id}/cancel/:
     post:
       operationId: contracts_cancel_create
@@ -3028,6 +3425,25 @@ paths:
     post:
       operationId: contracts_completion_request_create
       description: Technician requests contract completion.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/contracts/{contract_id}/dispute-eligibility/:
+    get:
+      operationId: contracts_dispute_eligibility_retrieve
+      description: Check if a contract is eligible for dispute.
       parameters:
       - in: path
         name: contract_id
@@ -4039,6 +4455,125 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaginatedAdminSettlementListList'
           description: ''
+  /api/disputes/:
+    get:
+      operationId: disputes_retrieve
+      description: List disputes for the current user (as opener, respondent, or staff).
+      tags:
+      - disputes
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/disputes/{dispute_id}/:
+    get:
+      operationId: disputes_retrieve_2
+      description: Get dispute details.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - disputes
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/disputes/{dispute_id}/cancel/:
+    post:
+      operationId: disputes_cancel_create
+      description: Cancel a dispute.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - disputes
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/disputes/{dispute_id}/evidence/:
+    post:
+      operationId: disputes_evidence_create
+      description: Submit evidence for a dispute.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - disputes
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/disputes/{dispute_id}/refunds/:
+    get:
+      operationId: disputes_refunds_retrieve
+      description: List refunds for a dispute.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - disputes
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/disputes/{dispute_id}/statements/:
+    post:
+      operationId: disputes_statements_create
+      description: Add a statement to a dispute.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - disputes
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/disputes/create/:
+    post:
+      operationId: disputes_create_create
+      description: Open a new dispute on a contract.
+      tags:
+      - disputes
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/notifications/:
     get:
       operationId: notifications_list
@@ -4287,6 +4822,25 @@ paths:
         required: true
       tags:
       - offers
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/refunds/{refund_id}/:
+    get:
+      operationId: refunds_retrieve
+      description: Get refund details.
+      parameters:
+      - in: path
+        name: refund_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - refunds
       security:
       - jwtAuth: []
       - bearerAuth: []

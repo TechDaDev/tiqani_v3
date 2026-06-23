@@ -119,6 +119,7 @@ INSTALLED_APPS = [
     "dealership",
     "chat",
     "servicerequest",
+    "dispute",
 ]
 
 AUTH_USER_MODEL = "accounts.CustomUser"

@@ -52,6 +52,8 @@ urlpatterns = [
     path('api/technician/requests/', include(servicerequest_urls.technician_urlpatterns)),
     # Technician Offers
     path('api/technician/offers/', include(contract_offer_urls.technician_urlpatterns)),
+    # Disputes
+    path('api/', include('dispute.urls')),
     # Admin Dashboard
     path('api/admin/', include('dashboard.urls')),
     # Health
