@@ -915,8 +915,9 @@ class Command(BaseCommand):
         ensure_contract_payment_breakdown(c_dup)
 
         # ── 7. Wallet with available balance (for tech_user) ──
+        # Need enough for all withdrawal fixtures
         tech_wallet = Wallet.objects.get(user=tech_user)
-        tech_wallet.balance = Decimal("100000.00")
+        tech_wallet.balance = Decimal("500000.00")
         tech_wallet.save(update_fields=["balance"])
 
         # ── 8. Withdrawal eligible ──
@@ -1140,6 +1141,11 @@ class Command(BaseCommand):
         c_active = _make_contract("active-eligible")
         _fund_contract(c_active, "active-eligible")
         ensure_contract_payment_breakdown(c_active)
+
+        # 1a. Fresh eligible contract — NO dispute opened (for E2E eligibility flow test)
+        c_fresh = _make_contract("open-eligible")
+        _fund_contract(c_fresh, "open-eligible")
+        ensure_contract_payment_breakdown(c_fresh)
 
         # 2. Completion-requested contract
         c_completion_req = _make_contract("completion-requested", status="completion_requested")

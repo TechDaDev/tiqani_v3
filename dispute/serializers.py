@@ -354,4 +354,4 @@ class DisputeEligibilitySerializer(serializers.Serializer):
     """Dispute eligibility check result."""
 
     eligible = serializers.BooleanField()
-    reason = serializers.CharField()
+    reason = serializers.CharField(allow_blank=True)
