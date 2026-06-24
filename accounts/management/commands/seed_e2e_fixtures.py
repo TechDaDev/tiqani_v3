@@ -1186,6 +1186,7 @@ class Command(BaseCommand):
         # Client-opened dispute
         # ═══════════════════════════════════════════
         d_open = open_dispute(
+            dispute_id=self._dispute_id("open"),
             contract_id=str(c_active.id),
             opened_by=client_user,
             reason=DisputeReason.WORK_NOT_DELIVERED,
@@ -1197,6 +1198,7 @@ class Command(BaseCommand):
         # Technician-opened dispute
         # ═══════════════════════════════════════════
         d_tech = open_dispute(
+            dispute_id=self._dispute_id("technician-opened"),
             contract_id=str(c_completion_req.id),
             opened_by=tech_user,
             reason=DisputeReason.CLIENT_NON_COOPERATION,
@@ -1208,6 +1210,7 @@ class Command(BaseCommand):
         # Awaiting response dispute
         # ═══════════════════════════════════════════
         d_await = open_dispute(
+            dispute_id=self._dispute_id("awaiting-response"),
             contract_id=str(c_pre_settle.id),
             opened_by=client_user,
             reason=DisputeReason.QUALITY_NOT_AS_AGREED,
@@ -1222,6 +1225,7 @@ class Command(BaseCommand):
         _fund_contract(c_review_contract, "review-contract")
         ensure_contract_payment_breakdown(c_review_contract)
         d_review = open_dispute(
+            dispute_id=self._dispute_id("under-review"),
             contract_id=str(c_review_contract.id),
             opened_by=tech_user,
             reason=DisputeReason.SCOPE_CHANGE,
@@ -1239,6 +1243,7 @@ class Command(BaseCommand):
         _fund_contract(c_med_contract, "mediation-contract")
         ensure_contract_payment_breakdown(c_med_contract)
         d_med = open_dispute(
+            dispute_id=self._dispute_id("mediation"),
             contract_id=str(c_med_contract.id),
             opened_by=client_user,
             reason=DisputeReason.MISREPRESENTATION,
@@ -1257,6 +1262,7 @@ class Command(BaseCommand):
         _fund_contract(c_prop_contract, "proposed-contract")
         ensure_contract_payment_breakdown(c_prop_contract)
         d_prop = open_dispute(
+            dispute_id=self._dispute_id("resolution-proposed"),
             contract_id=str(c_prop_contract.id),
             opened_by=client_user,
             reason=DisputeReason.WORK_INCOMPLETE,
@@ -1277,6 +1283,7 @@ class Command(BaseCommand):
         _fund_contract(c_full_refund, "full-refund")
         ensure_contract_payment_breakdown(c_full_refund)
         d_full = open_dispute(
+            dispute_id=self._dispute_id("full-refund"),
             contract_id=str(c_full_refund.id),
             opened_by=client_user,
             reason=DisputeReason.DUPLICATE_PAYMENT,
@@ -1304,6 +1311,7 @@ class Command(BaseCommand):
         _fund_contract(c_partial, "partial-refund")
         ensure_contract_payment_breakdown(c_partial)
         d_partial = open_dispute(
+            dispute_id=self._dispute_id("partial-refund"),
             contract_id=str(c_partial.id),
             opened_by=client_user,
             reason=DisputeReason.QUALITY_NOT_AS_AGREED,
@@ -1330,6 +1338,7 @@ class Command(BaseCommand):
         _fund_contract(c_tech_award, "tech-award")
         ensure_contract_payment_breakdown(c_tech_award)
         d_tech_award = open_dispute(
+            dispute_id=self._dispute_id("tech-award"),
             contract_id=str(c_tech_award.id),
             opened_by=client_user,
             reason=DisputeReason.FRAUD_SUSPECTED,
@@ -1356,6 +1365,7 @@ class Command(BaseCommand):
         _fund_contract(c_split, "split-resolution")
         ensure_contract_payment_breakdown(c_split)
         d_split = open_dispute(
+            dispute_id=self._dispute_id("split-resolution"),
             contract_id=str(c_split.id),
             opened_by=client_user,
             reason=DisputeReason.SCOPE_CHANGE,
@@ -1382,6 +1392,7 @@ class Command(BaseCommand):
         _fund_contract(c_rejected, "rejected-dispute")
         ensure_contract_payment_breakdown(c_rejected)
         d_rejected = open_dispute(
+            dispute_id=self._dispute_id("rejected"),
             contract_id=str(c_rejected.id),
             opened_by=client_user,
             reason=DisputeReason.OTHER,
@@ -1401,6 +1412,7 @@ class Command(BaseCommand):
         _fund_contract(c_closed, "closed-dispute")
         ensure_contract_payment_breakdown(c_closed)
         d_closed = open_dispute(
+            dispute_id=self._dispute_id("closed"),
             contract_id=str(c_closed.id),
             opened_by=client_user,
             reason=DisputeReason.PAYMENT_OR_SETTLEMENT_ERROR,
@@ -1419,6 +1431,7 @@ class Command(BaseCommand):
         # ═══════════════════════════════════════════
         # Already settled contract
         d_post_settle = open_dispute(
+            dispute_id=self._dispute_id("post-settle-refund"),
             contract_id=str(c_settled_rec.id),
             opened_by=client_user,
             reason=DisputeReason.PAYMENT_OR_SETTLEMENT_ERROR,
@@ -1444,6 +1457,7 @@ class Command(BaseCommand):
         # Manual recovery dispute (post-settlement, tech can't fully cover)
         # ═══════════════════════════════════════════
         d_manual_rec = open_dispute(
+            dispute_id=self._dispute_id("manual-recovery"),
             contract_id=str(c_settled_partial.id),
             opened_by=client_user,
             reason=DisputeReason.PAYMENT_OR_SETTLEMENT_ERROR,
@@ -1482,6 +1496,7 @@ class Command(BaseCommand):
         _fund_contract(c_refund_fail, "refund-fail")
         ensure_contract_payment_breakdown(c_refund_fail)
         d_refund_fail = open_dispute(
+            dispute_id=self._dispute_id("refund-fail"),
             contract_id=str(c_refund_fail.id),
             opened_by=client_user,
             reason=DisputeReason.WORK_NOT_DELIVERED,

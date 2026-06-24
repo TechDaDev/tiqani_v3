@@ -172,10 +172,12 @@ def open_dispute(
     statement,
     claimed_amount,
     idempotency_key=None,
+    dispute_id=None,
 ) -> ContractDispute:
     """
     Open a new dispute on a contract.
 
+    When dispute_id is provided, uses that as the dispute UUID (for deterministic E2E fixtures).
     Idempotent when idempotency_key is provided.
     """
     # Idempotency
@@ -203,7 +205,12 @@ def open_dispute(
     # Derive category
     category = derive_dispute_category(contract)
 
+    kwargs = {}
+    if dispute_id is not None:
+        kwargs["id"] = dispute_id
+
     dispute = ContractDispute.objects.create(
+        **kwargs,
         contract=contract,
         opened_by=opened_by,
         respondent=respondent,
