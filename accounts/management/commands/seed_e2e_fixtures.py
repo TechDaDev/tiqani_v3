@@ -1175,6 +1175,18 @@ class Command(BaseCommand):
         _fund_contract(c_fresh, "open-eligible")
         ensure_contract_payment_breakdown(c_fresh)
 
+        # 1b. Technician open-eligible — dedicated for open-technician spec
+        #     Isolated from client open-eligible to prevent fixture collision
+        c_tech_open = _make_contract("technician-open-eligible")
+        _fund_contract(c_tech_open, "technician-open-eligible")
+        ensure_contract_payment_breakdown(c_tech_open)
+
+        # 1c. Responsive eligible — dedicated for responsive.spec.ts (viewport tests)
+        #     Must not be disputed by any other spec
+        c_responsive = _make_contract("responsive-eligible")
+        _fund_contract(c_responsive, "responsive-eligible")
+        ensure_contract_payment_breakdown(c_responsive)
+
         # 2. Completion-requested contract
         c_completion_req = _make_contract("completion-requested", status="completion_requested")
         _fund_contract(c_completion_req, "completion-requested")
@@ -1219,6 +1231,22 @@ class Command(BaseCommand):
             opened_by=client_user,
             reason=DisputeReason.WORK_NOT_DELIVERED,
             statement="Work was never delivered as agreed.",
+            claimed_amount=Decimal("500000.00"),
+        )
+
+        # ═══════════════════════════════════════════
+        # Cancel-eligible dispute — dedicated for cancel.spec.ts, isolated
+        # from ACTIVE_ELIGIBLE used by eligibility.spec.ts
+        # ═══════════════════════════════════════════
+        c_cancel = _make_contract("cancel-eligible")
+        _fund_contract(c_cancel, "cancel-eligible")
+        ensure_contract_payment_breakdown(c_cancel)
+        d_cancel = open_dispute(
+            dispute_id=self._dispute_id("cancel"),
+            contract_id=str(c_cancel.id),
+            opened_by=client_user,
+            reason=DisputeReason.WORK_NOT_DELIVERED,
+            statement="Dedicated cancel dispute — not shared with other specs.",
             claimed_amount=Decimal("500000.00"),
         )
 
