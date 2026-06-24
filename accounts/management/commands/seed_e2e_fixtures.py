@@ -38,6 +38,7 @@ FIXTURE_EMAILS = {
     "approved_technician": "e2e-approved-tech@tiqani.local",
     "restricted_technician": "e2e-restricted-tech@tiqani.local",
     "second_approved": "e2e-approved-tech2@tiqani.local",
+    "staff": "e2e-staff@tiqani.local",
 }
 
 FIXTURE_USERNAMES = {
@@ -46,6 +47,7 @@ FIXTURE_USERNAMES = {
     "approved_technician": "e2e_approved_tech",
     "restricted_technician": "e2e_restricted_tech",
     "second_approved": "e2e_approved_tech2",
+    "staff": "vstaff_p19",
 }
 
 FIXTURE_FIRST_NAMES = {
@@ -54,6 +56,7 @@ FIXTURE_FIRST_NAMES = {
     "approved_technician": "E2EApproved",
     "restricted_technician": "E2ERestricted",
     "second_approved": "E2EApproved2",
+    "staff": "E2E",
 }
 
 FIXTURE_LAST_NAMES = {
@@ -62,6 +65,7 @@ FIXTURE_LAST_NAMES = {
     "approved_technician": "Technician",
     "restricted_technician": "Technician",
     "second_approved": "Technician",
+    "staff": "Admin",
 }
 
 FIXTURE_ROLES = {
@@ -70,6 +74,7 @@ FIXTURE_ROLES = {
     "approved_technician": User.Role.TECHNICIAN,
     "restricted_technician": User.Role.TECHNICIAN,
     "second_approved": User.Role.TECHNICIAN,
+    "staff": User.Role.CLIENT,
 }
 
 FIXTURE_GOVERNORATES = {
@@ -207,6 +212,7 @@ class Command(BaseCommand):
         self._create_approved_technician(password)
         self._create_restricted_technician(password)
         self._create_second_approved_technician(password)
+        self._create_staff(password)
         self._seed_request_fixtures()
         self._seed_messaging_fixtures()
         self._seed_offer_fixtures()
@@ -355,6 +361,28 @@ class Command(BaseCommand):
         profile.refresh_from_db()
         status = "created" if created else "updated"
         self.stdout.write(f"  Second approved technician: {user.email} ({status})")
+
+    def _create_staff(self, password):
+        """Create staff user for admin dispute tests."""
+        user, created = User.objects.update_or_create(
+            username=FIXTURE_USERNAMES["staff"],
+            defaults={
+                "email": FIXTURE_EMAILS["staff"],
+                "first_name": FIXTURE_FIRST_NAMES["staff"],
+                "last_name": FIXTURE_LAST_NAMES["staff"],
+                "role": FIXTURE_ROLES["staff"],
+                "governorate": "Baghdad",
+                "phone_number": None,
+                "is_active": True,
+                "is_staff": True,
+                "is_superuser": True,
+            },
+        )
+        if created or not user.has_usable_password():
+            user.set_password(password)
+            user.save(update_fields=["password"])
+        status = "created" if created else "updated"
+        self.stdout.write(f"  Staff admin: {user.email} ({status})")
 
     def _attach_skills(self, profile):
         """Attach the first available category and skill to a technician profile."""
