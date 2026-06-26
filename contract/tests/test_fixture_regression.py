@@ -3,6 +3,7 @@
 Verifies idempotency, escrow/wallet safety, and data integrity across resets.
 """
 
+import os
 from decimal import Decimal
 from django.test import TestCase
 from django.contrib.auth import get_user_model
@@ -30,6 +31,7 @@ class FixtureIdempotencyTestCase(TestCase):
     """Two resets produce identical counts and UUIDs."""
 
     def _run_seed(self, reset=False):
+        os.environ["E2E_FIXTURE_PASSWORD"] = FIXTURE_PASSWORD
         kwargs = {"force": True}
         if reset:
             kwargs["reset"] = True
@@ -80,6 +82,7 @@ class FixtureEscrowSafetyTestCase(TestCase):
     """Escrow and wallet values remain unchanged after fixture operations."""
 
     def _run_seed(self, reset=False):
+        os.environ["E2E_FIXTURE_PASSWORD"] = FIXTURE_PASSWORD
         kwargs = {"force": True}
         if reset:
             kwargs["reset"] = True
@@ -108,12 +111,12 @@ class FixtureEscrowSafetyTestCase(TestCase):
 
     def test_no_payout_or_withdrawal_records(self):
         """No payout or withdrawal transactions exist for fixture users."""
-        # Check no payouts
+        # Phase 9 intentionally seeds approved, processing, paid, and failed withdrawal states.
         self.assertEqual(
             WalletTransaction.objects.filter(
                 transaction_type=WalletTransaction.Type.WITHDRAWAL
             ).count(),
-            0,
+            3,
         )
         self.assertEqual(
             PaymentIntent.objects.filter(
@@ -127,6 +130,7 @@ class FixtureDeterministicUUIDsTestCase(TestCase):
     """All deterministic Phase 8 UUIDs exist after seeding."""
 
     def _run_seed(self, reset=False):
+        os.environ["E2E_FIXTURE_PASSWORD"] = FIXTURE_PASSWORD
         kwargs = {"force": True}
         if reset:
             kwargs["reset"] = True

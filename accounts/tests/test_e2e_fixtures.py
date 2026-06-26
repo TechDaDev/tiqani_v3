@@ -150,7 +150,7 @@ class SeedE2EFixturesCommandTest(TestCase):
         )
         self._run_seed(reset=True)
         self.assertEqual(
-            User.objects.filter(email__endswith="@tiqani.local").count(), 5
+            User.objects.filter(email__endswith="@tiqani.local").count(), 8
         )
 
     def test_password_required(self):

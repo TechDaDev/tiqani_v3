@@ -137,7 +137,10 @@ class Command(BaseCommand):
         from wallet.models import PaymentIntent, WalletTransaction
         from contract.models import Contract
         from accounts.models import ClientProfile, TechnicianProfile
-        emails = list(FIXTURE_EMAILS.values())
+        emails = list(FIXTURE_EMAILS.values()) + [
+            "e2e-client-b@tiqani.local",
+            "e2e-tech-b@tiqani.local",
+        ]
         users = list(User.objects.filter(email__in=emails))
         if not users:
             self.stdout.write(self.style.WARNING("  No existing fixture users to remove."))
@@ -440,6 +443,20 @@ class Command(BaseCommand):
             ),
         )
 
+        # Accepted request reserved for offer creation tests so they do not mutate
+        # submitted offer/detail fixtures tied to the primary accepted request.
+        ServiceRequest.objects.update_or_create(
+            id=self._request_id("offer_create"),
+            defaults=dict(
+                client=client_profile,
+                technician=approved_tech_profile,
+                title="Install Video Doorbell",
+                description="Need help installing and configuring a video doorbell.",
+                status=ServiceRequest.Status.ACCEPTED,
+                governorate="Baghdad",
+            ),
+        )
+
         # Declined request
         ServiceRequest.objects.update_or_create(
             id=self._request_id("declined"),
@@ -535,6 +552,7 @@ class Command(BaseCommand):
         tech_user = tech_profile.user
 
         accepted_request = ServiceRequest.objects.filter(
+            id=self._request_id("accepted"),
             client=client_profile,
             technician=approved_tech_profile,
             status=ServiceRequest.Status.ACCEPTED,
@@ -814,6 +832,21 @@ class Command(BaseCommand):
         from wallet import services as svc
         from contract.models import Contract, ContractAuditEvent
 
+        def _confirm_seed_payout(withdrawal_request, staff_user, *, simulate_failure):
+            if _running_tests():
+                from django.test import override_settings
+                with override_settings(PAYOUT_SANDBOX_ENABLED=True, PAYOUT_PROVIDER="sandbox_payout"):
+                    return svc.confirm_withdrawal_payout(
+                        withdrawal_request,
+                        staff_user,
+                        simulate_failure=simulate_failure,
+                    )
+            return svc.confirm_withdrawal_payout(
+                withdrawal_request,
+                staff_user,
+                simulate_failure=simulate_failure,
+            )
+
         try:
             client_profile = ClientProfile.objects.get(user__email=FIXTURE_EMAILS["client"])
             tech_profile = TechnicianProfile.objects.get(user__email=FIXTURE_EMAILS["approved_technician"])
@@ -825,9 +858,23 @@ class Command(BaseCommand):
         client_user = client_profile.user
         tech_user = tech_profile.user
 
+        if Contract.objects.filter(id=self._p9_id("eligible")).exists():
+            self.stdout.write("  Phase 9 fixtures already exist.")
+            return
+
         # Ensure wallets
         Wallet.objects.get_or_create(user=client_user, defaults={"balance": Decimal("0")})
         Wallet.objects.get_or_create(user=tech_user, defaults={"balance": Decimal("0")})
+        PlatformWallet.objects.get_or_create(
+            key=PlatformWallet.GLOBAL_KEY,
+            defaults={
+                "balance": Decimal("0"),
+                "currency": "IQD",
+                "total_fees_collected": Decimal("0"),
+                "total_client_fees": Decimal("0"),
+                "total_technician_fees": Decimal("0"),
+            },
+        )
 
         def _pay_id(label):
             return uuid.uuid5(uuid.NAMESPACE_DNS, f"e2e-pay-{label}.tiqani.local")
@@ -985,7 +1032,7 @@ class Command(BaseCommand):
                 method="sandbox", notes="E2E withdrawal paid",
             )
             svc.approve_withdrawal_request(wr_paid, staff, "Paid via seed")
-            svc.confirm_withdrawal_payout(wr_paid, staff, simulate_failure=False)
+            _confirm_seed_payout(wr_paid, staff, simulate_failure=False)
 
         # ── 13. Withdrawal failed ──
         if staff:
@@ -994,7 +1041,7 @@ class Command(BaseCommand):
                 method="sandbox", notes="E2E withdrawal failed",
             )
             svc.approve_withdrawal_request(wr_failed, staff, "Failed via seed")
-            svc.confirm_withdrawal_payout(wr_failed, staff, simulate_failure=True)
+            _confirm_seed_payout(wr_failed, staff, simulate_failure=True)
 
         # ── 14. Insufficient balance test ──
 
@@ -1107,6 +1154,10 @@ class Command(BaseCommand):
 
         client_user = client_profile.user
         tech_user = tech_profile.user
+
+        if ContractDispute.objects.filter(id=self._dispute_id("open")).exists():
+            self.stdout.write("  Phase 10 fixtures already exist.")
+            return
 
         # Ensure wallets
         Wallet.objects.get_or_create(user=client_user, defaults={"balance": Decimal("0")})
@@ -1627,18 +1678,6 @@ class Command(BaseCommand):
         # ═══════════════════════════════════════════
         # Liability records
         # ═══════════════════════════════════════════
-        UserFinancialLiability.objects.update_or_create(
-            id=self._liability_id("open-liability"),
-            defaults={
-                "user": tech_user,
-                "source_dispute": d_manual_rec,
-                "original_amount": Decimal("50000.00"),
-                "recovered_amount": Decimal("0"),
-                "remaining_amount": Decimal("50000.00"),
-                "status": LiabilityStatus.OPEN,
-            },
-        )
-
         UserFinancialLiability.objects.update_or_create(
             id=self._liability_id("partial-liability"),
             defaults={
