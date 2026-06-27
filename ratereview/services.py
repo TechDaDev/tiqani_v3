@@ -207,6 +207,15 @@ def moderate_review(*, review, actor, action, reason=""):
         action=action,
         reason=reason or "",
     )
+    create_activity(
+        "review_moderated",
+        actor=actor,
+        target_type="review",
+        target_id=review.id,
+        target_repr=str(review),
+        audience="admin",
+        metadata={"action": action, "reason": reason or ""},
+    )
     _notify_review_moderated(review, actor, action)
     if review.reviewee_id:
         recalculate_user_reputation(review.reviewee, role=review.reviewee.role)
