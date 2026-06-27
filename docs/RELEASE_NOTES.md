@@ -10,4 +10,11 @@
 - Added `DJANGO_SECRET_KEY` production support and placeholder-secret rejection.
 - Added backup/restore scripts and production runbooks.
 
-No production tag has been created at checkpoint time.
+Release-candidate closure evidence:
+
+- Backend full regression: 1047 tests passed, 0 failures, 0 errors.
+- Production readiness: passed against PostgreSQL.
+- Gunicorn smoke: health and readiness endpoints passed without debug or secret fields.
+- Deployment artifacts: compose configs, backup/restore syntax, workflow YAML, and secret scan passed.
+
+Tag: `v1.0.0-rc.1-backend`.

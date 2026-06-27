@@ -90,6 +90,64 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaginatedAdminActivityList'
           description: ''
+  /api/admin/audit-events/:
+    get:
+      operationId: admin_audit_events_list
+      description: GET /api/admin/activity/ — activity feed.
+      parameters:
+      - in: query
+        name: actor
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: audience
+        schema:
+          type: string
+          enum:
+          - admin
+          - system
+          - user
+        description: |-
+          * `user` - User
+          * `admin` - Admin
+          * `system` - System
+      - in: query
+        name: created_at__gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_at__lte
+        schema:
+          type: string
+          format: date-time
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: target_type
+        schema:
+          type: string
+      - in: query
+        name: verb
+        schema:
+          type: string
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAdminActivityList'
+          description: ''
   /api/admin/chargebacks/:
     get:
       operationId: admin_chargebacks_retrieve
@@ -351,6 +409,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/AdminContractForceCancel'
           description: ''
+  /api/admin/dashboard/:
+    get:
+      operationId: admin_dashboard_retrieve
+      description: GET /api/admin/dashboard/summary/ — aggregated platform stats.
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/admin/dashboard/summary/:
     get:
       operationId: admin_dashboard_summary_retrieve
@@ -1376,6 +1446,178 @@ paths:
               schema:
                 $ref: '#/components/schemas/AdminWithdrawalAction'
           description: ''
+  /api/admin/payments/:
+    get:
+      operationId: admin_payments_list
+      description: GET /api/admin/finance/payment-intents/.
+      parameters:
+      - in: query
+        name: contract
+        schema:
+          type: string
+          format: uuid
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: purpose
+        schema:
+          type: string
+          enum:
+          - contract_funding
+          - wallet_deposit
+          - withdrawal
+        description: |-
+          * `contract_funding` - Contract Funding
+          * `wallet_deposit` - Wallet Deposit
+          * `withdrawal` - Withdrawal
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - canceled
+          - failed
+          - paid
+          - pending
+          - requires_action
+        description: |-
+          * `pending` - Pending
+          * `requires_action` - Requires Action
+          * `paid` - Paid
+          * `failed` - Failed
+          * `canceled` - Canceled
+      - in: query
+        name: user
+        schema:
+          type: string
+          format: uuid
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAdminPaymentIntentList'
+          description: ''
+  /api/admin/platform-health/:
+    get:
+      operationId: admin_platform_health_retrieve
+      description: GET /api/admin/platform-health/ — staff-only summarized operations
+        status.
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/platform-statistics/:
+    get:
+      operationId: admin_platform_statistics_retrieve
+      description: GET /api/admin/platform-statistics/ — release-readiness alias.
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/refunds/:
+    get:
+      operationId: admin_refunds_list
+      description: GET /api/admin/refunds/ — staff refund oversight.
+      parameters:
+      - in: query
+        name: created_at__gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_at__lte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: dispute
+        schema:
+          type: string
+          format: uuid
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: source_type
+        schema:
+          type: string
+          enum:
+          - escrow
+          - manual_recovery
+          - platform_fee_reversal
+          - sandbox_provider
+          - split_sources
+          - technician_wallet_reversal
+        description: |-
+          * `escrow` - Escrow
+          * `technician_wallet_reversal` - Technician Wallet Reversal
+          * `platform_fee_reversal` - Platform Fee Reversal
+          * `split_sources` - Split Sources
+          * `manual_recovery` - Manual Recovery
+          * `sandbox_provider` - Sandbox Provider
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - canceled
+          - completed
+          - failed
+          - partially_completed
+          - pending
+          - processing
+        description: |-
+          * `pending` - Pending
+          * `processing` - Processing
+          * `completed` - Completed
+          * `failed` - Failed
+          * `canceled` - Canceled
+          * `partially_completed` - Partially Completed
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedRefundRecordList'
+          description: ''
   /api/admin/refunds/{refund_id}/retry/:
     post:
       operationId: admin_refunds_retry_create
@@ -1728,6 +1970,40 @@ paths:
               schema:
                 $ref: '#/components/schemas/TechnicianReject'
           description: ''
+  /api/admin/technicians/{id}/suspend/:
+    post:
+      operationId: admin_technicians_suspend_create
+      description: POST /api/admin/technicians/<id>/reject/.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TechnicianRejectRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TechnicianRejectRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TechnicianRejectRequest'
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TechnicianReject'
+          description: ''
   /api/admin/technicians/pending/:
     get:
       operationId: admin_technicians_pending_list
@@ -1954,6 +2230,44 @@ paths:
   /api/admin/users/{id}/deactivate/:
     post:
       operationId: admin_users_deactivate_create
+      description: POST /api/admin/users/<id>/deactivate/.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/users/{id}/restore/:
+    post:
+      operationId: admin_users_restore_create
+      description: POST /api/admin/users/<id>/activate/.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/users/{id}/suspend/:
+    post:
+      operationId: admin_users_suspend_create
       description: POST /api/admin/users/<id>/deactivate/.
       parameters:
       - in: path
@@ -9315,6 +9629,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RechargeResponse'
+    PaginatedRefundRecordList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/RefundRecord'
     PaginatedReviewPublicList:
       type: object
       required:
@@ -9789,6 +10126,119 @@ components:
       - status
       - wallet_credit_amount
       - wallet_transaction
+    RefundRecord:
+      type: object
+      description: Refund record view serializer.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        dispute:
+          type: string
+          format: uuid
+          readOnly: true
+        contract:
+          type: string
+          format: uuid
+          readOnly: true
+        client:
+          type: string
+          format: uuid
+          readOnly: true
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,13}(?:\.\d{0,2})?$
+          readOnly: true
+        currency:
+          type: string
+          readOnly: true
+        source_type:
+          allOf:
+          - $ref: '#/components/schemas/SourceTypeEnum'
+          readOnly: true
+        source_type_display:
+          type: string
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/RefundRecordStatusEnum'
+          readOnly: true
+        status_display:
+          type: string
+          readOnly: true
+        refund_method:
+          type: string
+          readOnly: true
+        provider_reference:
+          type: string
+          readOnly: true
+        wallet_transaction:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+        created_by:
+          type: string
+          format: uuid
+          readOnly: true
+        initiated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        completed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        failed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        failure_code:
+          type: string
+          readOnly: true
+        failure_message:
+          type: string
+          readOnly: true
+      required:
+      - amount
+      - client
+      - completed_at
+      - contract
+      - created_by
+      - currency
+      - dispute
+      - failed_at
+      - failure_code
+      - failure_message
+      - id
+      - initiated_at
+      - provider_reference
+      - refund_method
+      - source_type
+      - source_type_display
+      - status
+      - status_display
+      - wallet_transaction
+    RefundRecordStatusEnum:
+      enum:
+      - pending
+      - processing
+      - completed
+      - failed
+      - canceled
+      - partially_completed
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `processing` - Processing
+        * `completed` - Completed
+        * `failed` - Failed
+        * `canceled` - Canceled
+        * `partially_completed` - Partially Completed
     ReviewCreate:
       type: object
       description: Used for POST /api/reviews/ — clients create review after completed
@@ -10392,6 +10842,22 @@ components:
       required:
       - category
       - name
+    SourceTypeEnum:
+      enum:
+      - escrow
+      - technician_wallet_reversal
+      - platform_fee_reversal
+      - split_sources
+      - manual_recovery
+      - sandbox_provider
+      type: string
+      description: |-
+        * `escrow` - Escrow
+        * `technician_wallet_reversal` - Technician Wallet Reversal
+        * `platform_fee_reversal` - Platform Fee Reversal
+        * `split_sources` - Split Sources
+        * `manual_recovery` - Manual Recovery
+        * `sandbox_provider` - Sandbox Provider
     StageNumberEnum:
       enum:
       - 2

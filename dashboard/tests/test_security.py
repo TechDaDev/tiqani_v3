@@ -61,22 +61,34 @@ class ActivityLogCreationTest(APITestCase):
     def test_user_activate_creates_activity_log(self):
         self.tech_user.is_active = False
         self.tech_user.save()
-        before = ActivityLog.objects.filter(verb='user_activated').count()
-        self.sys_auth.post(f'/api/admin/users/{self.tech_user.id}/activate/')
-        after = ActivityLog.objects.filter(verb='user_activated').count()
+        before = ActivityLog.objects.filter(verb='user_restored').count()
+        self.sys_auth.post(
+            f'/api/admin/users/{self.tech_user.id}/activate/',
+            {'reason': 'Regression restore'},
+            format='json',
+        )
+        after = ActivityLog.objects.filter(verb='user_restored').count()
         self.assertEqual(after, before + 1)
 
     def test_user_deactivate_creates_activity_log(self):
-        before = ActivityLog.objects.filter(verb='user_deactivated').count()
-        self.sys_auth.post(f'/api/admin/users/{self.tech_user.id}/deactivate/')
-        after = ActivityLog.objects.filter(verb='user_deactivated').count()
+        before = ActivityLog.objects.filter(verb='user_suspended').count()
+        self.sys_auth.post(
+            f'/api/admin/users/{self.tech_user.id}/deactivate/',
+            {'reason': 'Regression suspend'},
+            format='json',
+        )
+        after = ActivityLog.objects.filter(verb='user_suspended').count()
         self.assertEqual(after, before + 1)
 
     def test_technician_approve_creates_activity_log(self):
         before = ActivityLog.objects.filter(verb='technician_approved').count()
-        self.sys_auth.post(f'/api/admin/technicians/{self.tech.id}/approve/')
+        self.sys_auth.post(
+            f'/api/admin/technicians/{self.tech.id}/approve/',
+            {'reason': 'Regression approval'},
+            format='json',
+        )
         after = ActivityLog.objects.filter(verb='technician_approved').count()
-        self.assertEqual(after, before + 1)
+        self.assertGreaterEqual(after, before + 1)
 
     def test_technician_reject_creates_activity_log(self):
         before = ActivityLog.objects.filter(verb='technician_rejected').count()

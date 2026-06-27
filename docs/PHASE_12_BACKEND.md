@@ -33,10 +33,26 @@ Phase 12 backend prepares Tiqani for controlled production deployment through ad
 - `python manage.py makemigrations --check --dry-run`: passed.
 - `python manage.py test dashboard.tests.test_phase12_admin_ops --keepdb --noinput`: 19 passed.
 
+## Release Candidate Closure
+
+Final closure completed on 2026-06-27 for `v1.0.0-rc.1`.
+
+- Baseline branch: `backend/phase-12-production-release`.
+- PostgreSQL environment: `postgresql`, `127.0.0.1:5433`, database `tiqani_db`.
+- Production readiness command: passed with prod settings, local-only hosts/origins, and local HTTP redirect disabled for smoke validation.
+- Django deploy check: exit 0. Local-only smoke kept `SECURE_SSL_REDIRECT=False`, so `security.W008` is expected for that local command only.
+- Backend full regression: 1047 tests passed, 0 failures, 0 errors, 22m17.474s, exit 0.
+- OpenAPI generation: exit 0; `docs/openapi-schema.yml` regenerated.
+- Gunicorn production smoke: `/api/health/` and `/api/ready/` returned `status=ok`, `database=ok`, `redis=not_required`, and no debug, traceback, token, password, or secret fields.
+- Deployment artifacts: `docker-compose.yml` config passed, `docker-compose.prod.yml` config passed, backup/restore shell syntax passed, backend workflow YAML parsed successfully.
+- Secret scan: no private keys, provider API tokens, Slack tokens, or production database URLs found. Matches were limited to test/dev placeholder database URLs in CI, tests, and development compose.
+- Nginx runtime validation: not run because `nginx` binary is not installed in local environment. Static deployment docs remain in `docs/NGINX_REVERSE_PROXY.md`.
+
 ## Known Warnings
 
 - Existing DRF `min_value should be an integer or Decimal instance` warning remains.
 - Redis realtime warnings remain expected locally when Redis is absent.
+- drf-spectacular schema generation still reports serializer introspection warnings/errors, but generation exits 0 and writes the schema.
 
 ## Deferred
 
