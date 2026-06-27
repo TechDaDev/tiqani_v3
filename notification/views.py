@@ -7,8 +7,12 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 
-from .models import Notification, ActivityLog
-from .serializers import NotificationSerializer, ActivityLogSerializer
+from .models import Notification, ActivityLog, NotificationPreference
+from .serializers import (
+    NotificationSerializer,
+    ActivityLogSerializer,
+    NotificationPreferenceSerializer,
+)
 from .permissions import IsNotificationOwner, IsAdminOrStaffForActivity
 from .services import mark_notification_read, mark_all_notifications_read
 
@@ -56,7 +60,7 @@ class NotificationMarkReadView(GenericAPIView):
 
     def post(self, request, *args, **kwargs):
         notification = self.get_object()
-        notification.mark_read()
+        mark_notification_read(notification, request.user)
         return Response({'status': 'ok', 'is_read': True})
 
 
@@ -98,3 +102,23 @@ class ActivityLogListView(ListAPIView):
 
     def get_queryset(self):
         return ActivityLog.objects.all()
+
+
+class NotificationPreferenceView(GenericAPIView):
+    """GET/PATCH /api/notifications/preferences/."""
+    permission_classes = [IsAuthenticated]
+    serializer_class = NotificationPreferenceSerializer
+
+    def get_object(self):
+        preferences, _ = NotificationPreference.objects.get_or_create(user=self.request.user)
+        return preferences
+
+    def get(self, request, *args, **kwargs):
+        return Response(self.get_serializer(self.get_object()).data)
+
+    def patch(self, request, *args, **kwargs):
+        preferences = self.get_object()
+        serializer = self.get_serializer(preferences, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)

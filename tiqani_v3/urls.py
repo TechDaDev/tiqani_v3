@@ -21,6 +21,7 @@ from django.urls import path, include
 from .views import health_live, health_ready, health_deep, health
 from servicerequest import urls as servicerequest_urls
 from contract import offer_urls as contract_offer_urls
+from ratereview.views import UserReputationView, UserReviewsList
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -43,6 +44,9 @@ urlpatterns = [
     path('api/wallet/', include('wallet.urls')),
     # Notifications / Activity
     path('api/notifications/', include('notification.urls')),
+    # Public user reputation/reviews
+    path('api/users/<uuid:user_id>/reputation/', UserReputationView.as_view(), name='user-reputation'),
+    path('api/users/<uuid:user_id>/reviews/', UserReviewsList.as_view(), name='user-reviews'),
     # Dealership
     path('api/dealership/', include('dealership.urls')),
     # Chat

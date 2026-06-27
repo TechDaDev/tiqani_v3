@@ -171,6 +171,29 @@ class Command(BaseCommand):
             ).values_list("pk", flat=True)
         )
 
+        # Phase 11 — reviews, reputation, reports, moderation, notifications.
+        from ratereview.models import (
+            Review, ReviewReport, ReviewModerationAction, UserReputationSnapshot,
+        )
+        from notification.models import Notification, NotificationPreference
+        review_ids = list(
+            Review.objects.filter(
+                Q(contract_id__in=contract_ids)
+                | Q(reviewer_id__in=user_ids)
+                | Q(reviewee_id__in=user_ids)
+            ).values_list("pk", flat=True)
+        )
+        ReviewModerationAction.objects.filter(review_id__in=review_ids).delete()
+        ReviewReport.objects.filter(Q(review_id__in=review_ids) | Q(reporter_id__in=user_ids)).delete()
+        Review.objects.filter(pk__in=review_ids).delete()
+        UserReputationSnapshot.objects.filter(user_id__in=user_ids).delete()
+        Notification.objects.filter(
+            Q(recipient_id__in=user_ids)
+            | Q(actor_id__in=user_ids)
+            | (Q(target_type="review") & Q(target_id__in=review_ids))
+        ).delete()
+        NotificationPreference.objects.filter(user_id__in=user_ids).delete()
+
         # Phase 10 — dispute cleanup
         from dispute.models import (
             ContractDispute, DisputeStatement, DisputeEvidence,
@@ -223,6 +246,7 @@ class Command(BaseCommand):
         self._seed_execution_fixtures()
         self._seed_phase9_fixtures()
         self._seed_phase10_fixtures()
+        self._seed_phase11_fixtures()
 
     def _get_or_create_user(self, key, password):
         """Helper to get_or_create a fixture user."""
@@ -1115,6 +1139,10 @@ class Command(BaseCommand):
         import uuid
         return uuid.uuid5(uuid.NAMESPACE_DNS, f"e2e-liability-{label}.tiqani.local")
 
+    def _p11_id(self, label):
+        import uuid
+        return uuid.uuid5(uuid.NAMESPACE_DNS, f"e2e-p11-{label}.tiqani.local")
+
     @transaction.atomic
     def _seed_phase10_fixtures(self):
         """Create deterministic Phase 10 fixtures for dispute, refund, chargeback, and liability tests."""
@@ -1717,6 +1745,227 @@ class Command(BaseCommand):
 
         self.stdout.write("  Created Phase 10 fixtures.")
 
+    @transaction.atomic
+    def _seed_phase11_fixtures(self):
+        """Create deterministic Phase 11 fixtures for reviews, reputation, and notifications."""
+        from decimal import Decimal
+        from contract.models import Contract
+        from dispute.models import ContractDispute, DisputeCategory, DisputeReason, DisputeStatus
+        from notification.models import Notification, NotificationPreference
+        from ratereview.models import (
+            Review, ReviewModerationAction, ReviewReport,
+        )
+        from ratereview.services import recalculate_user_reputation
+
+        try:
+            client_profile = ClientProfile.objects.get(user__email=FIXTURE_EMAILS["client"])
+            tech_profile = TechnicianProfile.objects.get(user__email=FIXTURE_EMAILS["approved_technician"])
+            second_profile = TechnicianProfile.objects.get(user__email=FIXTURE_EMAILS["second_approved"])
+        except (ClientProfile.DoesNotExist, TechnicianProfile.DoesNotExist):
+            self.stdout.write(self.style.WARNING("  Skipping Phase 11 fixtures: users not seeded."))
+            return
+
+        client_user = client_profile.user
+        tech_user = tech_profile.user
+        second_user = second_profile.user
+        staff_user = User.objects.filter(email=FIXTURE_EMAILS["staff"]).first()
+
+        def _contract(label, *, status="completed", client=client_profile, tech=tech_profile):
+            completed_at = timezone.now() if status == "completed" else None
+            contract, _ = Contract.objects.update_or_create(
+                id=self._p11_id(label),
+                defaults={
+                    "client": client,
+                    "technician": tech,
+                    "work_description": f"E2E Phase 11 -- {label}.",
+                    "agreed_amount": Decimal("250000.00"),
+                    "currency": "IQD",
+                    "status": status,
+                    "escrow_amount": Decimal("250000.00"),
+                    "start_date": timezone.now().date(),
+                    "duration_days": 7,
+                    "stage_number": 2,
+                    "client_accepted": True,
+                    "technician_accepted": True,
+                    "completed_at": completed_at,
+                },
+            )
+            return contract
+
+        client_eligible = _contract("client-review-eligible-contract")
+        create_review = _contract("create-review-contract")
+        technician_eligible = _contract("technician-review-eligible-contract")
+        incomplete = _contract("incomplete-contract", status="in_progress")
+        disputed = _contract("disputed-contract")
+        reviewed = _contract("reviewed-contract")
+        hidden_contract = _contract("hidden-review-contract")
+        reported_contract = _contract("reported-review-contract")
+
+        ContractDispute.objects.update_or_create(
+            id=self._p11_id("disputed-contract-dispute"),
+            defaults={
+                "contract": disputed,
+                "opened_by": client_user,
+                "respondent": tech_user,
+                "reason": DisputeReason.WORK_NOT_DELIVERED,
+                "category": DisputeCategory.PRE_SETTLEMENT,
+                "claimed_amount": Decimal("250000.00"),
+                "currency": "IQD",
+                "status": DisputeStatus.OPEN,
+                "idempotency_key": "p11-disputed-contract",
+            },
+        )
+
+        published_review, _ = Review.objects.update_or_create(
+            id=self._p11_id("published-review"),
+            defaults={
+                "contract": reviewed,
+                "reviewer": client_user,
+                "reviewee": tech_user,
+                "reviewer_role": client_user.role,
+                "technician": tech_profile,
+                "rating": 5,
+                "work_quality_rating": 5,
+                "communication_rating": 5,
+                "timeliness_rating": 5,
+                "professionalism_rating": 5,
+                "title": "Clear work, clean delivery",
+                "comment": "Phase 11 published review fixture.",
+                "status": Review.Status.PUBLISHED,
+                "is_public": True,
+                "is_verified": True,
+            },
+        )
+
+        hidden_review, _ = Review.objects.update_or_create(
+            id=self._p11_id("hidden-review"),
+            defaults={
+                "contract": hidden_contract,
+                "reviewer": client_user,
+                "reviewee": tech_user,
+                "reviewer_role": client_user.role,
+                "technician": tech_profile,
+                "rating": 2,
+                "title": "Hidden review fixture",
+                "comment": "Phase 11 hidden review fixture.",
+                "status": Review.Status.HIDDEN,
+                "is_public": False,
+                "is_verified": True,
+                "flagged_at": timezone.now(),
+            },
+        )
+        ReviewModerationAction.objects.update_or_create(
+            id=self._p11_id("hidden-review-moderation"),
+            defaults={
+                "review": hidden_review,
+                "actor": staff_user,
+                "action": ReviewModerationAction.Action.HIDE,
+                "reason": "Seeded hidden review.",
+            },
+        )
+
+        reported_review, _ = Review.objects.update_or_create(
+            id=self._p11_id("reported-review"),
+            defaults={
+                "contract": reported_contract,
+                "reviewer": client_user,
+                "reviewee": tech_user,
+                "reviewer_role": client_user.role,
+                "technician": tech_profile,
+                "rating": 4,
+                "title": "Reported review fixture",
+                "comment": "Phase 11 reported review fixture.",
+                "status": Review.Status.PUBLISHED,
+                "is_public": True,
+                "is_verified": True,
+                "reported_count": 1,
+                "flagged_at": timezone.now(),
+            },
+        )
+        ReviewReport.objects.update_or_create(
+            id=self._p11_id("review-report"),
+            defaults={
+                "review": reported_review,
+                "reporter": second_user,
+                "reason": "other",
+                "comment": "Seeded report for moderation queue.",
+            },
+        )
+
+        Notification.objects.update_or_create(
+            id=self._p11_id("unread-notification"),
+            defaults={
+                "recipient": client_user,
+                "actor": tech_user,
+                "notification_type": "review_created",
+                "title": "Unread Phase 11 notification",
+                "message": "Unread review notification fixture.",
+                "target_type": "review",
+                "target_id": published_review.id,
+                "target_url": f"/users/{tech_user.id}/reviews",
+                "deduplication_key": "p11-unread-notification",
+                "metadata": {"review_id": str(published_review.id), "fixture": "p11-unread-notification"},
+                "is_read": False,
+                "read_at": None,
+            },
+        )
+        Notification.objects.update_or_create(
+            id=self._p11_id("read-notification"),
+            defaults={
+                "recipient": client_user,
+                "actor": tech_user,
+                "notification_type": "system",
+                "title": "Read Phase 11 notification",
+                "message": "Read notification fixture.",
+                "target_type": "review",
+                "target_id": published_review.id,
+                "target_url": "/notifications",
+                "deduplication_key": "p11-read-notification",
+                "metadata": {"fixture": "p11-read-notification"},
+                "is_read": True,
+                "read_at": timezone.now(),
+            },
+        )
+        Notification.objects.update_or_create(
+            id=self._p11_id("notification-owner-b"),
+            defaults={
+                "recipient": second_user,
+                "actor": client_user,
+                "notification_type": "system",
+                "title": "Owner B Phase 11 notification",
+                "message": "IDOR fixture owned by second technician.",
+                "target_type": "review",
+                "target_id": reported_review.id,
+                "target_url": "/notifications",
+                "deduplication_key": "p11-notification-owner-b",
+                "metadata": {"fixture": "p11-notification-owner-b"},
+                "is_read": False,
+                "read_at": None,
+            },
+        )
+        NotificationPreference.objects.update_or_create(
+            user=client_user,
+            defaults={
+                "offers": True,
+                "contracts": True,
+                "payments": True,
+                "execution": True,
+                "messages": True,
+                "disputes": True,
+                "refunds": True,
+                "reviews": True,
+                "security": True,
+                "system": True,
+                "email_enabled": False,
+                "push_enabled": False,
+            },
+        )
+
+        recalculate_user_reputation(tech_user, role="technician")
+        recalculate_user_reputation(second_user, role="technician")
+        recalculate_user_reputation(client_user, role="client")
+        self.stdout.write("  Created Phase 11 fixtures.")
+
     def _report(self):
         """Print a summary of created fixtures."""
         self.stdout.write()
@@ -1802,6 +2051,35 @@ class Command(BaseCommand):
         self.stdout.write(f"  Refunds:             {refund_count} fixtures")
         self.stdout.write(f"  Chargebacks:         {chargeback_count} fixtures")
         self.stdout.write(f"  Liabilities:         {liability_count} fixtures")
+
+        from ratereview.models import Review, ReviewReport, ReviewModerationAction, UserReputationSnapshot
+        from notification.models import Notification, NotificationPreference
+        from django.db.models import Q
+        review_count = Review.objects.filter(
+            Q(reviewer__email__in=FIXTURE_EMAILS.values())
+            | Q(reviewee__email__in=FIXTURE_EMAILS.values())
+        ).count()
+        review_report_count = ReviewReport.objects.filter(
+            reporter__email__in=FIXTURE_EMAILS.values()
+        ).count()
+        moderation_count = ReviewModerationAction.objects.filter(
+            review__reviewer__email__in=FIXTURE_EMAILS.values()
+        ).count()
+        reputation_count = UserReputationSnapshot.objects.filter(
+            user__email__in=FIXTURE_EMAILS.values()
+        ).count()
+        notification_count = Notification.objects.filter(
+            recipient__email__in=FIXTURE_EMAILS.values()
+        ).count()
+        preference_count = NotificationPreference.objects.filter(
+            user__email__in=FIXTURE_EMAILS.values()
+        ).count()
+        self.stdout.write(f"  Reviews:             {review_count} fixtures")
+        self.stdout.write(f"  Review reports:      {review_report_count} fixtures")
+        self.stdout.write(f"  Moderation actions:  {moderation_count} fixtures")
+        self.stdout.write(f"  Reputation snapshots:{reputation_count} fixtures")
+        self.stdout.write(f"  Notifications:       {notification_count} fixtures")
+        self.stdout.write(f"  Notification prefs:  {preference_count} fixtures")
         self.stdout.write()
         self.stdout.write("  Credentials: Set via E2E_FIXTURE_PASSWORD environment variable.")
         self.stdout.write("  Production guard: Active (use --force to override).")

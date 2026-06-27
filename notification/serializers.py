@@ -1,7 +1,7 @@
 """Serializers for notification and activity feed."""
 
 from rest_framework import serializers
-from .models import Notification, ActivityLog
+from .models import Notification, ActivityLog, NotificationPreference
 
 
 class NotificationSerializer(serializers.ModelSerializer):
@@ -15,7 +15,7 @@ class NotificationSerializer(serializers.ModelSerializer):
             'id', 'notification_type', 'title', 'message',
             'actor', 'actor_name',
             'target_type', 'target_id', 'target_url',
-            'metadata', 'is_read', 'read_at', 'created_at',
+            'title_key', 'body_key', 'metadata', 'is_read', 'read_at', 'created_at',
         ]
         read_only_fields = fields
 
@@ -48,3 +48,16 @@ class ActivityLogSerializer(serializers.ModelSerializer):
         if obj.actor:
             return obj.actor.get_full_name() or obj.actor.username
         return None
+
+
+class NotificationPreferenceSerializer(serializers.ModelSerializer):
+    """In-app notification preference serializer."""
+
+    class Meta:
+        model = NotificationPreference
+        fields = [
+            'offers', 'contracts', 'payments', 'execution', 'messages',
+            'disputes', 'refunds', 'reviews', 'security', 'system',
+            'email_enabled', 'push_enabled', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['email_enabled', 'push_enabled', 'created_at', 'updated_at']

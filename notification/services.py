@@ -50,6 +50,60 @@ def create_notification(
         return None
 
 
+def create_notification_once(
+    recipient,
+    notification_type,
+    title,
+    message='',
+    actor=None,
+    target_type='',
+    target_id=None,
+    target_url='',
+    metadata=None,
+    deduplication_key=None,
+    title_key='',
+    body_key='',
+):
+    """Create one notification for a dedupe key; return existing on repeat."""
+    if not deduplication_key:
+        return create_notification(
+            recipient=recipient,
+            notification_type=notification_type,
+            title=title,
+            message=message,
+            actor=actor,
+            target_type=target_type,
+            target_id=target_id,
+            target_url=target_url,
+            metadata=metadata,
+        )
+    if not recipient:
+        return None
+    try:
+        notif, created = Notification.objects.get_or_create(
+            deduplication_key=deduplication_key,
+            defaults={
+                "recipient": recipient,
+                "actor": actor,
+                "notification_type": notification_type,
+                "title": title,
+                "message": message,
+                "target_type": target_type,
+                "target_id": target_id,
+                "target_url": target_url,
+                "metadata": metadata or {},
+                "title_key": title_key,
+                "body_key": body_key,
+            },
+        )
+        if created:
+            transaction.on_commit(lambda: _realtime_notification_created(notif))
+        return notif
+    except Exception as exc:
+        logger.warning("Failed to create deduplicated notification: %s", exc)
+        return None
+
+
 def _realtime_notification_created(notification):
     """
     Send a realtime notification created event via Channels.

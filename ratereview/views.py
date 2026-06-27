@@ -9,14 +9,23 @@ from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.utils import timezone
 
-from .models import Review, ReviewReport
+from .models import Review, ReviewModerationAction, ReviewReport
 from .serializers import (
     ReviewPublicSerializer, ReviewCreateSerializer, ReviewUpdateSerializer,
     ReviewTechnicianResponseSerializer, ReviewHelpfulSerializer,
-    ReviewReportSerializer,
+    ReviewReportSerializer, ContractReviewCreateSerializer,
+    ReviewEligibilitySerializer, UserReputationSnapshotSerializer,
 )
 from .permissions import IsReviewOwner, IsReviewedTechnician, IsPlatformAdminOrStaff
 from accounts.models import TechnicianProfile
+from contract.models import Contract
+from .services import (
+    create_contract_review,
+    get_review_eligibility,
+    moderate_review,
+    recalculate_user_reputation,
+    update_contract_review,
+)
 
 REPORT_THRESHOLD = 3
 
@@ -65,6 +74,59 @@ class ReviewCreateView(CreateAPIView):
         return Response(public_serializer.data, status=status.HTTP_201_CREATED)
 
 
+class ContractReviewEligibilityView(GenericAPIView):
+    """GET /api/contracts/<contract_id>/review-eligibility/."""
+    permission_classes = [IsAuthenticated]
+    serializer_class = ReviewEligibilitySerializer
+
+    def get(self, request, *args, **kwargs):
+        contract = get_object_or_404(
+            Contract.objects.select_related("client__user", "technician__user"),
+            id=kwargs["contract_id"],
+        )
+        eligibility = get_review_eligibility(contract, request.user)
+        return Response(self.get_serializer(eligibility.as_dict()).data)
+
+
+class ContractReviewCreateView(GenericAPIView):
+    """POST /api/contracts/<contract_id>/reviews/."""
+    permission_classes = [IsAuthenticated]
+    serializer_class = ContractReviewCreateSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        dimensions = {
+            key: data.get(key)
+            for key in [
+                "work_quality_rating",
+                "communication_rating",
+                "timeliness_rating",
+                "professionalism_rating",
+            ]
+            if key in data
+        }
+        try:
+            review, created = create_contract_review(
+                contract_id=kwargs["contract_id"],
+                actor=request.user,
+                rating=data["rating"],
+                title=data.get("title", ""),
+                comment=data.get("comment", ""),
+                dimensions=dimensions,
+            )
+        except PermissionError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+        except Contract.DoesNotExist:
+            return Response({"detail": "CONTRACT_NOT_FOUND"}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response(
+            ReviewPublicSerializer(review).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+
 class ReviewDetailUpdateView(GenericAPIView):
     """
     GET /api/reviews/<id>/ — public detail
@@ -93,13 +155,12 @@ class ReviewDetailUpdateView(GenericAPIView):
         """Reviewer updates own review."""
         review = self.get_object()
         self.check_object_permissions(request, review)
-        if not review.is_public:
-            return Response({'detail': 'Cannot edit a hidden review.'}, status=status.HTTP_403_FORBIDDEN)
-        if review.flagged_at:
-            return Response({'detail': 'Cannot edit a flagged review.'}, status=status.HTTP_403_FORBIDDEN)
         serializer = ReviewUpdateSerializer(review, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        try:
+            update_contract_review(review=review, actor=request.user, data=serializer.validated_data)
+        except PermissionError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_403_FORBIDDEN)
         return Response(ReviewPublicSerializer(review).data)
 
 
@@ -199,12 +260,12 @@ class ReviewModeratePublishView(GenericAPIView):
 
     def post(self, request, *args, **kwargs):
         review = self.get_object()
-        review.publish()
-        from notification.services import notify_review_moderated
-        try:
-            notify_review_moderated(review, request.user, 'published')
-        except Exception:
-            pass
+        moderate_review(
+            review=review,
+            actor=request.user,
+            action=ReviewModerationAction.Action.RESTORE,
+            reason=request.data.get("reason", ""),
+        )
         return Response(ReviewPublicSerializer(review).data)
 
 
@@ -217,12 +278,12 @@ class ReviewModerateHideView(GenericAPIView):
 
     def post(self, request, *args, **kwargs):
         review = self.get_object()
-        review.hide()
-        from notification.services import notify_review_moderated
-        try:
-            notify_review_moderated(review, request.user, 'hidden')
-        except Exception:
-            pass
+        moderate_review(
+            review=review,
+            actor=request.user,
+            action=ReviewModerationAction.Action.HIDE,
+            reason=request.data.get("reason", ""),
+        )
         return Response(ReviewPublicSerializer(review).data)
 
 
@@ -235,13 +296,12 @@ class ReviewModerateVerifyView(GenericAPIView):
 
     def post(self, request, *args, **kwargs):
         review = self.get_object()
-        review.is_verified = True
-        review.save(update_fields=['is_verified', 'updated_at'])
-        from notification.services import notify_review_moderated
-        try:
-            notify_review_moderated(review, request.user, 'verified')
-        except Exception:
-            pass
+        moderate_review(
+            review=review,
+            actor=request.user,
+            action=ReviewModerationAction.Action.VERIFY,
+            reason=request.data.get("reason", ""),
+        )
         return Response(ReviewPublicSerializer(review).data)
 
 
@@ -254,11 +314,38 @@ class ReviewModerateUnverifyView(GenericAPIView):
 
     def post(self, request, *args, **kwargs):
         review = self.get_object()
-        review.is_verified = False
-        review.save(update_fields=['is_verified', 'updated_at'])
-        from notification.services import notify_review_moderated
-        try:
-            notify_review_moderated(review, request.user, 'unverified')
-        except Exception:
-            pass
+        moderate_review(
+            review=review,
+            actor=request.user,
+            action=ReviewModerationAction.Action.UNVERIFY,
+            reason=request.data.get("reason", ""),
+        )
         return Response(ReviewPublicSerializer(review).data)
+
+
+class UserReputationView(GenericAPIView):
+    """GET /api/users/<user_id>/reputation/."""
+    permission_classes = [AllowAny]
+    serializer_class = UserReputationSnapshotSerializer
+
+    def get(self, request, *args, **kwargs):
+        from django.contrib.auth import get_user_model
+        user = get_object_or_404(get_user_model(), id=kwargs["user_id"])
+        role = request.query_params.get("role") or user.role
+        snapshot = recalculate_user_reputation(user, role=role)
+        return Response(self.get_serializer(snapshot).data)
+
+
+class UserReviewsList(ListAPIView):
+    """GET /api/users/<user_id>/reviews/."""
+    permission_classes = [AllowAny]
+    serializer_class = ReviewPublicSerializer
+
+    def get_queryset(self):
+        from django.contrib.auth import get_user_model
+        user = get_object_or_404(get_user_model(), id=self.kwargs["user_id"])
+        return Review.objects.filter(
+            reviewee=user,
+            status=Review.Status.PUBLISHED,
+            is_public=True,
+        ).order_by("-created_at")

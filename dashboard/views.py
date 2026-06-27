@@ -26,11 +26,12 @@ from wallet.services import (
     approve_withdrawal_request, reject_withdrawal_request,
     mark_payment_intent_paid,
 )
-from ratereview.models import Review
+from ratereview.models import Review, ReviewModerationAction
+from ratereview.services import moderate_review
 from notification.models import ActivityLog, Notification
 from notification.services import (
     notify_technician_approved, notify_technician_rejected,
-    create_activity, notify_review_moderated,
+    create_activity,
 )
 from dealership.services import get_dealership_metrics
 
@@ -400,8 +401,12 @@ class AdminReviewHideView(GenericAPIView):
 
     def post(self, request, *args, **kwargs):
         review = get_object_or_404(Review, id=kwargs['id'])
-        review.hide()
-        notify_review_moderated(review, request.user, 'hidden')
+        moderate_review(
+            review=review,
+            actor=request.user,
+            action=ReviewModerationAction.Action.HIDE,
+            reason=request.data.get("reason", ""),
+        )
         return Response({'status': 'ok', 'is_public': False})
 
 
@@ -411,8 +416,12 @@ class AdminReviewPublishView(GenericAPIView):
 
     def post(self, request, *args, **kwargs):
         review = get_object_or_404(Review, id=kwargs['id'])
-        review.publish()
-        notify_review_moderated(review, request.user, 'published')
+        moderate_review(
+            review=review,
+            actor=request.user,
+            action=ReviewModerationAction.Action.RESTORE,
+            reason=request.data.get("reason", ""),
+        )
         return Response({'status': 'ok', 'is_public': True})
 
 
@@ -422,9 +431,12 @@ class AdminReviewVerifyView(GenericAPIView):
 
     def post(self, request, *args, **kwargs):
         review = get_object_or_404(Review, id=kwargs['id'])
-        review.is_verified = True
-        review.save(update_fields=['is_verified', 'updated_at'])
-        notify_review_moderated(review, request.user, 'verified')
+        moderate_review(
+            review=review,
+            actor=request.user,
+            action=ReviewModerationAction.Action.VERIFY,
+            reason=request.data.get("reason", ""),
+        )
         return Response({'status': 'ok', 'is_verified': True})
 
 
@@ -434,9 +446,12 @@ class AdminReviewUnverifyView(GenericAPIView):
 
     def post(self, request, *args, **kwargs):
         review = get_object_or_404(Review, id=kwargs['id'])
-        review.is_verified = False
-        review.save(update_fields=['is_verified', 'updated_at'])
-        notify_review_moderated(review, request.user, 'unverified')
+        moderate_review(
+            review=review,
+            actor=request.user,
+            action=ReviewModerationAction.Action.UNVERIFY,
+            reason=request.data.get("reason", ""),
+        )
         return Response({'status': 'ok', 'is_verified': False})
 
 

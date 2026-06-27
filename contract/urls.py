@@ -44,6 +44,7 @@ from .execution_views import (
     CompletionConfirmView,
     ExecutionHistoryView,
 )
+from ratereview.views import ContractReviewEligibilityView, ContractReviewCreateView
 
 execution_urlpatterns = [
     # Eligibility & Activation
@@ -90,6 +91,13 @@ execution_urlpatterns = [
     path("<uuid:contract_id>/complete/",
          CompletionConfirmView.as_view(),
          name="completion-confirm"),
+    # Reviews
+    path("<uuid:contract_id>/review-eligibility/",
+         ContractReviewEligibilityView.as_view(),
+         name="contract-review-eligibility"),
+    path("<uuid:contract_id>/reviews/",
+         ContractReviewCreateView.as_view(),
+         name="contract-review-create"),
     # History
     path("<uuid:contract_id>/execution-history/",
          ExecutionHistoryView.as_view(),

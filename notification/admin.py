@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Notification, ActivityLog
+from .models import Notification, ActivityLog, NotificationPreference
 
 
 @admin.register(Notification)
@@ -18,3 +18,10 @@ class ActivityLogAdmin(admin.ModelAdmin):
     search_fields = ('actor__username', 'actor__email', 'verb', 'target_type')
     readonly_fields = ('id', 'created_at')
     ordering = ('-created_at',)
+
+
+@admin.register(NotificationPreference)
+class NotificationPreferenceAdmin(admin.ModelAdmin):
+    list_display = ('user', 'offers', 'contracts', 'payments', 'reviews', 'system', 'updated_at')
+    search_fields = ('user__username', 'user__email')
+    readonly_fields = ('id', 'created_at', 'updated_at')
