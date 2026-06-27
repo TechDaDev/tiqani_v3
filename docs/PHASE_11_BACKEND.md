@@ -69,19 +69,32 @@ Frontend values are display-only and never authoritative.
 
 Focused event dedupe was added through `create_notification_once`.
 
-## Focused Validation
+## Final Regression Closure
 
 Commands run:
 - `python manage.py check`
 - `python manage.py makemigrations --check --dry-run`
-- `python manage.py test ratereview.tests.test_phase11_services --noinput --keepdb`
-- `python manage.py test ratereview notification --noinput --keepdb`
+- `python manage.py spectacular --file docs/openapi-schema.yml`
+- `E2E_FIXTURE_PASSWORD='local-test-only' python manage.py seed_e2e_fixtures --reset --force`
+- `E2E_FIXTURE_PASSWORD='local-test-only' python manage.py test --keepdb --noinput`
 
 Result:
-- Phase 11 service tests: 8 passed.
-- Combined review/notification suite: 111 passed.
+- PostgreSQL vendor/host/port verified as `postgresql`, `127.0.0.1`, `5433`.
+- Fixture reset completed with 3 reviews, 1 report, 1 moderation action, 3 reputation snapshots, 126 notifications, and 1 notification preference.
+- Integrity proof found 0 duplicate review contracts, 0 invalid ratings, 0 self reviews, 0 duplicate notification keys, preserved moderation content, and matched reputation snapshot averages.
+- Django checks passed.
+- Migration dry run passed with no model changes.
+- OpenAPI schema regenerated successfully.
+- Full backend suite passed: 1028 tests in 1308.954s.
+- Initial full-suite pass exposed missing moderation activity logging in the shared `moderate_review` service. The service now emits `review_moderated` activity records; focused regression passed, then the full suite passed.
 
 Known warning:
 - Existing DRF `min_value should be an integer or Decimal instance`.
-- Local PostgreSQL no-keepdb run passed all 111 tests but exited 1 during teardown because one session held `test_tiqani_db`; same suite passed with `--keepdb`.
 - Redis is not running locally, so realtime notification delivery logs non-fatal connection warnings.
+- Existing readiness smoke tests log database-threading errors inside expected failure coverage; suite result remains OK.
+- OpenAPI generation still reports existing schema warnings/errors but exits 0.
+
+Deferred:
+- Production email, SMS, and push delivery providers.
+- ML fraud scoring and advanced trust scoring.
+- Large admin redesign.

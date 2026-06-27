@@ -31,3 +31,10 @@ Reviews are not destructively deleted for Phase 11. Staff hide/restore actions p
 - actor;
 - reason;
 - timestamp.
+
+Moderation also emits an admin activity record:
+- event: `review_moderated`
+- target type: `review`
+- metadata: moderation action and reason
+
+Final regression verified participant eligibility, duplicate idempotency, hidden review exclusion, report creation, moderation content preservation, and activity logging.

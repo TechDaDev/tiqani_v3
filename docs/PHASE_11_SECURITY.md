@@ -16,3 +16,10 @@ Known deferred work:
 - ML fraud scoring.
 - Advanced trust scoring.
 - Large admin redesign.
+
+Final regression proof:
+- Backend full suite: 1028 passed.
+- Frontend full Playwright suite: 371 passed.
+- Integrity proof: 0 duplicate reviews, 0 invalid ratings, 0 self reviews, 0 duplicate notification keys.
+- Activity logging restored for shared review moderation path.
+- Notification recipient isolation and review/report/moderation IDOR paths passed Playwright coverage.

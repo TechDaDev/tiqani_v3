@@ -3798,6 +3798,64 @@ paths:
           description: Failed to send OTP or invalid state.
         '403':
           description: Permission denied.
+  /api/contracts/{contract_id}/review-eligibility/:
+    get:
+      operationId: contracts_review_eligibility_retrieve
+      description: GET /api/contracts/<contract_id>/review-eligibility/.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewEligibility'
+          description: ''
+  /api/contracts/{contract_id}/reviews/:
+    post:
+      operationId: contracts_reviews_create
+      description: POST /api/contracts/<contract_id>/reviews/.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractReviewCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ContractReviewCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ContractReviewCreateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractReviewCreate'
+          description: ''
   /api/contracts/{contract_id}/sign/:
     post:
       operationId: contracts_sign_create
@@ -4724,6 +4782,48 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/notifications/preferences/:
+    get:
+      operationId: notifications_preferences_retrieve
+      description: GET/PATCH /api/notifications/preferences/.
+      tags:
+      - notifications
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreference'
+          description: ''
+    patch:
+      operationId: notifications_preferences_partial_update
+      description: GET/PATCH /api/notifications/preferences/.
+      tags:
+      - notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationPreferenceRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationPreferenceRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationPreferenceRequest'
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreference'
+          description: ''
   /api/notifications/unread-count/:
     get:
       operationId: notifications_unread_count_retrieve
@@ -5225,6 +5325,72 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaginatedReviewPublicList'
           description: ''
+  /api/reviews/users/{user_id}/reputation/:
+    get:
+      operationId: reviews_users_reputation_retrieve
+      description: GET /api/users/<user_id>/reputation/.
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - reviews
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserReputationSnapshot'
+          description: ''
+  /api/reviews/users/{user_id}/reviews/:
+    get:
+      operationId: reviews_users_reviews_list
+      description: GET /api/users/<user_id>/reviews/.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: path
+        name: user_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - reviews
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedReviewPublicList'
+          description: ''
   /api/technician/offers/:
     get:
       operationId: technician_offers_retrieve
@@ -5582,6 +5748,72 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/users/{user_id}/reputation/:
+    get:
+      operationId: users_reputation_retrieve
+      description: GET /api/users/<user_id>/reputation/.
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - users
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserReputationSnapshot'
+          description: ''
+  /api/users/{user_id}/reviews/:
+    get:
+      operationId: users_reviews_list
+      description: GET /api/users/<user_id>/reviews/.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: path
+        name: user_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - users
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedReviewPublicList'
+          description: ''
   /api/wallet/admin/withdrawals/:
     get:
       operationId: wallet_admin_withdrawals_retrieve
@@ -6990,6 +7222,10 @@ components:
         reports:
           type: string
           readOnly: true
+        reviewer_role:
+          oneOf:
+          - $ref: '#/components/schemas/SignerRoleEnum'
+          - $ref: '#/components/schemas/BlankEnum'
         rating:
           type: integer
           maximum: 5
@@ -7029,6 +7265,8 @@ components:
         technician_response:
           type: string
           description: Optional response from the technician
+        status:
+          $ref: '#/components/schemas/Status2e1Enum'
         is_public:
           type: boolean
           description: If false, hides the review from public listings
@@ -7050,6 +7288,14 @@ components:
           format: date-time
           nullable: true
           description: When the review was flagged for moderation
+        edit_count:
+          type: integer
+          maximum: 32767
+          minimum: 0
+        last_edited_at:
+          type: string
+          format: date-time
+          nullable: true
         created_at:
           type: string
           format: date-time
@@ -7070,7 +7316,13 @@ components:
         technician:
           type: string
           format: uuid
-          description: Technician being reviewed
+          nullable: true
+          description: Technician tied to the contract or being reviewed
+        reviewee:
+          type: string
+          format: uuid
+          nullable: true
+          description: User being reviewed
       required:
       - created_at
       - id
@@ -7078,7 +7330,6 @@ components:
       - reports
       - reviewer
       - reviewer_name
-      - technician
       - technician_name
       - updated_at
     AdminReviewList:
@@ -7367,7 +7618,7 @@ components:
           maxLength: 254
         role:
           allOf:
-          - $ref: '#/components/schemas/RoleEnum'
+          - $ref: '#/components/schemas/RoleCacEnum'
           readOnly: true
           title: User Role
         role_display:
@@ -7456,7 +7707,7 @@ components:
           maxLength: 254
         role:
           allOf:
-          - $ref: '#/components/schemas/RoleEnum'
+          - $ref: '#/components/schemas/RoleCacEnum'
           title: User Role
         role_display:
           type: string
@@ -7877,6 +8128,68 @@ components:
       - kind
       - mime_type
       - sha256
+    ContractReviewCreate:
+      type: object
+      description: Contract-scoped review payload.
+      properties:
+        rating:
+          type: integer
+          maximum: 5
+          minimum: 1
+        title:
+          type: string
+          maxLength: 150
+        comment:
+          type: string
+        work_quality_rating:
+          type: integer
+          maximum: 5
+          minimum: 1
+        communication_rating:
+          type: integer
+          maximum: 5
+          minimum: 1
+        timeliness_rating:
+          type: integer
+          maximum: 5
+          minimum: 1
+        professionalism_rating:
+          type: integer
+          maximum: 5
+          minimum: 1
+      required:
+      - rating
+    ContractReviewCreateRequest:
+      type: object
+      description: Contract-scoped review payload.
+      properties:
+        rating:
+          type: integer
+          maximum: 5
+          minimum: 1
+        title:
+          type: string
+          maxLength: 150
+        comment:
+          type: string
+        work_quality_rating:
+          type: integer
+          maximum: 5
+          minimum: 1
+        communication_rating:
+          type: integer
+          maximum: 5
+          minimum: 1
+        timeliness_rating:
+          type: integer
+          maximum: 5
+          minimum: 1
+        professionalism_rating:
+          type: integer
+          maximum: 5
+          minimum: 1
+      required:
+      - rating
     ContractSignRequest:
       type: object
       description: Submit OTP to create signature proof.
@@ -8269,6 +8582,16 @@ components:
       description: |-
         * `draft_pdf` - Draft PDF
         * `signed_pdf` - Signed PDF
+    LabelEnum:
+      enum:
+      - new
+      - established
+      - highly_rated
+      type: string
+      description: |-
+        * `new` - New
+        * `established` - Established
+        * `highly_rated` - Highly Rated
     LinkContractRequest:
       type: object
       description: Link an existing contract to the room.
@@ -8421,6 +8744,12 @@ components:
         target_url:
           type: string
           readOnly: true
+        title_key:
+          type: string
+          readOnly: true
+        body_key:
+          type: string
+          readOnly: true
         metadata:
           readOnly: true
         is_read:
@@ -8438,6 +8767,7 @@ components:
       required:
       - actor
       - actor_name
+      - body_key
       - created_at
       - id
       - is_read
@@ -8449,6 +8779,52 @@ components:
       - target_type
       - target_url
       - title
+      - title_key
+    NotificationPreference:
+      type: object
+      description: In-app notification preference serializer.
+      properties:
+        offers:
+          type: boolean
+        contracts:
+          type: boolean
+        payments:
+          type: boolean
+        execution:
+          type: boolean
+        messages:
+          type: boolean
+        disputes:
+          type: boolean
+        refunds:
+          type: boolean
+        reviews:
+          type: boolean
+        security:
+          type: boolean
+        system:
+          type: boolean
+        email_enabled:
+          type: boolean
+          readOnly: true
+          description: Reserved; production email delivery is deferred.
+        push_enabled:
+          type: boolean
+          readOnly: true
+          description: Reserved; production push delivery is deferred.
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - email_enabled
+      - push_enabled
+      - updated_at
     NotificationTypeEnum:
       enum:
       - contract_created
@@ -9089,6 +9465,30 @@ components:
           format: date
           nullable: true
           description: Target completion date
+    PatchedNotificationPreferenceRequest:
+      type: object
+      description: In-app notification preference serializer.
+      properties:
+        offers:
+          type: boolean
+        contracts:
+          type: boolean
+        payments:
+          type: boolean
+        execution:
+          type: boolean
+        messages:
+          type: boolean
+        disputes:
+          type: boolean
+        refunds:
+          type: boolean
+        reviews:
+          type: boolean
+        security:
+          type: boolean
+        system:
+          type: boolean
     PatchedReviewUpdateRequest:
       type: object
       description: Used for PATCH /api/reviews/<id>/ — reviewer updates own review.
@@ -9480,6 +9880,28 @@ components:
       required:
       - contract_id
       - rating
+    ReviewEligibility:
+      type: object
+      properties:
+        eligible:
+          type: boolean
+        reason_code:
+          type: string
+        reviewee:
+          type: object
+          additionalProperties: {}
+          nullable: true
+        existing_review:
+          type: string
+          nullable: true
+        editable:
+          type: boolean
+      required:
+      - editable
+      - eligible
+      - existing_review
+      - reason_code
+      - reviewee
     ReviewPublic:
       type: object
       description: Public review detail — used for list & detail views.
@@ -9492,12 +9914,26 @@ components:
           type: string
           format: uuid
           readOnly: true
-          description: Technician being reviewed
+          nullable: true
+          description: Technician tied to the contract or being reviewed
+        reviewee:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+          description: User being reviewed
+        reviewee_name:
+          type: string
+          readOnly: true
         reviewer:
           type: string
           format: uuid
           readOnly: true
           description: User who submitted the review
+        reviewer_role:
+          allOf:
+          - $ref: '#/components/schemas/SignerRoleEnum'
+          readOnly: true
         reviewer_name:
           type: string
           readOnly: true
@@ -9540,14 +9976,29 @@ components:
           type: string
           readOnly: true
           description: Optional response from the technician
+        status:
+          allOf:
+          - $ref: '#/components/schemas/Status2e1Enum'
+          readOnly: true
         is_verified:
           type: boolean
           readOnly: true
           description: True when linked to a contract or manually approved
+        is_public:
+          type: boolean
+          readOnly: true
+          description: If false, hides the review from public listings
         helpful_count:
           type: integer
           readOnly: true
           description: Number of times users marked this review helpful
+        reported_count:
+          type: integer
+          readOnly: true
+          description: Number of times the review was reported
+        edit_count:
+          type: integer
+          readOnly: true
         created_at:
           type: string
           format: date-time
@@ -9560,13 +10011,20 @@ components:
       - comment
       - communication_rating
       - created_at
+      - edit_count
       - helpful_count
       - id
+      - is_public
       - is_verified
       - professionalism_rating
       - rating
+      - reported_count
+      - reviewee
+      - reviewee_name
       - reviewer
       - reviewer_name
+      - reviewer_role
+      - status
       - technician
       - technician_name
       - technician_response
@@ -9648,7 +10106,7 @@ components:
         comment:
           type: string
           description: Detailed feedback from the client
-    RoleEnum:
+    RoleCacEnum:
       enum:
       - client
       - technician
@@ -9946,6 +10404,18 @@ components:
         * `3` - 3 Stages
         * `4` - 4 Stages
         * `5` - 5 Stages
+    Status2e1Enum:
+      enum:
+      - published
+      - under_review
+      - hidden
+      - removed
+      type: string
+      description: |-
+        * `published` - Published
+        * `under_review` - Under Review
+        * `hidden` - Hidden
+        * `removed` - Removed
     Status5c1Enum:
       enum:
       - draft
@@ -10204,6 +10674,66 @@ components:
       required:
       - rooms
       - total_unread
+    UserReputationSnapshot:
+      type: object
+      description: Backend-owned transparent reputation aggregate.
+      properties:
+        user:
+          type: string
+          format: uuid
+          readOnly: true
+        role:
+          allOf:
+          - $ref: '#/components/schemas/SignerRoleEnum'
+          readOnly: true
+        average_rating:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,1}(?:\.\d{0,2})?$
+          readOnly: true
+        review_count:
+          type: integer
+          readOnly: true
+        rating_1_count:
+          type: integer
+          readOnly: true
+        rating_2_count:
+          type: integer
+          readOnly: true
+        rating_3_count:
+          type: integer
+          readOnly: true
+        rating_4_count:
+          type: integer
+          readOnly: true
+        rating_5_count:
+          type: integer
+          readOnly: true
+        completed_contract_count:
+          type: integer
+          readOnly: true
+        label:
+          allOf:
+          - $ref: '#/components/schemas/LabelEnum'
+          readOnly: true
+        last_recalculated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+      required:
+      - average_rating
+      - completed_contract_count
+      - label
+      - last_recalculated_at
+      - rating_1_count
+      - rating_2_count
+      - rating_3_count
+      - rating_4_count
+      - rating_5_count
+      - review_count
+      - role
+      - user
   securitySchemes:
     jwtAuth:
       type: http

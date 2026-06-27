@@ -14,3 +14,8 @@ Labels:
 - `highly_rated`: at least 5 published verified reviews and average rating >= 4.50.
 
 Labels are trust indicators only. They do not imply legal identity verification, professional licensing, or external certification.
+
+Final integrity proof:
+- `e2e-approved-tech@tiqani.local`: snapshot count 2, actual count 2, snapshot average 4.50, actual average 4.50, label `new`.
+- `e2e-client@tiqani.local`: snapshot count 0, actual count 0, snapshot average 0.00, actual average 0.00, label `new`.
+- Hidden reviews remain excluded from public reputation and review lists.

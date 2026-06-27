@@ -34,7 +34,23 @@ Reset behavior:
 - `seed_e2e_fixtures --reset` deletes Phase 11 reviews, dimensions, reports, moderation actions, reputation snapshots, notifications, and preferences tied to fixture users/contracts before deleting users/contracts.
 - Two reset+seed runs were verified with stable deterministic IDs and expected eligibility states.
 
-Focused E2E fixture gate:
-- 5 spec files under `e2e/reviews` and `e2e/notifications`.
-- 11 focused Playwright tests.
-- `CI=1 PLAYWRIGHT_HTML_OPEN=never NEXT_DIST_DIR=.next-e2e npx playwright test e2e/reviews e2e/notifications --workers=2 --retries=0 --reporter=line`: 11 passed.
+Final fixture gate:
+- Reset command: `E2E_FIXTURE_PASSWORD='local-test-only' python manage.py seed_e2e_fixtures --reset --force`
+- Removed 43 fixture users and related records before reseed.
+- Reviews: 3.
+- Review reports: 1.
+- Moderation actions: 1.
+- Reputation snapshots: 3.
+- Notifications: 126.
+- Notification prefs: 1.
+- Full backend suite: 1028 passed.
+- Full Playwright suite: 371 passed.
+
+Integrity proof:
+- Published visible verified reviews: 2.
+- Hidden reviews: 1.
+- Duplicate `contract + reviewer + reviewee`: 0.
+- Invalid ratings: 0.
+- Self reviews: 0.
+- Duplicate notification keys: 0.
+- Owner-B notification fixture isolated from primary client: true.
