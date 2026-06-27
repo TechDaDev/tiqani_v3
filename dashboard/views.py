@@ -1,6 +1,8 @@
 """Admin dashboard views — summary, users, technicians, contracts, reviews, finance, activity."""
 
+import os
 from decimal import Decimal
+from django.conf import settings
 from django.db import models as db_models
 from django.db.models import Count, Q, Sum
 from django.shortcuts import get_object_or_404
@@ -54,6 +56,32 @@ from .serializers import (
 )
 
 User = get_user_model()
+
+
+def _require_reason(request):
+    reason = str(request.data.get("reason") or request.data.get("note") or "").strip()
+    if not reason:
+        return None, Response(
+            {"reason": ["A reason is required for administrative write actions."]},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    return reason, None
+
+
+def _admin_activity(verb, *, actor, target_type, target_id, target_repr, previous_state, new_state, reason):
+    create_activity(
+        verb,
+        actor=actor,
+        target_type=target_type,
+        target_id=target_id,
+        target_repr=target_repr,
+        audience="admin",
+        metadata={
+            "reason": reason,
+            "previous_state": previous_state,
+            "new_state": new_state,
+        },
+    )
 
 
 # =====================================================================
@@ -142,6 +170,32 @@ class DashboardSummaryView(GenericAPIView):
         return Response(data)
 
 
+class PlatformStatisticsView(DashboardSummaryView):
+    """GET /api/admin/platform-statistics/ — release-readiness alias."""
+
+
+class PlatformHealthView(GenericAPIView):
+    """GET /api/admin/platform-health/ — staff-only summarized operations status."""
+    permission_classes = [IsAuthenticated, IsPlatformAdmin]
+
+    def get(self, request, *args, **kwargs):
+        db_status = "ok"
+        try:
+            from django.db import connection
+
+            connection.ensure_connection()
+        except Exception:
+            db_status = "error"
+
+        return Response({
+            "status": "ok" if db_status == "ok" else "degraded",
+            "database": db_status,
+            "redis": "configured" if getattr(settings, "CELERY_BROKER_URL", "") else "not_configured",
+            "debug": bool(settings.DEBUG),
+            "version": os.environ.get("APP_VERSION", ""),
+        }, status=status.HTTP_200_OK if db_status == "ok" else status.HTTP_503_SERVICE_UNAVAILABLE)
+
+
 # =====================================================================
 # User management
 # =====================================================================
@@ -201,28 +255,52 @@ class AdminUserDetailUpdateView(GenericAPIView):
 class AdminUserActivateView(GenericAPIView):
     """POST /api/admin/users/<id>/activate/."""
     permission_classes = [IsAuthenticated, IsSystemAdmin]
+    throttle_scope = "admin_write"
 
     def post(self, request, *args, **kwargs):
+        reason, error = _require_reason(request)
+        if error:
+            return error
         user = get_object_or_404(User, id=kwargs['id'])
+        previous_state = {"is_active": user.is_active}
         user.is_active = True
         user.save(update_fields=['is_active'])
-        create_activity('user_activated', actor=request.user,
-                        target_type='user', target_id=user.id,
-                        target_repr=user.username, audience='admin')
+        _admin_activity(
+            "user_restored",
+            actor=request.user,
+            target_type="user",
+            target_id=user.id,
+            target_repr=user.username,
+            previous_state=previous_state,
+            new_state={"is_active": user.is_active},
+            reason=reason,
+        )
         return Response({'status': 'ok', 'is_active': True})
 
 
 class AdminUserDeactivateView(GenericAPIView):
     """POST /api/admin/users/<id>/deactivate/."""
     permission_classes = [IsAuthenticated, IsSystemAdmin]
+    throttle_scope = "admin_write"
 
     def post(self, request, *args, **kwargs):
+        reason, error = _require_reason(request)
+        if error:
+            return error
         user = get_object_or_404(User, id=kwargs['id'])
+        previous_state = {"is_active": user.is_active}
         user.is_active = False
         user.save(update_fields=['is_active'])
-        create_activity('user_deactivated', actor=request.user,
-                        target_type='user', target_id=user.id,
-                        target_repr=user.username, audience='admin')
+        _admin_activity(
+            "user_suspended",
+            actor=request.user,
+            target_type="user",
+            target_id=user.id,
+            target_repr=user.username,
+            previous_state=previous_state,
+            new_state={"is_active": user.is_active},
+            reason=reason,
+        )
         return Response({'status': 'ok', 'is_active': False})
 
 
@@ -276,11 +354,26 @@ class AdminTechnicianDetailView(RetrieveAPIView):
 class AdminTechnicianApproveView(GenericAPIView):
     """POST /api/admin/technicians/<id>/approve/."""
     permission_classes = [IsAuthenticated, IsSystemAdmin]
+    throttle_scope = "admin_write"
 
     def post(self, request, *args, **kwargs):
+        reason, error = _require_reason(request)
+        if error:
+            return error
         tech = get_object_or_404(TechnicianProfile, id=kwargs['id'])
+        previous_state = {"approved": tech.approved, "is_available": tech.is_available}
         tech.approved = True
         tech.save(update_fields=['approved'])
+        _admin_activity(
+            "technician_approved",
+            actor=request.user,
+            target_type="technician",
+            target_id=tech.id,
+            target_repr=str(tech),
+            previous_state=previous_state,
+            new_state={"approved": tech.approved, "is_available": tech.is_available},
+            reason=reason,
+        )
         notify_technician_approved(tech, request.user)
         return Response({'status': 'ok', 'approved': True})
 
@@ -289,12 +382,27 @@ class AdminTechnicianRejectView(GenericAPIView):
     """POST /api/admin/technicians/<id>/reject/."""
     permission_classes = [IsAuthenticated, IsSystemAdmin]
     serializer_class = TechnicianRejectSerializer
+    throttle_scope = "admin_write"
 
     def post(self, request, *args, **kwargs):
+        reason, error = _require_reason(request)
+        if error:
+            return error
         tech = get_object_or_404(TechnicianProfile, id=kwargs['id'])
+        previous_state = {"approved": tech.approved, "is_available": tech.is_available}
         tech.approved = False
         tech.is_available = False
         tech.save(update_fields=['approved', 'is_available'])
+        _admin_activity(
+            "technician_suspended",
+            actor=request.user,
+            target_type="technician",
+            target_id=tech.id,
+            target_repr=str(tech),
+            previous_state=previous_state,
+            new_state={"approved": tech.approved, "is_available": tech.is_available},
+            reason=reason,
+        )
         notify_technician_rejected(tech, request.user)
         return Response({'status': 'ok', 'approved': False})
 
@@ -342,13 +450,16 @@ class AdminContractForceCancelView(GenericAPIView):
     """POST /api/admin/contracts/<id>/force-cancel/ — system_admin only."""
     permission_classes = [IsAuthenticated, IsSystemAdmin]
     serializer_class = AdminContractForceCancelSerializer
+    throttle_scope = "admin_write"
 
     def post(self, request, *args, **kwargs):
+        reason, error = _require_reason(request)
+        if error:
+            return error
         contract = get_object_or_404(Contract, id=kwargs['id'])
         if contract.status == 'completed':
             return Response({'error': 'Cannot cancel a completed contract.'},
                             status=status.HTTP_400_BAD_REQUEST)
-        reason = request.data.get('reason', 'Force canceled by admin.')
         contract = cancel_contract(contract, request.user, reason=reason)
         return Response({'status': 'ok', 'contract_status': contract.status})
 

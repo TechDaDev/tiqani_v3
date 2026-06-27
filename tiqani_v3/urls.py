@@ -62,6 +62,7 @@ urlpatterns = [
     path('api/admin/', include('dashboard.urls')),
     # Health
     path('api/health/', health),
+    path('api/ready/', health_ready),
     path('api/health/live/', health_live),
     path('api/health/ready/', health_ready),
     path('api/health/deep/', health_deep),

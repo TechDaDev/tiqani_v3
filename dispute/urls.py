@@ -26,6 +26,7 @@ from .views import (
     # Refunds
     DisputeRefundListView,
     AdminDisputeRefundCreateView,
+    AdminRefundListView,
     RefundDetailView,
     AdminRefundSandboxConfirmView,
     AdminRefundRetryView,
@@ -72,6 +73,7 @@ urlpatterns = [
     path("admin/disputes/<uuid:dispute_id>/reconciliation/", AdminDisputeReconciliationView.as_view(), name="admin-dispute-reconciliation"),
 
     # ── Admin refund operations ──────────────────────
+    path("admin/refunds/", AdminRefundListView.as_view(), name="admin-refund-list"),
     path("admin/disputes/<uuid:dispute_id>/refunds/", AdminDisputeRefundCreateView.as_view(), name="admin-dispute-refund-create"),
     path("admin/refunds/<uuid:refund_id>/sandbox-confirm/", AdminRefundSandboxConfirmView.as_view(), name="admin-refund-sandbox-confirm"),
     path("admin/refunds/<uuid:refund_id>/retry/", AdminRefundRetryView.as_view(), name="admin-refund-retry"),

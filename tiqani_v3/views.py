@@ -17,8 +17,10 @@ def health_live(request):
 
 @never_cache
 def health_ready(request):
-    """Readiness probe — verifies the database is reachable."""
+    """Readiness probe — verifies critical dependencies without exposing secrets."""
     db_status = "ok"
+    redis_status = "not_required"
+    config_status = "ok"
     status_code = 200
     try:
         conn = connections[DEFAULT_DB_ALIAS]
@@ -28,12 +30,32 @@ def health_ready(request):
         status_code = 503
         logger.error("Readiness check failed: %s", exc)
 
+    redis_url = (
+        os.environ.get("REDIS_URL")
+        or os.environ.get("CELERY_BROKER_URL")
+        or os.environ.get("CHANNEL_LAYERS_REDIS_URL")
+    )
+    if redis_url and "redis://" in redis_url:
+        redis_status = "configured"
+
+    if not settings.DEBUG:
+        missing = []
+        if not (os.environ.get("DJANGO_SECRET_KEY") or os.environ.get("SECRET_KEY")):
+            missing.append("DJANGO_SECRET_KEY")
+        if not os.environ.get("ALLOWED_HOSTS"):
+            missing.append("ALLOWED_HOSTS")
+        if missing:
+            config_status = "error"
+            status_code = 503
+
+    overall_ok = db_status == "ok" and config_status == "ok"
     return JsonResponse(
         {
-            "status": "ok" if db_status == "ok" else "error",
+            "status": "ok" if overall_ok else "error",
             "service": "tiqani_v3",
             "database": db_status,
-            "debug": settings.DEBUG,
+            "redis": redis_status,
+            "configuration": config_status,
         },
         status=status_code,
     )
@@ -91,3 +113,4 @@ def health_deep(request):
 
 # Backward-compatible alias
 health = health_ready
+ready = health_ready

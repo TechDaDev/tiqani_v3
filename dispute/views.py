@@ -8,6 +8,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.generics import ListAPIView
 from rest_framework.views import APIView
 
 from contract.models import Contract
@@ -528,6 +529,22 @@ class DisputeRefundListView(APIView):
         refunds = RefundRecord.objects.filter(dispute=dispute).order_by("-created_at")
         serializer = RefundRecordSerializer(refunds, many=True)
         return Response(serializer.data)
+
+
+class AdminRefundListView(ListAPIView):
+    """GET /api/admin/refunds/ — staff refund oversight."""
+    permission_classes = [IsAdminUser]
+    serializer_class = RefundRecordSerializer
+    filterset_fields = {
+        "status": ["exact"],
+        "source_type": ["exact"],
+        "dispute": ["exact"],
+        "created_at": ["gte", "lte"],
+    }
+    ordering_fields = ["created_at", "amount", "status"]
+
+    def get_queryset(self):
+        return RefundRecord.objects.select_related("dispute", "created_by").order_by("-created_at")
 
 
 class AdminDisputeRefundCreateView(APIView):

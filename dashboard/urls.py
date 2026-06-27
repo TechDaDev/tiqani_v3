@@ -1,6 +1,7 @@
 from django.urls import path
 from .views import (
     DashboardSummaryView,
+    PlatformHealthView, PlatformStatisticsView,
     AdminUserListView, AdminUserDetailUpdateView,
     AdminUserActivateView, AdminUserDeactivateView,
     AdminTechnicianListView, AdminTechnicianPendingView,
@@ -33,13 +34,18 @@ from dealership.views import (
 
 urlpatterns = [
     # Dashboard
+    path('dashboard/', DashboardSummaryView.as_view(), name='admin_dashboard'),
     path('dashboard/summary/', DashboardSummaryView.as_view(), name='admin_dashboard_summary'),
+    path('platform-health/', PlatformHealthView.as_view(), name='admin_platform_health'),
+    path('platform-statistics/', PlatformStatisticsView.as_view(), name='admin_platform_statistics'),
 
     # Users
     path('users/', AdminUserListView.as_view(), name='admin_user_list'),
     path('users/<uuid:id>/', AdminUserDetailUpdateView.as_view(), name='admin_user_detail_update'),
     path('users/<uuid:id>/activate/', AdminUserActivateView.as_view(), name='admin_user_activate'),
     path('users/<uuid:id>/deactivate/', AdminUserDeactivateView.as_view(), name='admin_user_deactivate'),
+    path('users/<uuid:id>/restore/', AdminUserActivateView.as_view(), name='admin_user_restore'),
+    path('users/<uuid:id>/suspend/', AdminUserDeactivateView.as_view(), name='admin_user_suspend'),
 
     # Technicians
     path('technicians/', AdminTechnicianListView.as_view(), name='admin_technician_list'),
@@ -47,6 +53,7 @@ urlpatterns = [
     path('technicians/<uuid:id>/', AdminTechnicianDetailView.as_view(), name='admin_technician_detail'),
     path('technicians/<uuid:id>/approve/', AdminTechnicianApproveView.as_view(), name='admin_technician_approve'),
     path('technicians/<uuid:id>/reject/', AdminTechnicianRejectView.as_view(), name='admin_technician_reject'),
+    path('technicians/<uuid:id>/suspend/', AdminTechnicianRejectView.as_view(), name='admin_technician_suspend'),
 
     # Contracts
     path('contracts/', AdminContractListView.as_view(), name='admin_contract_list'),
@@ -66,6 +73,7 @@ urlpatterns = [
     path('finance/summary/', AdminFinanceSummaryView.as_view(), name='admin_finance_summary'),
     path('finance/platform-earnings/', AdminPlatformEarningListView.as_view(), name='admin_finance_earnings'),
     path('finance/payment-intents/', AdminPaymentIntentListView.as_view(), name='admin_finance_payment_intents'),
+    path('payments/', AdminPaymentIntentListView.as_view(), name='admin_payments'),
     path('finance/payment-intents/<uuid:id>/mark-paid/', AdminPaymentIntentMarkPaidView.as_view(), name='admin_finance_pi_mark_paid'),
     path('finance/withdrawals/', AdminWithdrawalListView.as_view(), name='admin_finance_withdrawals'),
     path('finance/withdrawals/<uuid:id>/approve/', AdminWithdrawalApproveView.as_view(), name='admin_finance_withdrawal_approve'),
@@ -73,6 +81,7 @@ urlpatterns = [
 
     # Activity
     path('activity/', AdminActivityListView.as_view(), name='admin_activity_list'),
+    path('audit-events/', AdminActivityListView.as_view(), name='admin_audit_events'),
 
     # Dealership admin
     path('dealerships/', AdminDealershipListView.as_view(), name='admin-dealership-list'),

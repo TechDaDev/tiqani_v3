@@ -38,6 +38,7 @@ REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {  # type: ignore[name-defined]  # no
     "chat_message": "100000/hour",
     "chat_attachment": "100000/hour",
     "chat_price_offer": "100000/hour",
+    "admin_write": "100000/hour",
     "schema": "100000/hour",
 }
 

@@ -59,7 +59,7 @@ services:
       start_period: 40s
     # Daphne is required for WebSocket support.
     # For HTTP-only deployments, replace with:
-    #   gunicorn tiqani_v3.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 120
+    #   gunicorn tiqani_v3.wsgi:application -c gunicorn.conf.py
     command: ["daphne", "-b", "0.0.0.0", "-p", "8000", "tiqani_v3.asgi:application"]
 
   # Optional Nginx reverse proxy — uncomment for local HTTPS testing
