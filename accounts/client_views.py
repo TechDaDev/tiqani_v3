@@ -8,6 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
+from django.utils.dateparse import parse_date
 
 from .models import ClientProfile
 from .client_serializers import ClientProfileSerializer, IncompleteFieldsSerializer
@@ -17,6 +18,17 @@ class IsClient(IsAuthenticated):
     """Permission class to verify user is a client."""
     def has_permission(self, request, view):
         return super().has_permission(request, view) and request.user.role == 'client'
+
+
+def _coerce_user_field(api_field, value):
+    if value == "":
+        return None
+    if api_field == "date_of_birth" and isinstance(value, str):
+        parsed = parse_date(value)
+        if parsed is None:
+            raise ValueError("Enter a valid date in YYYY-MM-DD format.")
+        return parsed
+    return value
 
 
 # --- Profile Management ---
@@ -53,7 +65,11 @@ class ClientProfileView(APIView):
         updated = False
         for api_field, model_field in allowed_fields.items():
             if api_field in request.data:
-                setattr(user, model_field, request.data[api_field])
+                try:
+                    value = _coerce_user_field(api_field, request.data[api_field])
+                except ValueError as exc:
+                    return Response({api_field: [str(exc)]}, status=status.HTTP_400_BAD_REQUEST)
+                setattr(user, model_field, value)
                 updated = True
         
         if updated:

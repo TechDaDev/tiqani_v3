@@ -136,7 +136,7 @@ class TechnicianProfileSerializer(serializers.ModelSerializer):
     images = TechnicianImageSerializer(many=True, read_only=True)
     url1 = serializers.SerializerMethodField()
     url2 = serializers.SerializerMethodField()
-    identification_documents = serializers.SerializerMethodField()
+    identification_documents = serializers.FileField(required=False, allow_null=True)
     wallet_id = serializers.SerializerMethodField()
     balance = serializers.SerializerMethodField()
     approved = serializers.SerializerMethodField()
@@ -147,7 +147,7 @@ class TechnicianProfileSerializer(serializers.ModelSerializer):
             'user_id', 'username', 'full_name', 'email', 'phone_number', 'address', 'date_of_birth',
             'governorate', 'gender', 'profile_image', 'job_title', 'about', 'years_of_expertise',
             'is_available', 'approved', 'is_complete', 'rate', 'last_active',
-            'url1', 'url2', 'identification_documents', 'wallet_id', 'balance',
+            'github', 'linkedin', 'url1', 'url2', 'identification_documents', 'wallet_id', 'balance',
             'skill_sets', 'images'
         )
         read_only_fields = (
@@ -181,14 +181,6 @@ class TechnicianProfileSerializer(serializers.ModelSerializer):
 
     def get_url2(self, obj):
         return obj.linkedin if self._can_view_sensitive(obj) else None
-
-    def get_identification_documents(self, obj):
-        if self._can_view_sensitive(obj) and obj.identification_documents:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(obj.identification_documents.url)
-            return obj.identification_documents.url
-        return None
 
     def get_approved(self, obj):
         return obj.approved if self._can_view_sensitive(obj) else None

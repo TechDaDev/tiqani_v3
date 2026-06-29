@@ -50,13 +50,18 @@ DATABASES = {
 # Email — SMTP required in production; overrides from env
 # ---------------------------------------------------------------------------
 EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")  # noqa: F405
-EMAIL_HOST = env("EMAIL_HOST", default="")  # noqa: F405
+EMAIL_HOST = env("EMAIL_HOST", default="premium86.web-hosting.com")  # noqa: F405
 EMAIL_PORT = env.int("EMAIL_PORT", default=587)  # noqa: F405
+EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=False)  # noqa: F405
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)  # noqa: F405
+EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=20)  # noqa: F405
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")  # noqa: F405
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")  # noqa: F405
-DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@example.com")  # noqa: F405
-SERVER_EMAIL = env("SERVER_EMAIL", default="noreply@example.com")  # noqa: F405
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="otp@iqtiqani.com")  # noqa: F405
+SERVER_EMAIL = env("SERVER_EMAIL", default="otp@iqtiqani.com")  # noqa: F405
+EMAIL_PROVIDER = env("EMAIL_PROVIDER", default="smtp")  # noqa: F405
+EMAIL_API_TIMEOUT = env.float("EMAIL_API_TIMEOUT", default=10.0)  # noqa: F405
+RESEND_API_KEY = env("RESEND_API_KEY", default="")  # noqa: F405
 
 # ---------------------------------------------------------------------------
 # Security headers & cookies
@@ -79,13 +84,13 @@ USE_X_FORWARDED_HOST = env.bool("USE_X_FORWARDED_HOST", default=False)  # noqa: 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # ---------------------------------------------------------------------------
-# Static files – whitenoise
+# Static and media files
 # ---------------------------------------------------------------------------
-MIDDLEWARE.insert(0, "whitenoise.middleware.WhiteNoiseMiddleware")  # noqa: F405
+if not USE_S3_STATIC:  # noqa: F405
+    MIDDLEWARE.insert(0, "whitenoise.middleware.WhiteNoiseMiddleware")  # noqa: F405
+
 STORAGES = {
     "default": {
-        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
-    } if USE_S3_MEDIA else {  # noqa: F405
         "BACKEND": "django.core.files.storage.FileSystemStorage",
     },
     "staticfiles": {
@@ -93,30 +98,45 @@ STORAGES = {
     },
 }
 
-if USE_S3_MEDIA:  # noqa: F405
-    # Add storages to INSTALLED_APPS
+if (USE_S3_MEDIA or USE_S3_STATIC) and "storages" not in INSTALLED_APPS:  # noqa: F405
     INSTALLED_APPS.insert(0, "storages")  # noqa: F405
-    # S3 default storage config
+
+
+def _s3_storage_options(location, *, querystring_auth=None, file_overwrite=None):
+    return {
+        "access_key": S3_ACCESS_KEY_ID,  # noqa: F405
+        "secret_key": S3_SECRET_ACCESS_KEY,  # noqa: F405
+        "bucket_name": S3_STORAGE_BUCKET_NAME,  # noqa: F405
+        "region_name": S3_REGION_NAME,  # noqa: F405
+        "endpoint_url": S3_ENDPOINT_URL if S3_ENDPOINT_URL else None,  # noqa: F405
+        "custom_domain": S3_CUSTOM_DOMAIN if S3_CUSTOM_DOMAIN else None,  # noqa: F405
+        "signature_version": S3_SIGNATURE_VERSION,  # noqa: F405
+        "addressing_style": S3_ADDRESSING_STYLE,  # noqa: F405
+        "default_acl": S3_DEFAULT_ACL,  # noqa: F405
+        "querystring_auth": S3_QUERYSTRING_AUTH if querystring_auth is None else querystring_auth,  # noqa: F405
+        "querystring_expire": S3_QUERYSTRING_EXPIRE,  # noqa: F405
+        "file_overwrite": S3_FILE_OVERWRITE if file_overwrite is None else file_overwrite,  # noqa: F405
+        "object_parameters": {
+            "CacheControl": S3_OBJECT_PARAMETERS_CACHE_CONTROL,  # noqa: F405
+        },
+        "location": location,
+    }
+
+
+if USE_S3_MEDIA:  # noqa: F405
     STORAGES["default"] = {
         "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
-        "OPTIONS": {
-            "access_key": S3_ACCESS_KEY_ID,  # noqa: F405
-            "secret_key": S3_SECRET_ACCESS_KEY,  # noqa: F405
-            "bucket_name": S3_STORAGE_BUCKET_NAME,  # noqa: F405
-            "region_name": S3_REGION_NAME,  # noqa: F405
-            "endpoint_url": S3_ENDPOINT_URL if S3_ENDPOINT_URL else None,  # noqa: F405
-            "custom_domain": S3_CUSTOM_DOMAIN if S3_CUSTOM_DOMAIN else None,  # noqa: F405
-            "signature_version": S3_SIGNATURE_VERSION,  # noqa: F405
-            "addressing_style": S3_ADDRESSING_STYLE,  # noqa: F405
-            "default_acl": S3_DEFAULT_ACL,  # noqa: F405
-            "querystring_auth": S3_QUERYSTRING_AUTH,  # noqa: F405
-            "querystring_expire": S3_QUERYSTRING_EXPIRE,  # noqa: F405
-            "file_overwrite": S3_FILE_OVERWRITE,  # noqa: F405
-            "object_parameters": {
-                "CacheControl": S3_OBJECT_PARAMETERS_CACHE_CONTROL,  # noqa: F405
-            },
-            "location": S3_MEDIA_LOCATION,  # noqa: F405
-        },
+        "OPTIONS": _s3_storage_options(S3_MEDIA_LOCATION),  # noqa: F405
+    }
+
+if USE_S3_STATIC:  # noqa: F405
+    STORAGES["staticfiles"] = {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        "OPTIONS": _s3_storage_options(
+            S3_STATIC_LOCATION,  # noqa: F405
+            querystring_auth=S3_STATIC_QUERYSTRING_AUTH,  # noqa: F405
+            file_overwrite=True,
+        ),
     }
 
 # No public media serving by Django in production — nginx / CDN handles it

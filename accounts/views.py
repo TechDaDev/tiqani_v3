@@ -1,5 +1,6 @@
 from django.core.cache import cache
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -27,6 +28,17 @@ RATE_LIMIT_WINDOW_SEC = 5 * 60
 OTP_RESEND_COOLDOWN_SEC = 5 * 60  # 5 minutes between resends
 OTP_RESEND_DAILY_LIMIT = 5  # Max 5 resends per 24 hours
 OTP_RESEND_DAILY_WINDOW_SEC = 24 * 60 * 60  # 24 hours
+
+
+def _coerce_user_profile_field(field, value):
+    if value == "":
+        return None
+    if field == "date_of_birth" and isinstance(value, str):
+        parsed = parse_date(value)
+        if parsed is None:
+            raise ValueError("Enter a valid date in YYYY-MM-DD format.")
+        return parsed
+    return value
 
 def _get_client_ip(request):
     xff = request.META.get('HTTP_X_FORWARDED_FOR')
@@ -298,7 +310,11 @@ class CurrentUserView(APIView):
         updated = False
         for field in allowed_fields:
             if field in request.data:
-                setattr(user, field, request.data[field])
+                try:
+                    value = _coerce_user_profile_field(field, request.data[field])
+                except ValueError as exc:
+                    return Response({field: [str(exc)]}, status=status.HTTP_400_BAD_REQUEST)
+                setattr(user, field, value)
                 updated = True
 
         if updated:

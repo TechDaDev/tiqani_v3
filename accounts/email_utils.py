@@ -1,8 +1,48 @@
 """Email utilities for sending notifications to users."""
 
+import requests
 from django.core.mail import send_mail
 from django.conf import settings
 from django.template.loader import render_to_string
+
+
+def _send_email(subject, plain_message, recipient_list, html_message=None):
+    provider = getattr(settings, "EMAIL_PROVIDER", "smtp").lower()
+    resend_api_key = getattr(settings, "RESEND_API_KEY", "")
+
+    if provider == "resend" or resend_api_key:
+        if not resend_api_key:
+            raise RuntimeError("RESEND_API_KEY is required when EMAIL_PROVIDER=resend.")
+
+        payload = {
+            "from": settings.DEFAULT_FROM_EMAIL,
+            "to": recipient_list,
+            "subject": subject,
+            "text": plain_message,
+        }
+        if html_message:
+            payload["html"] = html_message
+
+        response = requests.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {resend_api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=getattr(settings, "EMAIL_API_TIMEOUT", 10.0),
+        )
+        response.raise_for_status()
+        return 1
+
+    return send_mail(
+        subject=subject,
+        message=plain_message,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=recipient_list,
+        html_message=html_message,
+        fail_silently=False,
+    )
 
 
 def send_otp_email(user, otp_code, verification_id):
@@ -46,13 +86,11 @@ If you did not request this code, please ignore this email.
 Tiqani Team
 """
         
-        send_mail(
+        _send_email(
             subject=subject,
-            message=plain_message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
+            plain_message=plain_message,
             recipient_list=[user.email],
             html_message=html_message,
-            fail_silently=False,
         )
         return True
     except Exception as e:
@@ -95,13 +133,11 @@ You can now log in and start using the platform.
 Tiqani Team
 """
         
-        send_mail(
+        _send_email(
             subject=subject,
-            message=plain_message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
+            plain_message=plain_message,
             recipient_list=[user.email],
             html_message=html_message,
-            fail_silently=False,
         )
         return True
     except Exception as e:
@@ -150,13 +186,11 @@ If you did not request this, please ignore this email and your password will rem
 Tiqani Team
 """
         
-        send_mail(
+        _send_email(
             subject=subject,
-            message=plain_message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
+            plain_message=plain_message,
             recipient_list=[user.email],
             html_message=html_message,
-            fail_silently=False,
         )
         return True
     except Exception as e:

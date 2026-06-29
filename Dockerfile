@@ -26,7 +26,8 @@ FROM python:3.12-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    APP_HOME=/app
+    APP_HOME=/app \
+    HOME=/tmp
 
 # Runtime deps only
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -46,7 +47,9 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY . .
 
 # Ownership for runtime
-RUN chown -R django:django $APP_HOME
+RUN mkdir -p $APP_HOME/static $APP_HOME/staticfiles $APP_HOME/media \
+    && chmod +x $APP_HOME/scripts/entrypoint.sh $APP_HOME/scripts/railway_start.sh \
+    && chown -R django:django $APP_HOME
 
 USER django
 

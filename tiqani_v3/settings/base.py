@@ -190,15 +190,16 @@ USE_TZ = True
 # ---------------------------------------------------------------------------
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
-STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_ROOT = env.path("STATIC_ROOT", default=BASE_DIR / "staticfiles")
 
 MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_ROOT = env.path("MEDIA_ROOT", default=BASE_DIR / "media")
 
 # ---------------------------------------------------------------------------
 # Media storage — S3-compatible (overridable in prod.py / dev.py)
 # ---------------------------------------------------------------------------
 USE_S3_MEDIA = env.bool("USE_S3_MEDIA", default=False)
+USE_S3_STATIC = env.bool("USE_S3_STATIC", default=False)
 
 # S3-compatible storage settings
 S3_ACCESS_KEY_ID = env("S3_ACCESS_KEY_ID", default="")
@@ -217,6 +218,8 @@ S3_OBJECT_PARAMETERS_CACHE_CONTROL = env("S3_OBJECT_PARAMETERS_CACHE_CONTROL", d
 S3_MEDIA_LOCATION = env("S3_MEDIA_LOCATION", default="media")
 S3_PRIVATE_MEDIA_LOCATION = env("S3_PRIVATE_MEDIA_LOCATION", default="private")
 S3_PUBLIC_MEDIA_LOCATION = env("S3_PUBLIC_MEDIA_LOCATION", default="public")
+S3_STATIC_LOCATION = env("S3_STATIC_LOCATION", default="static")
+S3_STATIC_QUERYSTRING_AUTH = env.bool("S3_STATIC_QUERYSTRING_AUTH", default=True)
 
 # Upload size limits (MB)
 MAX_PROFILE_IMAGE_SIZE_MB = env.int("MAX_PROFILE_IMAGE_SIZE_MB", default=2)
@@ -309,10 +312,14 @@ EMAIL_HOST = env("EMAIL_HOST", default="premium86.web-hosting.com")
 EMAIL_PORT = env.int("EMAIL_PORT", default=465)
 EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=True)
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=False)
+EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=20)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
-DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="info@iqtiqani.com")
-SERVER_EMAIL = env("SERVER_EMAIL", default="info@iqtiqani.com")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="otp@iqtiqani.com")
+SERVER_EMAIL = env("SERVER_EMAIL", default="otp@iqtiqani.com")
+EMAIL_PROVIDER = env("EMAIL_PROVIDER", default="smtp")
+EMAIL_API_TIMEOUT = env.float("EMAIL_API_TIMEOUT", default=10.0)
+RESEND_API_KEY = env("RESEND_API_KEY", default="")
 
 # ---------------------------------------------------------------------------
 # OTP Settings
