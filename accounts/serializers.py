@@ -184,6 +184,7 @@ class ResetPasswordConfirmSerializer(OTPBaseSerializer):
 class CurrentUserSerializer(serializers.ModelSerializer):
     """Public-safe serializer for the currently authenticated user."""
 
+    role = serializers.SerializerMethodField()
     profile_type = serializers.SerializerMethodField()
     is_complete = serializers.SerializerMethodField()
     wallet_balance = serializers.SerializerMethodField()
@@ -223,6 +224,11 @@ class CurrentUserSerializer(serializers.ModelSerializer):
             "wallet_balance",
             "wallet_transaction_id",
         )
+
+    def get_role(self, obj):
+        if hasattr(obj, "admin_profile"):
+            return obj.admin_profile.role
+        return obj.role
 
     def get_profile_type(self, obj):
         if hasattr(obj, "client_profile"):

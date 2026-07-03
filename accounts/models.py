@@ -241,7 +241,14 @@ class TechnicianProfile(BaseProfile):
     upload_folder = 'technicians/docs'
     
     REQ_USER_FIELDS = BaseProfile.REQ_USER_FIELDS + ['gender', 'date_of_birth', 'profile_image']
-    REQ_PROFILE_FIELDS = ['job_title', 'about', 'years_of_expertise', 'identification_documents']
+    REQ_PROFILE_FIELDS = [
+        'job_title',
+        'about',
+        'years_of_expertise',
+        'identification_documents',
+        'github',
+        'linkedin',
+    ]
 
     class Meta(BaseProfile.Meta):
         ordering = ['-created_at']
