@@ -46,6 +46,10 @@ class AdminUserListSerializer(serializers.ModelSerializer):
 
 class AdminUserDetailSerializer(serializers.ModelSerializer):
     role_display = serializers.CharField(source='get_role_display', read_only=True)
+    profiles = serializers.SerializerMethodField()
+    activity = serializers.SerializerMethodField()
+    financial_summary = serializers.SerializerMethodField()
+    recent_audit_events = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -55,8 +59,95 @@ class AdminUserDetailSerializer(serializers.ModelSerializer):
             'governorate', 'address', 'gender', 'date_of_birth',
             'is_active', 'is_staff', 'is_superuser',
             'date_joined', 'last_login',
+            'profiles', 'activity', 'financial_summary', 'recent_audit_events',
         ]
         read_only_fields = ['id', 'username', 'role', 'is_superuser', 'date_joined', 'last_login']
+
+    def get_profiles(self, obj):
+        client = getattr(obj, 'client_profile', None)
+        technician = getattr(obj, 'technician_profile', None)
+        return {
+            'client': {
+                'exists': bool(client),
+                'is_complete': bool(getattr(client, 'is_complete', False)) if client else False,
+            },
+            'technician': {
+                'exists': bool(technician),
+                'is_complete': bool(getattr(technician, 'is_complete', False)) if technician else False,
+                'approved': bool(getattr(technician, 'approved', False)) if technician else False,
+                'job_title': getattr(technician, 'job_title', '') if technician else '',
+                'missing_fields': technician.get_incomplete_fields() if technician else [],
+            },
+        }
+
+    def get_activity(self, obj):
+        data = {
+            'requests': 0,
+            'offers': 0,
+            'contracts': 0,
+            'reviews': 0,
+            'notifications': 0,
+            'audit_events': 0,
+        }
+        client = getattr(obj, 'client_profile', None)
+        technician = getattr(obj, 'technician_profile', None)
+        try:
+            from servicerequest.models import ServiceRequest
+            if client:
+                data['requests'] += ServiceRequest.objects.filter(client=client).count()
+            if technician:
+                data['requests'] += ServiceRequest.objects.filter(technician=technician).count()
+        except Exception:
+            pass
+        try:
+            from contract.offer_models import Offer
+            if technician:
+                data['offers'] += Offer.objects.filter(technician=technician).count()
+            if client:
+                data['offers'] += Offer.objects.filter(service_request__client=client).count()
+        except Exception:
+            pass
+        try:
+            if client:
+                data['contracts'] += Contract.objects.filter(client=client).count()
+            if technician:
+                data['contracts'] += Contract.objects.filter(technician=technician).count()
+        except Exception:
+            pass
+        try:
+            data['reviews'] = Review.objects.filter(reviewer=obj).count()
+            if technician:
+                data['reviews'] += Review.objects.filter(technician=technician).count()
+        except Exception:
+            pass
+        try:
+            from notification.models import Notification
+            data['notifications'] = Notification.objects.filter(user=obj).count()
+            data['audit_events'] = ActivityLog.objects.filter(actor=obj).count()
+        except Exception:
+            pass
+        return data
+
+    def get_financial_summary(self, obj):
+        wallet = getattr(obj, 'wallet', None)
+        return {
+            'wallet_exists': bool(wallet),
+            'wallet_balance': str(wallet.balance) if wallet else None,
+            'payment_intents': PaymentIntent.objects.filter(user=obj).count(),
+            'withdrawals': WithdrawalRequest.objects.filter(user=obj).count(),
+        }
+
+    def get_recent_audit_events(self, obj):
+        return [
+            {
+                'id': str(event.id),
+                'verb': event.verb,
+                'target_type': event.target_type,
+                'target_id': str(event.target_id),
+                'created_at': event.created_at,
+            }
+            for event in ActivityLog.objects.filter(actor=obj).order_by('-created_at')[:5]
+        ]
 
 
 class AdminUserUpdateSerializer(serializers.ModelSerializer):
@@ -74,6 +165,10 @@ class AdminTechnicianListSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username', read_only=True)
     email = serializers.EmailField(source='user.email', read_only=True)
     phone_number = serializers.CharField(source='user.phone_number', read_only=True)
+    incomplete_fields = serializers.SerializerMethodField()
+    has_documents = serializers.SerializerMethodField()
+    has_github = serializers.SerializerMethodField()
+    has_linkedin = serializers.SerializerMethodField()
 
     class Meta:
         model = TechnicianProfile
@@ -81,18 +176,43 @@ class AdminTechnicianListSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'phone_number',
             'job_title', 'rate', 'approved', 'is_available',
             'years_of_expertise', 'governorate', 'is_complete',
+            'incomplete_fields', 'has_documents', 'has_github', 'has_linkedin',
             'created_at',
         ]
 
     governorate = serializers.CharField(source='user.governorate', read_only=True)
 
+    def get_incomplete_fields(self, obj):
+        return obj.get_incomplete_fields()
+
+    def get_has_documents(self, obj):
+        return bool(obj.identification_documents)
+
+    def get_has_github(self, obj):
+        return bool(obj.github)
+
+    def get_has_linkedin(self, obj):
+        return bool(obj.linkedin)
+
 
 class AdminTechnicianDetailSerializer(serializers.ModelSerializer):
     user = AdminUserDetailSerializer(read_only=True)
+    incomplete_fields = serializers.SerializerMethodField()
+    approval_requirements = serializers.SerializerMethodField()
 
     class Meta:
         model = TechnicianProfile
         fields = '__all__'
+
+    def get_incomplete_fields(self, obj):
+        return obj.get_incomplete_fields()
+
+    def get_approval_requirements(self, obj):
+        missing = obj.get_incomplete_fields()
+        return {
+            'can_approve': obj.user.is_active and not missing,
+            'missing': missing + ([] if obj.user.is_active else ['active_account']),
+        }
 
 
 class TechnicianRejectSerializer(serializers.Serializer):

@@ -1,6 +1,7 @@
 """Additional security hardening tests for dashboard — activity log creation, account_manager role, role restrictions."""
 
 from decimal import Decimal
+from datetime import date
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 from django.contrib.auth import get_user_model
@@ -34,9 +35,16 @@ class ActivityLogCreationTest(APITestCase):
             username='t_al', email='tal@t.com', password='pass123',
             role='technician',
             phone_number='07700000501', governorate='Basra', address='A',
+            gender='male', date_of_birth=date(1990, 1, 1),
+            profile_image='users/avatars/test.jpg',
         )
         self.tech = TechnicianProfile.objects.create(
             user=self.tech_user, approved=False, job_title='Dev',
+            about='Experienced developer',
+            years_of_expertise=5,
+            identification_documents='technicians/docs/test.pdf',
+            github='https://github.com/testtech',
+            linkedin='https://linkedin.com/in/testtech',
         )
 
         client_user = User.objects.create_user(
@@ -89,6 +97,30 @@ class ActivityLogCreationTest(APITestCase):
         )
         after = ActivityLog.objects.filter(verb='technician_approved').count()
         self.assertGreaterEqual(after, before + 1)
+
+    def test_technician_approval_blocks_missing_github(self):
+        self.tech.github = ''
+        self.tech.save()
+        resp = self.sys_auth.post(
+            f'/api/admin/technicians/{self.tech.id}/approve/',
+            {'reason': 'Regression approval'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(resp.data['code'], 'TECHNICIAN_APPROVAL_REQUIREMENTS_MISSING')
+        self.assertIn('github_url', resp.data['missing'])
+
+    def test_technician_approval_blocks_missing_documents(self):
+        self.tech.identification_documents = ''
+        self.tech.save()
+        resp = self.sys_auth.post(
+            f'/api/admin/technicians/{self.tech.id}/approve/',
+            {'reason': 'Regression approval'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(resp.data['code'], 'TECHNICIAN_APPROVAL_REQUIREMENTS_MISSING')
+        self.assertIn('documents', resp.data['missing'])
 
     def test_technician_reject_creates_activity_log(self):
         before = ActivityLog.objects.filter(verb='technician_rejected').count()

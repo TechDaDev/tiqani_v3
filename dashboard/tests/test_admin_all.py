@@ -1,6 +1,7 @@
 """Comprehensive tests for admin dashboard APIs — permissions, summary, users, technicians, contracts, reviews, finance, activity."""
 
 from decimal import Decimal
+from datetime import date
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 from django.contrib.auth import get_user_model
@@ -67,9 +68,16 @@ class AdminTestBase(APITestCase):
             username='tech', email='t@t.com', password='pass123',
             role='technician',
             phone_number='07700000005', governorate='Basra', address='A',
+            gender='male', date_of_birth=date(1990, 1, 1),
+            profile_image='users/avatars/test.jpg',
         )
         self.tech_profile = TechnicianProfile.objects.create(
             user=self.tech_user, approved=False, job_title='Dev',
+            about='Experienced developer',
+            years_of_expertise=5,
+            identification_documents='technicians/docs/test.pdf',
+            github='https://github.com/testtech',
+            linkedin='https://linkedin.com/in/testtech',
         )
 
         # Authenticated clients

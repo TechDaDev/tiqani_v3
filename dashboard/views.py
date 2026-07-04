@@ -58,6 +58,31 @@ from .serializers import (
 User = get_user_model()
 
 
+def _chart_items(mapping):
+    return [{"label": key, "value": int(value or 0)} for key, value in mapping.items()]
+
+
+def _technician_approval_missing_requirements(tech):
+    field_labels = {
+        "phone_number": "phone_number",
+        "governorate": "governorate",
+        "address": "address",
+        "gender": "gender",
+        "date_of_birth": "date_of_birth",
+        "profile_image": "profile_image",
+        "job_title": "job_title",
+        "about": "about",
+        "years_of_expertise": "years_of_expertise",
+        "identification_documents": "documents",
+        "github": "github_url",
+        "linkedin": "linkedin_url",
+    }
+    missing = [field_labels.get(field, field) for field in tech.get_incomplete_fields()]
+    if not tech.user.is_active:
+        missing.append("active_account")
+    return sorted(set(missing))
+
+
 def _require_reason(request):
     reason = str(request.data.get("reason") or request.data.get("note") or "").strip()
     if not reason:
@@ -147,6 +172,15 @@ class DashboardSummaryView(GenericAPIView):
             'activity_logs': ActivityLog.objects.count(),
         }
         data = {
+            'summary': {
+                'users_total': user_counts['total'],
+                'technicians_total': tech_counts['total'],
+                'contracts_total': contract_counts['total'],
+                'reviews_total': review_counts['total'],
+                'notifications_unread': notif_counts['unread'],
+                'payment_intents_pending': finance['payment_intents_pending'],
+                'withdrawals_pending': finance['withdrawals_pending'],
+            },
             'users': user_counts,
             'technicians': {
                 'total': tech_counts['total'],
@@ -166,6 +200,37 @@ class DashboardSummaryView(GenericAPIView):
             'reviews': review_counts,
             'notifications': notif_counts,
             'dealerships': get_dealership_metrics(),
+            'usersByRole': _chart_items({
+                'clients': user_counts['clients'],
+                'technicians': user_counts['technicians'],
+                'dealerships': user_counts['dealerships'],
+                'admins': user_counts['admins'],
+            }),
+            'techniciansByApproval': _chart_items({
+                'approved': tech_counts['approved_count'],
+                'pending': tech_counts['pending_count'],
+            }),
+            'contractsByStatus': _chart_items({
+                'draft': contract_counts['draft_count'],
+                'pending_acceptance': contract_counts['pending_acceptance_count'],
+                'in_progress': contract_counts['in_progress_count'],
+                'completed': contract_counts['completed_count'],
+                'canceled': contract_counts['canceled_count'],
+            }),
+            'paymentsByStatus': _chart_items({
+                'payment_intents_pending': finance['payment_intents_pending'],
+                'withdrawals_pending': finance['withdrawals_pending'],
+            }),
+            'reviewsByStatus': _chart_items({
+                'public': review_counts['public'],
+                'hidden': review_counts['hidden'],
+                'verified': review_counts['verified'],
+                'flagged': review_counts['flagged'],
+            }),
+            'notificationsByStatus': _chart_items({
+                'unread': notif_counts['unread'],
+                'read': notif_counts['total'] - notif_counts['unread'],
+            }),
         }
         return Response(data)
 
@@ -361,6 +426,15 @@ class AdminTechnicianApproveView(GenericAPIView):
         if error:
             return error
         tech = get_object_or_404(TechnicianProfile, id=kwargs['id'])
+        missing = _technician_approval_missing_requirements(tech)
+        if missing:
+            return Response(
+                {
+                    "code": "TECHNICIAN_APPROVAL_REQUIREMENTS_MISSING",
+                    "missing": missing,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         previous_state = {"approved": tech.approved, "is_available": tech.is_available}
         tech.approved = True
         tech.save(update_fields=['approved'])
