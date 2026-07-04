@@ -12,14 +12,31 @@
 
 set -e
 
+is_true() {
+    case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
+        true|1|yes|y) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 # ── Wait for database ──────────────────────────────────────────────
 if [ -n "$DATABASE_URL" ]; then
     echo "Waiting for database..."
     # Extract host and port from DATABASE_URL if it's postgres
     case "$DATABASE_URL" in
         postgres*)
-            DB_HOST=$(echo "$DATABASE_URL" | awk -F[@:/] '{print $4}')
-            DB_PORT=$(echo "$DATABASE_URL" | awk -F[@:/] '{print $5}' | awk -F'?' '{print $1}')
+            DB_HOST=$(python - <<'PY'
+import os
+from urllib.parse import urlparse
+print(urlparse(os.environ["DATABASE_URL"]).hostname or "")
+PY
+)
+            DB_PORT=$(python - <<'PY'
+import os
+from urllib.parse import urlparse
+print(urlparse(os.environ["DATABASE_URL"]).port or 5432)
+PY
+)
             DB_PORT="${DB_PORT:-5432}"
             echo "  Host: $DB_HOST, Port: $DB_PORT"
             # Simple TCP wait loop
@@ -36,35 +53,35 @@ if [ -n "$DATABASE_URL" ]; then
 fi
 
 # ── Run migrations ─────────────────────────────────────────────────
-if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
+if is_true "${RUN_MIGRATIONS:-false}"; then
     echo "Running migrations..."
     python manage.py migrate --noinput
     echo "  Done."
 fi
 
 # ── Seed Celery Beat schedule ──────────────────────────────────────
-if [ "${SEED_CELERY_BEAT:-false}" = "true" ]; then
+if is_true "${SEED_CELERY_BEAT:-false}"; then
     echo "Seeding Celery Beat schedule..."
     python manage.py seed_celery_beat_schedule
     echo "  Done."
 fi
 
 # ── Collect static files ───────────────────────────────────────────
-if [ "${RUN_COLLECTSTATIC:-false}" = "true" ]; then
+if is_true "${RUN_COLLECTSTATIC:-false}"; then
     echo "Collecting static files..."
     python manage.py collectstatic --noinput --clear
     echo "  Done."
 fi
 
 # ── Seed platform fees ─────────────────────────────────────────────
-if [ "${SEED_PLATFORM_FEES:-false}" = "true" ]; then
+if is_true "${SEED_PLATFORM_FEES:-false}"; then
     echo "Seeding platform fees..."
     python manage.py seed_platform_fees
     echo "  Done."
 fi
 
 # ── Seed Celery Beat schedule (ops tasks) ──────────────────────────
-if [ "${SEED_CELERY_BEAT:-false}" = "true" ]; then
+if is_true "${SEED_CELERY_BEAT:-false}"; then
     echo "Seeding Celery Beat schedule for Phase 15 ops tasks..."
     python manage.py seed_celery_beat_schedule
     echo "  Done."
