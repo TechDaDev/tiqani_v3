@@ -34,7 +34,9 @@ if SENTRY_DSN:  # noqa: F405
 # ---------------------------------------------------------------------------
 # Security — required
 # ---------------------------------------------------------------------------
-SECRET_KEY = env("SECRET_KEY")  # noqa: F405 — will raise if not set
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY") or env("SECRET_KEY", default="")  # noqa: F405
+if not SECRET_KEY or SECRET_KEY.startswith("change-me"):
+    raise RuntimeError("Production requires a non-placeholder DJANGO_SECRET_KEY or SECRET_KEY.")
 ALLOWED_HOSTS = env("ALLOWED_HOSTS")  # noqa: F405 — will raise if not set
 
 # ---------------------------------------------------------------------------

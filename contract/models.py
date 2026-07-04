@@ -46,8 +46,10 @@ class Contract(TimestampedModel):
 		('pending_signatures', 'Pending Signatures'),
 		('pending_finalization', 'Pending Finalization'),
 		('in_progress', 'In Progress'),
+		('active', 'Active'),
+		('completion_requested', 'Completion Requested'),
 		('completed', 'Completed'),
-		('canceled', 'Canceled')
+		('canceled', 'Canceled'),
 	]
 
 	STAGE_CHOICES = [
@@ -188,6 +190,16 @@ class Contract(TimestampedModel):
 		on_delete=models.SET_NULL,
 		related_name='finalized_contracts',
 		help_text="User who triggered finalization"
+	)
+	activated_at = models.DateTimeField(
+		null=True,
+		blank=True,
+		help_text="When contract execution was activated"
+	)
+	completed_at = models.DateTimeField(
+		null=True,
+		blank=True,
+		help_text="When contract was completed (escrow still held)"
 	)
 
 	class Meta:
@@ -546,10 +558,56 @@ class Contract(TimestampedModel):
 		Mark contract as completed and release technician availability.
 		Called when all stages are approved by client.
 		"""
+		from django.utils import timezone
 		self.status = 'completed'
+		self.completed_at = timezone.now()
 		self.technician.is_available = True
 		self.technician.save(update_fields=['is_available'])
+		self.save(update_fields=['status', 'completed_at'])
+
+	def activate_execution(self):
+		"""
+		Activate contract execution.
+		Contract must be funded (funding status FUNDED).
+		Sets status to 'active', records timestamp.
+		Does NOT release escrow.
+		"""
+		from django.utils import timezone
+		if self.status not in ('in_progress',):
+			raise ValueError("Only funded (in_progress) contracts can be activated.")
+		self.status = 'active'
+		self.activated_at = timezone.now()
+		self.save(update_fields=['status', 'activated_at'])
+
+	def request_completion(self, requested_by, message=''):
+		"""
+		Technician requests contract completion.
+		Only valid when all milestones are approved.
+		"""
+		from django.utils import timezone
+		if self.status != 'active':
+			raise ValueError("Only active contracts can request completion.")
+		if not self.execution_milestones.filter(status='APPROVED').count() == self.execution_milestones.count():
+			raise ValueError("All milestones must be approved before completion.")
+		unresolved = self.execution_milestones.filter(revisions__status='OPEN').exists()
+		if unresolved:
+			raise ValueError("Unresolved revision requests must be resolved first.")
+		self.status = 'completion_requested'
 		self.save(update_fields=['status'])
+
+	def confirm_completion(self):
+		"""
+		Client confirms contract completion.
+		Escrow remains held. No payout.
+		"""
+		from django.utils import timezone
+		if self.status != 'completion_requested':
+			raise ValueError("Completion must be requested before confirmation.")
+		self.status = 'completed'
+		self.completed_at = timezone.now()
+		self.technician.is_available = True
+		self.technician.save(update_fields=['is_available'])
+		self.save(update_fields=['status', 'completed_at'])
 
 	def cancel(self, reason=''):
 		"""
@@ -981,4 +1039,289 @@ class TimeExtensionRequest(TimestampedModel):
 		self.client_response = rejection_reason
 		self.responded_at = timezone.now()
 		self.save(update_fields=['status', 'client_response', 'responded_at'])
+
+
+# ──────────────────────────────────────────────
+#  Phase 8 — Contract Execution & Milestones
+# ──────────────────────────────────────────────
+
+
+class ExecutionMilestone(TimestampedModel):
+	"""
+	Work-tracking milestone for contract execution.
+	Tracks progress, deliverables, and approvals WITHOUT releasing escrow.
+	Separate from ContractStage (payment stages).
+	"""
+
+	class Status(models.TextChoices):
+		DRAFT = 'DRAFT', 'Draft'
+		PENDING = 'PENDING', 'Pending'
+		IN_PROGRESS = 'IN_PROGRESS', 'In Progress'
+		SUBMITTED = 'SUBMITTED', 'Submitted'
+		REVISION_REQUESTED = 'REVISION_REQUESTED', 'Revision Requested'
+		APPROVED = 'APPROVED', 'Approved'
+		CANCELLED = 'CANCELLED', 'Cancelled'
+
+	contract = models.ForeignKey(
+		Contract,
+		on_delete=models.CASCADE,
+		related_name='execution_milestones',
+		help_text="Parent contract"
+	)
+	sequence = models.PositiveIntegerField(
+		help_text="Order of milestone within contract"
+	)
+	title = models.CharField(
+		max_length=255,
+		help_text="Milestone title"
+	)
+	description = models.TextField(
+		blank=True,
+		default='',
+		help_text="Detailed description of work"
+	)
+	due_date = models.DateField(
+		null=True,
+		blank=True,
+		help_text="Target completion date"
+	)
+	status = models.CharField(
+		max_length=30,
+		choices=Status.choices,
+		default=Status.DRAFT,
+		db_index=True,
+		help_text="Current milestone status"
+	)
+	created_by = models.ForeignKey(
+		settings.AUTH_USER_MODEL,
+		null=True,
+		blank=True,
+		on_delete=models.SET_NULL,
+		related_name='created_milestones',
+		help_text="User who created the milestone"
+	)
+	started_at = models.DateTimeField(
+		null=True,
+		blank=True,
+		help_text="When technician started work"
+	)
+	submitted_at = models.DateTimeField(
+		null=True,
+		blank=True,
+		help_text="When technician submitted deliverable"
+	)
+	approved_at = models.DateTimeField(
+		null=True,
+		blank=True,
+		help_text="When client approved"
+	)
+	revision_count = models.PositiveIntegerField(
+		default=0,
+		help_text="Number of revision cycles"
+	)
+
+	class Meta:
+		indexes = [
+			models.Index(fields=['contract', 'sequence']),
+			models.Index(fields=['contract', 'status']),
+			models.Index(fields=['status']),
+		]
+		ordering = ['contract', 'sequence']
+		unique_together = [('contract', 'sequence')]
+		verbose_name = 'Execution Milestone'
+		verbose_name_plural = 'Execution Milestones'
+
+	def __str__(self):
+		return f"Milestone {self.sequence}: {self.title} ({self.contract.contract_reference})"
+
+	def clean(self):
+		from django.core.exceptions import ValidationError
+		if self.due_date and self.contract.start_date and self.due_date < self.contract.start_date:
+			raise ValidationError("Milestone due date cannot be before contract start date.")
+
+	def can_start(self):
+		return self.status in (self.Status.PENDING,)
+
+	def can_submit(self):
+		return self.status in (self.Status.IN_PROGRESS, self.Status.REVISION_REQUESTED)
+
+	def can_approve(self):
+		return self.status == self.Status.SUBMITTED
+
+	def can_request_revision(self):
+		return self.status == self.Status.SUBMITTED
+
+
+class DeliverableSubmission(TimestampedModel):
+	"""
+	A technician's deliverable submission for a milestone.
+	Versions are append-only; previous submissions remain immutable.
+	"""
+
+	milestone = models.ForeignKey(
+		ExecutionMilestone,
+		on_delete=models.CASCADE,
+		related_name='submissions',
+		help_text="Milestone being submitted"
+	)
+	submitted_by = models.ForeignKey(
+		settings.AUTH_USER_MODEL,
+		on_delete=models.CASCADE,
+		related_name='deliverable_submissions',
+		help_text="Technician who submitted"
+	)
+	version = models.PositiveIntegerField(
+		default=1,
+		help_text="Submission version number (increments on resubmit)"
+	)
+	summary = models.TextField(
+		help_text="Brief summary of completed work"
+	)
+	notes = models.TextField(
+		blank=True,
+		default='',
+		help_text="Additional work notes"
+	)
+	external_link = models.URLField(
+		blank=True,
+		default='',
+		help_text="External reference link (e.g., hosted doc)"
+	)
+	submitted_at = models.DateTimeField(
+		default=timezone.now,
+		help_text="When submission was made"
+	)
+
+	class Meta:
+		indexes = [
+			models.Index(fields=['milestone', 'version']),
+			models.Index(fields=['submitted_by']),
+		]
+		ordering = ['milestone', '-version']
+		unique_together = [('milestone', 'version')]
+		verbose_name = 'Deliverable Submission'
+		verbose_name_plural = 'Deliverable Submissions'
+
+	def __str__(self):
+		return f"Submission v{self.version} for milestone {self.milestone_id}"
+
+
+class RevisionRequest(TimestampedModel):
+	"""
+	Client request for revision on a deliverable submission.
+	Append-only: prior revision history is preserved.
+	"""
+
+	class Status(models.TextChoices):
+		OPEN = 'OPEN', 'Open'
+		RESOLVED = 'RESOLVED', 'Resolved'
+
+	milestone = models.ForeignKey(
+		ExecutionMilestone,
+		on_delete=models.CASCADE,
+		related_name='revisions',
+		help_text="Milestone being revised"
+	)
+	submission = models.ForeignKey(
+		DeliverableSubmission,
+		on_delete=models.CASCADE,
+		related_name='revisions',
+		help_text="Submission being revised"
+	)
+	requested_by = models.ForeignKey(
+		settings.AUTH_USER_MODEL,
+		on_delete=models.CASCADE,
+		related_name='revision_requests',
+		help_text="Client who requested revision"
+	)
+	reason = models.TextField(
+		help_text="Reason for revision request"
+	)
+	status = models.CharField(
+		max_length=20,
+		choices=Status.choices,
+		default=Status.OPEN,
+		db_index=True,
+		help_text="Revision status"
+	)
+	resolved_at = models.DateTimeField(
+		null=True,
+		blank=True,
+		help_text="When revision was resolved"
+	)
+	revision_number = models.PositiveIntegerField(
+		default=1,
+		help_text="Sequential revision number for this milestone"
+	)
+
+	class Meta:
+		indexes = [
+			models.Index(fields=['milestone', 'status']),
+			models.Index(fields=['submission']),
+		]
+		ordering = ['milestone', '-revision_number']
+		verbose_name = 'Revision Request'
+		verbose_name_plural = 'Revision Requests'
+
+	def __str__(self):
+		return f"Revision {self.revision_number} for milestone {self.milestone_id}"
+
+
+class CompletionRequest(TimestampedModel):
+	"""
+	Technician request for contract completion.
+	Client confirms or rejects.
+	"""
+
+	class Status(models.TextChoices):
+		PENDING = 'PENDING', 'Pending'
+		CONFIRMED = 'CONFIRMED', 'Confirmed'
+		REJECTED = 'REJECTED', 'Rejected'
+
+	contract = models.ForeignKey(
+		Contract,
+		on_delete=models.CASCADE,
+		related_name='completion_requests',
+		help_text="Contract to complete"
+	)
+	requested_by = models.ForeignKey(
+		settings.AUTH_USER_MODEL,
+		on_delete=models.CASCADE,
+		related_name='completion_requests',
+		help_text="Technician requesting completion"
+	)
+	completion_message = models.TextField(
+		blank=True,
+		default='',
+		help_text="Final summary from technician"
+	)
+	status = models.CharField(
+		max_length=20,
+		choices=Status.choices,
+		default=Status.PENDING,
+		db_index=True,
+		help_text="Completion request status"
+	)
+	response_message = models.TextField(
+		blank=True,
+		default='',
+		help_text="Client response or rejection reason"
+	)
+	responded_at = models.DateTimeField(
+		null=True,
+		blank=True,
+		help_text="When client responded"
+	)
+
+	class Meta:
+		indexes = [
+			models.Index(fields=['contract', 'status']),
+			models.Index(fields=['status']),
+		]
+		ordering = ['-created_at']
+		verbose_name = 'Completion Request'
+		verbose_name_plural = 'Completion Requests'
+
+	def __str__(self):
+		return f"Completion request for {self.contract.contract_reference} ({self.status})"
 

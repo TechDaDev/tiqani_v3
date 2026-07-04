@@ -49,6 +49,9 @@ class Notification(models.Model):
     target_type = models.CharField(max_length=50, blank=True, db_index=True)
     target_id = models.UUIDField(null=True, blank=True)
     target_url = models.CharField(max_length=500, blank=True)
+    title_key = models.CharField(max_length=120, blank=True)
+    body_key = models.CharField(max_length=120, blank=True)
+    deduplication_key = models.CharField(max_length=160, null=True, blank=True, unique=True)
     metadata = models.JSONField(default=dict, blank=True)
     is_read = models.BooleanField(default=False, db_index=True)
     read_at = models.DateTimeField(null=True, blank=True)
@@ -62,6 +65,7 @@ class Notification(models.Model):
             models.Index(fields=['recipient', 'created_at']),
             models.Index(fields=['is_read', 'created_at'], name='idx_notif_cleanup'),
             models.Index(fields=['target_type', 'target_id']),
+            models.Index(fields=['deduplication_key']),
         ]
 
     def __str__(self):
@@ -114,3 +118,32 @@ class ActivityLog(models.Model):
 
     def __str__(self):
         return f"[{self.audience}] {self.verb} by {self.actor or 'system'}"
+
+
+class NotificationPreference(models.Model):
+    """Per-user in-app notification category preferences."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='notification_preferences',
+    )
+    offers = models.BooleanField(default=True)
+    contracts = models.BooleanField(default=True)
+    payments = models.BooleanField(default=True)
+    execution = models.BooleanField(default=True)
+    messages = models.BooleanField(default=True)
+    disputes = models.BooleanField(default=True)
+    refunds = models.BooleanField(default=True)
+    reviews = models.BooleanField(default=True)
+    security = models.BooleanField(default=True)
+    system = models.BooleanField(default=True)
+    email_enabled = models.BooleanField(default=False, help_text="Reserved; production email delivery is deferred.")
+    push_enabled = models.BooleanField(default=False, help_text="Reserved; production push delivery is deferred.")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Notification preference"
+        verbose_name_plural = "Notification preferences"

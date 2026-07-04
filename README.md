@@ -216,6 +216,12 @@ See:
 
 - `docs/DEPLOYMENT.md` — Full deployment guide (venv, Docker, production)
 - `docs/PRODUCTION_CHECKLIST.md` — Pre-deployment verification checklist
+- `docs/PHASE_12_BACKEND.md` — Phase 12 production hardening and administration summary
+- `docs/ADMINISTRATION.md` — Admin operations, audit metadata, and staff workflows
+- `docs/SECURITY_HARDENING.md` — Secrets, rate limits, uploads, readiness, and proxy controls
+- `docs/BACKUP_AND_RESTORE.md` — PostgreSQL backup and restore scripts
+- `docs/OBSERVABILITY.md` — Health, readiness, logs, audit trail, and operational signals
+- `docs/ROLLBACK.md` — Release rollback procedure
 - `docs/QA_CHECKLIST.md` — Comprehensive QA testing checklist
 - `docs/RELEASE_NOTES_PHASE_1_TO_10.md` — Full release history
 - `docs/API_OVERVIEW.md` — Complete API route documentation

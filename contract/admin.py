@@ -9,6 +9,7 @@ from .models import (
     PlatformAttestation,
     ContractAuditEvent,
 )
+from .offer_models import Offer
 
 
 class ContractStageInline(admin.TabularInline):
@@ -198,3 +199,22 @@ class ContractAuditEventAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+# ──────────────────────────────────────────────
+#  Phase 6: Offers
+# ──────────────────────────────────────────────
+
+
+@admin.register(Offer)
+class OfferAdmin(admin.ModelAdmin):
+    list_display = ('id', 'service_request', 'amount', 'currency', 'status', 'created_at')
+    list_filter = ('status', 'currency', 'created_at')
+    search_fields = ('service_request__title', 'service_request__client__user__username')
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    fieldsets = (
+        ('Service Request', {'fields': ('service_request',)}),
+        ('Offer Details', {'fields': ('amount', 'currency', 'description', 'duration_days')}),
+        ('Status', {'fields': ('status',)}),
+        ('System', {'fields': ('id', 'created_at', 'updated_at')}),
+    )

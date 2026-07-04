@@ -5,6 +5,7 @@ from .views import (
     ReviewHelpfulView, ReviewReportView,
     ReviewModeratePublishView, ReviewModerateHideView,
     ReviewModerateVerifyView, ReviewModerateUnverifyView,
+    UserReputationView, UserReviewsList,
 )
 
 urlpatterns = [
@@ -28,4 +29,6 @@ urlpatterns = [
     path("<uuid:id>/moderate/hide/", ReviewModerateHideView.as_view(), name="review_moderate_hide"),
     path("<uuid:id>/moderate/verify/", ReviewModerateVerifyView.as_view(), name="review_moderate_verify"),
     path("<uuid:id>/moderate/unverify/", ReviewModerateUnverifyView.as_view(), name="review_moderate_unverify"),
+    path("users/<uuid:user_id>/reputation/", UserReputationView.as_view(), name="user_reputation"),
+    path("users/<uuid:user_id>/reviews/", UserReviewsList.as_view(), name="user_reviews"),
 ]

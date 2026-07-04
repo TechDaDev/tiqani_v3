@@ -46,8 +46,10 @@ API_DOCS_PUBLIC = env("API_DOCS_PUBLIC")
 # ---------------------------------------------------------------------------
 # Security
 # ---------------------------------------------------------------------------
-SECRET_KEY = env("SECRET_KEY")
 DEBUG = env("DEBUG")
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY") or env("SECRET_KEY", default="")
+if not SECRET_KEY and not DEBUG:
+    raise RuntimeError("DJANGO_SECRET_KEY or SECRET_KEY is required when DEBUG=False.")
 ALLOWED_HOSTS = env("ALLOWED_HOSTS")
 
 # ---------------------------------------------------------------------------
@@ -118,6 +120,8 @@ INSTALLED_APPS = [
     "dashboard",
     "dealership",
     "chat",
+    "servicerequest",
+    "dispute",
 ]
 
 AUTH_USER_MODEL = "accounts.CustomUser"
@@ -257,6 +261,7 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.AnonRateThrottle",
         "rest_framework.throttling.UserRateThrottle",
+        "rest_framework.throttling.ScopedRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
         "anon": env("THROTTLE_ANON", default="10/minute"),
@@ -271,6 +276,7 @@ REST_FRAMEWORK = {
         "chat_message": env("THROTTLE_CHAT_MESSAGE_RATE", default="60/minute"),
         "chat_attachment": env("THROTTLE_CHAT_ATTACHMENT_RATE", default="10/minute"),
         "chat_price_offer": env("THROTTLE_CHAT_PRICE_OFFER_RATE", default="10/minute"),
+        "admin_write": env("THROTTLE_ADMIN_WRITE_RATE", default="30/minute"),
         "schema": env("THROTTLE_SCHEMA_RATE", default="20/minute"),
     },
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",

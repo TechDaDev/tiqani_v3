@@ -47,7 +47,8 @@ class TechnicianListView(APIView):
     - Client users: See only approved and complete technicians
     - Admin users: See all technicians (including incomplete/unapproved)
     
-    Filters: governorate, is_available, skill_id
+    Filters: search (full_name, job_title, about), governorate, is_available, 
+             skill_id, category_id, min_rating
     """
     permission_classes = [AllowAny]
     pagination_class = StandardResultsSetPagination
@@ -67,6 +68,17 @@ class TechnicianListView(APIView):
                 approved=True
             )
 
+        # Search by keyword (full_name, job_title, about)
+        search = request.query_params.get('search')
+        if search:
+            from django.db.models import Q
+            queryset = queryset.filter(
+                Q(user__first_name__icontains=search) |
+                Q(user__last_name__icontains=search) |
+                Q(job_title__icontains=search) |
+                Q(about__icontains=search)
+            )
+
         # Filter by governorate
         governorate = request.query_params.get('governorate')
         if governorate:
@@ -82,6 +94,23 @@ class TechnicianListView(APIView):
         skill_id = request.query_params.get('skill_id')
         if skill_id:
             queryset = queryset.filter(skill_set__skills__id=skill_id).distinct()
+
+        # Filter by category
+        category_id = request.query_params.get('category_id')
+        if category_id:
+            queryset = queryset.filter(
+                skill_set__categories__id=category_id
+            ).distinct()
+
+        # Filter by minimum rating
+        min_rating = request.query_params.get('min_rating')
+        if min_rating is not None:
+            try:
+                min_rating_val = float(min_rating)
+                if 0 <= min_rating_val <= 5:
+                    queryset = queryset.filter(rate__gte=min_rating_val)
+            except (ValueError, TypeError):
+                pass
 
         # Order by rating
         order_by = request.query_params.get('order_by', '-rate')
@@ -160,11 +189,6 @@ class TechnicianSkillsView(APIView):
         # Create or get skill set
         skill_set, created = TechnicianSkillSet.objects.get_or_create(technician=profile)
 
-        # Ensure profile points to the skill_set record (no direct FK, but we link via the relation)
-        if profile.skill_set_id != skill_set.id:
-            # The reverse relation is managed via the TechnicianSkillSet model
-            pass
-        
         serializer = TechnicianSkillSetSerializer(
             skill_set,
             data=request.data,

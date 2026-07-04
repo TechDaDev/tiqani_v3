@@ -1,7 +1,7 @@
 """Serializers for review creation, updates, responses, and moderation."""
 
 from rest_framework import serializers
-from .models import Review, ReviewReport
+from .models import Review, ReviewReport, ReviewModerationAction, UserReputationSnapshot
 from contract.models import Contract
 
 
@@ -10,13 +10,17 @@ class ReviewPublicSerializer(serializers.ModelSerializer):
 
     reviewer_name = serializers.SerializerMethodField()
     technician_name = serializers.SerializerMethodField()
+    reviewee_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Review
         fields = [
             'id',
             'technician',
+            'reviewee',
+            'reviewee_name',
             'reviewer',
+            'reviewer_role',
             'reviewer_name',
             'technician_name',
             'rating',
@@ -27,8 +31,12 @@ class ReviewPublicSerializer(serializers.ModelSerializer):
             'title',
             'comment',
             'technician_response',
+            'status',
             'is_verified',
+            'is_public',
             'helpful_count',
+            'reported_count',
+            'edit_count',
             'created_at',
             'updated_at',
         ]
@@ -40,6 +48,13 @@ class ReviewPublicSerializer(serializers.ModelSerializer):
         return None
 
     def get_technician_name(self, obj):
+        if obj.technician and obj.technician.user:
+            return obj.technician.user.get_full_name() or obj.technician.user.username
+        return None
+
+    def get_reviewee_name(self, obj):
+        if obj.reviewee:
+            return obj.reviewee.get_full_name() or obj.reviewee.username
         if obj.technician and obj.technician.user:
             return obj.technician.user.get_full_name() or obj.technician.user.username
         return None
@@ -71,19 +86,23 @@ class ReviewCreateSerializer(serializers.ModelSerializer):
 
         user = self.context['request'].user
 
-        # Must be the contract client
-        if not hasattr(user, 'client_profile') or contract.client.user != user:
-            raise serializers.ValidationError("You are not the client for this contract.")
+        client_user = contract.client.user
+        tech_user = contract.technician.user
+        if user not in [client_user, tech_user]:
+            raise serializers.ValidationError("You are not a participant for this contract.")
 
         # Contract must be completed
         if contract.status != 'completed':
             raise serializers.ValidationError("Contract must be completed before reviewing.")
 
-        # Only one review per contract
-        if Review.objects.filter(reviewer=user, contract=contract).exists():
+        reviewee = tech_user if user == client_user else client_user
+
+        # Only one review per reviewer/reviewee/contract
+        if Review.objects.filter(reviewer=user, reviewee=reviewee, contract=contract).exists():
             raise serializers.ValidationError("You have already reviewed this contract.")
 
         self._contract = contract
+        self._reviewee = reviewee
         return value
 
     def create(self, validated_data):
@@ -94,7 +113,9 @@ class ReviewCreateSerializer(serializers.ModelSerializer):
         review = Review.objects.create(
             contract=contract,
             reviewer=request.user,
-            technician=contract.technician,
+            reviewee=self._reviewee,
+            reviewer_role=request.user.role,
+            technician=contract.technician if self._reviewee == contract.technician.user else None,
             is_verified=True,
             is_public=True,
             **validated_data,
@@ -159,3 +180,50 @@ class ReviewReportSerializer(serializers.ModelSerializer):
             'comment': {'required': False},
         }
 
+
+class ContractReviewCreateSerializer(serializers.Serializer):
+    """Contract-scoped review payload."""
+
+    rating = serializers.IntegerField(min_value=1, max_value=5)
+    title = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    comment = serializers.CharField(required=False, allow_blank=True)
+    work_quality_rating = serializers.IntegerField(min_value=1, max_value=5, required=False)
+    communication_rating = serializers.IntegerField(min_value=1, max_value=5, required=False)
+    timeliness_rating = serializers.IntegerField(min_value=1, max_value=5, required=False)
+    professionalism_rating = serializers.IntegerField(min_value=1, max_value=5, required=False)
+
+
+class ReviewEligibilitySerializer(serializers.Serializer):
+    eligible = serializers.BooleanField()
+    reason_code = serializers.CharField()
+    reviewee = serializers.DictField(allow_null=True)
+    existing_review = serializers.CharField(allow_null=True)
+    editable = serializers.BooleanField()
+
+
+class UserReputationSnapshotSerializer(serializers.ModelSerializer):
+    """Backend-owned transparent reputation aggregate."""
+
+    class Meta:
+        model = UserReputationSnapshot
+        fields = [
+            'user', 'role', 'average_rating', 'review_count',
+            'rating_1_count', 'rating_2_count', 'rating_3_count',
+            'rating_4_count', 'rating_5_count',
+            'completed_contract_count', 'label', 'last_recalculated_at',
+        ]
+        read_only_fields = fields
+
+
+class ReviewModerationActionSerializer(serializers.ModelSerializer):
+    actor_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ReviewModerationAction
+        fields = ['id', 'action', 'reason', 'actor', 'actor_name', 'created_at']
+        read_only_fields = fields
+
+    def get_actor_name(self, obj):
+        if obj.actor:
+            return obj.actor.get_full_name() or obj.actor.username
+        return None

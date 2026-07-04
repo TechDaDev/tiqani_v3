@@ -88,10 +88,12 @@ class LoginView(TokenObtainPairView):
         refresh = RefreshToken.for_user(user)
         access = refresh.access_token
         
+        role = user.admin_profile.role if hasattr(user, 'admin_profile') else user.role
         userdata = {
             'id': str(user.id),
             'username': user.username,
-            'role': user.role,
+            'role': role,
+            'is_staff': user.is_staff,
             'full_name': user.get_full_name(),
             'profile_image': user.profile_image.url if user.profile_image else None,
         }

@@ -126,13 +126,16 @@ class ReviewCreationTest(APITestCase):
         }, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_technician_cannot_review_own_contract(self):
-        """Technicians cannot review themselves (they lack client_profile)."""
+    def test_technician_can_review_client_for_completed_contract(self):
+        """Phase 11 allows the technician participant to review the client."""
         response = self.tech_auth.post(self.create_url, {
             "contract_id": str(self.contract.id),
             "rating": 5,
         }, format="json")
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(str(response.data["reviewee"]), str(self.client_user.id))
+        self.assertEqual(response.data["reviewer_role"], "technician")
+        self.assertIsNone(response.data["technician"])
 
     def test_duplicate_review_rejected(self):
         """Only one review per contract."""

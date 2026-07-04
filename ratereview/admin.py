@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Review, ReviewHelpful, ReviewReport
+from .models import Review, ReviewHelpful, ReviewReport, ReviewModerationAction, UserReputationSnapshot
 
 
 @admin.register(Review)
@@ -50,3 +50,19 @@ class ReviewReportAdmin(admin.ModelAdmin):
     list_display = ('review', 'reporter', 'reason', 'created_at')
     list_filter = ('reason',)
     search_fields = ('review__title', 'reporter__username')
+
+
+@admin.register(ReviewModerationAction)
+class ReviewModerationActionAdmin(admin.ModelAdmin):
+    list_display = ('review', 'actor', 'action', 'created_at')
+    list_filter = ('action', 'created_at')
+    search_fields = ('review__title', 'actor__username', 'reason')
+    readonly_fields = ('id', 'created_at')
+
+
+@admin.register(UserReputationSnapshot)
+class UserReputationSnapshotAdmin(admin.ModelAdmin):
+    list_display = ('user', 'role', 'average_rating', 'review_count', 'completed_contract_count', 'label', 'last_recalculated_at')
+    list_filter = ('role', 'label')
+    search_fields = ('user__username', 'user__email')
+    readonly_fields = ('id', 'created_at', 'updated_at')

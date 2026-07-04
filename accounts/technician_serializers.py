@@ -147,7 +147,7 @@ class TechnicianProfileSerializer(serializers.ModelSerializer):
             'user_id', 'username', 'full_name', 'email', 'phone_number', 'address', 'date_of_birth',
             'governorate', 'gender', 'profile_image', 'job_title', 'about', 'years_of_expertise',
             'is_available', 'approved', 'is_complete', 'rate', 'last_active',
-            'url1', 'url2', 'identification_documents', 'wallet_id', 'balance',
+            'github', 'linkedin', 'url1', 'url2', 'identification_documents', 'wallet_id', 'balance',
             'skill_sets', 'images'
         )
         read_only_fields = (
@@ -156,6 +156,18 @@ class TechnicianProfileSerializer(serializers.ModelSerializer):
             'url1', 'url2', 'identification_documents', 'wallet_id', 'balance',
             'skill_sets', 'images'
         )
+
+    def validate(self, attrs):
+        github = attrs.get('github', getattr(self.instance, 'github', None))
+        linkedin = attrs.get('linkedin', getattr(self.instance, 'linkedin', None))
+        errors = {}
+        if 'github' in attrs and not github:
+            errors['github'] = 'GitHub profile URL is required.'
+        if 'linkedin' in attrs and not linkedin:
+            errors['linkedin'] = 'LinkedIn profile URL is required.'
+        if errors:
+            raise serializers.ValidationError(errors)
+        return attrs
 
     def _can_view_sensitive(self, obj):
         request = self.context.get('request')

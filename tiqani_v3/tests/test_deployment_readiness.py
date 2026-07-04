@@ -18,7 +18,7 @@ class HealthEndpointTest(TestCase):
         self.assertIn('status', data)
         self.assertIn('service', data)
         self.assertIn('database', data)
-        self.assertIn('debug', data)
+        self.assertNotIn('debug', data)
         self.assertEqual(data['service'], 'tiqani_v3')
 
 

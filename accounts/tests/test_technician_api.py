@@ -1,8 +1,10 @@
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 from django.contrib.auth import get_user_model
+from django.urls import reverse
 
-from accounts.models import TechnicianProfile
+from accounts.models import TechnicianProfile, BaseProfile
+from category.models import Category
 
 User = get_user_model()
 
@@ -12,8 +14,10 @@ class TechnicianAPITest(APITestCase):
 
     def setUp(self):
         self.client = APIClient()
-        self.list_url = "/api/technicians/"
-        self.me_url = "/api/technicians/me/"
+        self.list_url = reverse("technician_list")
+        self.me_url = reverse("technician_profile")
+        self.skills_url = reverse("technician_skills")
+        self.incomplete_url = reverse("incomplete_fields")
 
         # Create an approved technician
         self.approved_user = User.objects.create_user(
@@ -84,3 +88,39 @@ class TechnicianAPITest(APITestCase):
         """Anonymous GET /api/technicians/me/ returns 401."""
         response = self.client.get(self.me_url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_technician_profile_rejects_client_user(self):
+        """Client user cannot access technician profile endpoint."""
+        self.client.force_authenticate(user=self.client_user)
+        response = self.client.get(self.me_url)
+        self.assertIn(response.status_code, [status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND])
+
+    def test_technician_get_incomplete_fields(self):
+        """Incomplete technician returns missing fields, no 500."""
+        self.client.force_authenticate(user=self.unapproved_user)
+        response = self.client.get(self.incomplete_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data
+        self.assertIn("incomplete_fields", data)
+        self.assertIn("is_complete", data)
+        # Unapproved tech has minimal profile
+        self.assertGreater(len(data["incomplete_fields"]), 0)
+        self.assertFalse(data["is_complete"])
+
+    def test_technician_skills_get(self):
+        """Technician can GET own skills."""
+        self.client.force_authenticate(user=self.approved_user)
+        response = self.client.get(self.skills_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_technician_skills_rejects_client(self):
+        """Client user cannot access technician skills endpoint."""
+        self.client.force_authenticate(user=self.client_user)
+        response = self.client.get(self.skills_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_technician_can_patch_skills(self):
+        """Technician can PATCH skills with valid data."""
+        self.client.force_authenticate(user=self.approved_user)
+        response = self.client.patch(self.skills_url, {"categories": []}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)

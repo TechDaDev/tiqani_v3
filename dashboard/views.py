@@ -1,6 +1,8 @@
 """Admin dashboard views — summary, users, technicians, contracts, reviews, finance, activity."""
 
+import os
 from decimal import Decimal
+from django.conf import settings
 from django.db import models as db_models
 from django.db.models import Count, Q, Sum
 from django.shortcuts import get_object_or_404
@@ -26,11 +28,12 @@ from wallet.services import (
     approve_withdrawal_request, reject_withdrawal_request,
     mark_payment_intent_paid,
 )
-from ratereview.models import Review
+from ratereview.models import Review, ReviewModerationAction
+from ratereview.services import moderate_review
 from notification.models import ActivityLog, Notification
 from notification.services import (
     notify_technician_approved, notify_technician_rejected,
-    create_activity, notify_review_moderated,
+    create_activity,
 )
 from dealership.services import get_dealership_metrics
 
@@ -53,6 +56,57 @@ from .serializers import (
 )
 
 User = get_user_model()
+
+
+def _chart_items(mapping):
+    return [{"label": key, "value": int(value or 0)} for key, value in mapping.items()]
+
+
+def _technician_approval_missing_requirements(tech):
+    field_labels = {
+        "phone_number": "phone_number",
+        "governorate": "governorate",
+        "address": "address",
+        "gender": "gender",
+        "date_of_birth": "date_of_birth",
+        "profile_image": "profile_image",
+        "job_title": "job_title",
+        "about": "about",
+        "years_of_expertise": "years_of_expertise",
+        "identification_documents": "documents",
+        "github": "github_url",
+        "linkedin": "linkedin_url",
+    }
+    missing = [field_labels.get(field, field) for field in tech.get_incomplete_fields()]
+    if not tech.user.is_active:
+        missing.append("active_account")
+    return sorted(set(missing))
+
+
+def _require_reason(request):
+    reason = str(request.data.get("reason") or request.data.get("note") or "").strip()
+    if not reason:
+        return None, Response(
+            {"reason": ["A reason is required for administrative write actions."]},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    return reason, None
+
+
+def _admin_activity(verb, *, actor, target_type, target_id, target_repr, previous_state, new_state, reason):
+    create_activity(
+        verb,
+        actor=actor,
+        target_type=target_type,
+        target_id=target_id,
+        target_repr=target_repr,
+        audience="admin",
+        metadata={
+            "reason": reason,
+            "previous_state": previous_state,
+            "new_state": new_state,
+        },
+    )
 
 
 # =====================================================================
@@ -118,6 +172,15 @@ class DashboardSummaryView(GenericAPIView):
             'activity_logs': ActivityLog.objects.count(),
         }
         data = {
+            'summary': {
+                'users_total': user_counts['total'],
+                'technicians_total': tech_counts['total'],
+                'contracts_total': contract_counts['total'],
+                'reviews_total': review_counts['total'],
+                'notifications_unread': notif_counts['unread'],
+                'payment_intents_pending': finance['payment_intents_pending'],
+                'withdrawals_pending': finance['withdrawals_pending'],
+            },
             'users': user_counts,
             'technicians': {
                 'total': tech_counts['total'],
@@ -137,8 +200,65 @@ class DashboardSummaryView(GenericAPIView):
             'reviews': review_counts,
             'notifications': notif_counts,
             'dealerships': get_dealership_metrics(),
+            'usersByRole': _chart_items({
+                'clients': user_counts['clients'],
+                'technicians': user_counts['technicians'],
+                'dealerships': user_counts['dealerships'],
+                'admins': user_counts['admins'],
+            }),
+            'techniciansByApproval': _chart_items({
+                'approved': tech_counts['approved_count'],
+                'pending': tech_counts['pending_count'],
+            }),
+            'contractsByStatus': _chart_items({
+                'draft': contract_counts['draft_count'],
+                'pending_acceptance': contract_counts['pending_acceptance_count'],
+                'in_progress': contract_counts['in_progress_count'],
+                'completed': contract_counts['completed_count'],
+                'canceled': contract_counts['canceled_count'],
+            }),
+            'paymentsByStatus': _chart_items({
+                'payment_intents_pending': finance['payment_intents_pending'],
+                'withdrawals_pending': finance['withdrawals_pending'],
+            }),
+            'reviewsByStatus': _chart_items({
+                'public': review_counts['public'],
+                'hidden': review_counts['hidden'],
+                'verified': review_counts['verified'],
+                'flagged': review_counts['flagged'],
+            }),
+            'notificationsByStatus': _chart_items({
+                'unread': notif_counts['unread'],
+                'read': notif_counts['total'] - notif_counts['unread'],
+            }),
         }
         return Response(data)
+
+
+class PlatformStatisticsView(DashboardSummaryView):
+    """GET /api/admin/platform-statistics/ — release-readiness alias."""
+
+
+class PlatformHealthView(GenericAPIView):
+    """GET /api/admin/platform-health/ — staff-only summarized operations status."""
+    permission_classes = [IsAuthenticated, IsPlatformAdmin]
+
+    def get(self, request, *args, **kwargs):
+        db_status = "ok"
+        try:
+            from django.db import connection
+
+            connection.ensure_connection()
+        except Exception:
+            db_status = "error"
+
+        return Response({
+            "status": "ok" if db_status == "ok" else "degraded",
+            "database": db_status,
+            "redis": "configured" if getattr(settings, "CELERY_BROKER_URL", "") else "not_configured",
+            "debug": bool(settings.DEBUG),
+            "version": os.environ.get("APP_VERSION", ""),
+        }, status=status.HTTP_200_OK if db_status == "ok" else status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
 # =====================================================================
@@ -200,28 +320,52 @@ class AdminUserDetailUpdateView(GenericAPIView):
 class AdminUserActivateView(GenericAPIView):
     """POST /api/admin/users/<id>/activate/."""
     permission_classes = [IsAuthenticated, IsSystemAdmin]
+    throttle_scope = "admin_write"
 
     def post(self, request, *args, **kwargs):
+        reason, error = _require_reason(request)
+        if error:
+            return error
         user = get_object_or_404(User, id=kwargs['id'])
+        previous_state = {"is_active": user.is_active}
         user.is_active = True
         user.save(update_fields=['is_active'])
-        create_activity('user_activated', actor=request.user,
-                        target_type='user', target_id=user.id,
-                        target_repr=user.username, audience='admin')
+        _admin_activity(
+            "user_restored",
+            actor=request.user,
+            target_type="user",
+            target_id=user.id,
+            target_repr=user.username,
+            previous_state=previous_state,
+            new_state={"is_active": user.is_active},
+            reason=reason,
+        )
         return Response({'status': 'ok', 'is_active': True})
 
 
 class AdminUserDeactivateView(GenericAPIView):
     """POST /api/admin/users/<id>/deactivate/."""
     permission_classes = [IsAuthenticated, IsSystemAdmin]
+    throttle_scope = "admin_write"
 
     def post(self, request, *args, **kwargs):
+        reason, error = _require_reason(request)
+        if error:
+            return error
         user = get_object_or_404(User, id=kwargs['id'])
+        previous_state = {"is_active": user.is_active}
         user.is_active = False
         user.save(update_fields=['is_active'])
-        create_activity('user_deactivated', actor=request.user,
-                        target_type='user', target_id=user.id,
-                        target_repr=user.username, audience='admin')
+        _admin_activity(
+            "user_suspended",
+            actor=request.user,
+            target_type="user",
+            target_id=user.id,
+            target_repr=user.username,
+            previous_state=previous_state,
+            new_state={"is_active": user.is_active},
+            reason=reason,
+        )
         return Response({'status': 'ok', 'is_active': False})
 
 
@@ -275,11 +419,35 @@ class AdminTechnicianDetailView(RetrieveAPIView):
 class AdminTechnicianApproveView(GenericAPIView):
     """POST /api/admin/technicians/<id>/approve/."""
     permission_classes = [IsAuthenticated, IsSystemAdmin]
+    throttle_scope = "admin_write"
 
     def post(self, request, *args, **kwargs):
+        reason, error = _require_reason(request)
+        if error:
+            return error
         tech = get_object_or_404(TechnicianProfile, id=kwargs['id'])
+        missing = _technician_approval_missing_requirements(tech)
+        if missing:
+            return Response(
+                {
+                    "code": "TECHNICIAN_APPROVAL_REQUIREMENTS_MISSING",
+                    "missing": missing,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        previous_state = {"approved": tech.approved, "is_available": tech.is_available}
         tech.approved = True
         tech.save(update_fields=['approved'])
+        _admin_activity(
+            "technician_approved",
+            actor=request.user,
+            target_type="technician",
+            target_id=tech.id,
+            target_repr=str(tech),
+            previous_state=previous_state,
+            new_state={"approved": tech.approved, "is_available": tech.is_available},
+            reason=reason,
+        )
         notify_technician_approved(tech, request.user)
         return Response({'status': 'ok', 'approved': True})
 
@@ -288,12 +456,27 @@ class AdminTechnicianRejectView(GenericAPIView):
     """POST /api/admin/technicians/<id>/reject/."""
     permission_classes = [IsAuthenticated, IsSystemAdmin]
     serializer_class = TechnicianRejectSerializer
+    throttle_scope = "admin_write"
 
     def post(self, request, *args, **kwargs):
+        reason, error = _require_reason(request)
+        if error:
+            return error
         tech = get_object_or_404(TechnicianProfile, id=kwargs['id'])
+        previous_state = {"approved": tech.approved, "is_available": tech.is_available}
         tech.approved = False
         tech.is_available = False
         tech.save(update_fields=['approved', 'is_available'])
+        _admin_activity(
+            "technician_suspended",
+            actor=request.user,
+            target_type="technician",
+            target_id=tech.id,
+            target_repr=str(tech),
+            previous_state=previous_state,
+            new_state={"approved": tech.approved, "is_available": tech.is_available},
+            reason=reason,
+        )
         notify_technician_rejected(tech, request.user)
         return Response({'status': 'ok', 'approved': False})
 
@@ -341,13 +524,16 @@ class AdminContractForceCancelView(GenericAPIView):
     """POST /api/admin/contracts/<id>/force-cancel/ — system_admin only."""
     permission_classes = [IsAuthenticated, IsSystemAdmin]
     serializer_class = AdminContractForceCancelSerializer
+    throttle_scope = "admin_write"
 
     def post(self, request, *args, **kwargs):
+        reason, error = _require_reason(request)
+        if error:
+            return error
         contract = get_object_or_404(Contract, id=kwargs['id'])
         if contract.status == 'completed':
             return Response({'error': 'Cannot cancel a completed contract.'},
                             status=status.HTTP_400_BAD_REQUEST)
-        reason = request.data.get('reason', 'Force canceled by admin.')
         contract = cancel_contract(contract, request.user, reason=reason)
         return Response({'status': 'ok', 'contract_status': contract.status})
 
@@ -400,8 +586,12 @@ class AdminReviewHideView(GenericAPIView):
 
     def post(self, request, *args, **kwargs):
         review = get_object_or_404(Review, id=kwargs['id'])
-        review.hide()
-        notify_review_moderated(review, request.user, 'hidden')
+        moderate_review(
+            review=review,
+            actor=request.user,
+            action=ReviewModerationAction.Action.HIDE,
+            reason=request.data.get("reason", ""),
+        )
         return Response({'status': 'ok', 'is_public': False})
 
 
@@ -411,8 +601,12 @@ class AdminReviewPublishView(GenericAPIView):
 
     def post(self, request, *args, **kwargs):
         review = get_object_or_404(Review, id=kwargs['id'])
-        review.publish()
-        notify_review_moderated(review, request.user, 'published')
+        moderate_review(
+            review=review,
+            actor=request.user,
+            action=ReviewModerationAction.Action.RESTORE,
+            reason=request.data.get("reason", ""),
+        )
         return Response({'status': 'ok', 'is_public': True})
 
 
@@ -422,9 +616,12 @@ class AdminReviewVerifyView(GenericAPIView):
 
     def post(self, request, *args, **kwargs):
         review = get_object_or_404(Review, id=kwargs['id'])
-        review.is_verified = True
-        review.save(update_fields=['is_verified', 'updated_at'])
-        notify_review_moderated(review, request.user, 'verified')
+        moderate_review(
+            review=review,
+            actor=request.user,
+            action=ReviewModerationAction.Action.VERIFY,
+            reason=request.data.get("reason", ""),
+        )
         return Response({'status': 'ok', 'is_verified': True})
 
 
@@ -434,9 +631,12 @@ class AdminReviewUnverifyView(GenericAPIView):
 
     def post(self, request, *args, **kwargs):
         review = get_object_or_404(Review, id=kwargs['id'])
-        review.is_verified = False
-        review.save(update_fields=['is_verified', 'updated_at'])
-        notify_review_moderated(review, request.user, 'unverified')
+        moderate_review(
+            review=review,
+            actor=request.user,
+            action=ReviewModerationAction.Action.UNVERIFY,
+            reason=request.data.get("reason", ""),
+        )
         return Response({'status': 'ok', 'is_verified': False})
 
 

@@ -5,9 +5,9 @@ name: CI
 
 on:
   push:
-    branches: [dev, main]
+    branches: [dev, main, backend/phase-12-production-release]
   pull_request:
-    branches: [dev, main]
+    branches: [dev, main, backend/phase-12-production-release]
 
 jobs:
   test:
@@ -82,3 +82,7 @@ jobs:
         run: |
           python manage.py spectacular --file /tmp/schema.yml --settings=$DJANGO_SETTINGS_MODULE
           python -c "import yaml; yaml.safe_load(open('/tmp/schema.yml')); print('Schema OK')"
+
+      - name: Docker build smoke
+        run: |
+          docker build -t tiqani-backend-ci .

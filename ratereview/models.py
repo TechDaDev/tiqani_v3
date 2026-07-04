@@ -12,6 +12,16 @@ from decimal import Decimal
 class Review(models.Model):
     """Customer feedback for a technician (optionally tied to a contract)."""
 
+    class Status(models.TextChoices):
+        PUBLISHED = "published", "Published"
+        UNDER_REVIEW = "under_review", "Under Review"
+        HIDDEN = "hidden", "Hidden"
+        REMOVED = "removed", "Removed"
+
+    class ReviewerRole(models.TextChoices):
+        CLIENT = "client", "Client"
+        TECHNICIAN = "technician", "Technician"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     contract = models.ForeignKey(
         'contract.Contract',
@@ -29,9 +39,25 @@ class Review(models.Model):
     )
     technician = models.ForeignKey(
         'accounts.TechnicianProfile',
+        null=True,
+        blank=True,
         on_delete=models.CASCADE,
         related_name='reviews_received',
-        help_text="Technician being reviewed",
+        help_text="Technician tied to the contract or being reviewed",
+    )
+    reviewee = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name='reviews_received',
+        help_text="User being reviewed",
+    )
+    reviewer_role = models.CharField(
+        max_length=20,
+        choices=ReviewerRole.choices,
+        blank=True,
+        db_index=True,
     )
     rating = models.PositiveSmallIntegerField(
         validators=[MinValueValidator(1), MaxValueValidator(5)],
@@ -64,11 +90,19 @@ class Review(models.Model):
     title = models.CharField(max_length=150, blank=True, help_text="Short headline for the review")
     comment = models.TextField(blank=True, help_text="Detailed feedback from the client")
     technician_response = models.TextField(blank=True, help_text="Optional response from the technician")
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PUBLISHED,
+        db_index=True,
+    )
     is_public = models.BooleanField(default=True, help_text="If false, hides the review from public listings")
     is_verified = models.BooleanField(default=False, help_text="True when linked to a contract or manually approved")
     helpful_count = models.PositiveIntegerField(default=0, help_text="Number of times users marked this review helpful")
     reported_count = models.PositiveIntegerField(default=0, help_text="Number of times the review was reported")
     flagged_at = models.DateTimeField(null=True, blank=True, help_text="When the review was flagged for moderation")
+    edit_count = models.PositiveSmallIntegerField(default=0)
+    last_edited_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -80,6 +114,8 @@ class Review(models.Model):
             models.Index(fields=['is_public']),
             models.Index(fields=['is_verified']),
             models.Index(fields=['contract', 'technician']),
+            models.Index(fields=['reviewee', 'status']),
+            models.Index(fields=['contract', 'reviewer', 'reviewee']),
         ]
         constraints = [
             models.UniqueConstraint(
@@ -87,10 +123,20 @@ class Review(models.Model):
                 condition=Q(contract__isnull=False),
                 name='unique_reviewer_contract_review',
             ),
+            models.UniqueConstraint(
+                fields=['contract', 'reviewer', 'reviewee'],
+                condition=Q(contract__isnull=False) & Q(reviewee__isnull=False),
+                name='unique_contract_reviewer_reviewee',
+            ),
+            models.CheckConstraint(
+                check=~Q(reviewer=models.F('reviewee')),
+                name='review_reviewer_not_reviewee',
+            ),
         ]
 
     def __str__(self):
-        return f"Review {self.rating}/5 for {self.technician.user.username}"
+        target = self.reviewee or (self.technician.user if self.technician_id else None)
+        return f"Review {self.rating}/5 for {getattr(target, 'username', 'unknown')}"
 
     def compute_overall_rating(self) -> int:
         """Calculate overall rating using specific scores when available."""
@@ -111,6 +157,12 @@ class Review(models.Model):
     def save(self, *args, **kwargs):
         # Auto-verify when linked to a contract
         self.is_verified = bool(self.contract_id) or self.is_verified
+        if not self.reviewee_id and self.technician_id:
+            self.reviewee = self.technician.user
+        if not self.reviewer_role and self.reviewer_id:
+            self.reviewer_role = getattr(self.reviewer, 'role', '') or ''
+        if self.status in [self.Status.HIDDEN, self.Status.REMOVED, self.Status.UNDER_REVIEW]:
+            self.is_public = False
         # Normalize rating from sub-scores if provided
         self.rating = self.compute_overall_rating()
 
@@ -122,13 +174,15 @@ class Review(models.Model):
 
     def publish(self):
         """Make the review visible."""
+        self.status = self.Status.PUBLISHED
         self.is_public = True
-        self.save(update_fields=['is_public', 'updated_at'])
+        self.save(update_fields=['status', 'is_public', 'updated_at'])
 
     def hide(self):
         """Hide the review from public listings."""
+        self.status = self.Status.HIDDEN
         self.is_public = False
-        self.save(update_fields=['is_public', 'updated_at'])
+        self.save(update_fields=['status', 'is_public', 'updated_at'])
 
     def mark_helpful(self):
         """Increment the helpful counter (idempotency should be enforced at the caller)."""
@@ -196,4 +250,76 @@ class ReviewReport(models.Model):
                 fields=['review', 'reporter'],
                 name='unique_review_report',
             ),
+        ]
+
+
+class ReviewModerationAction(models.Model):
+    """Immutable moderation history for a review."""
+
+    class Action(models.TextChoices):
+        HIDE = "hide", "Hide"
+        RESTORE = "restore", "Restore"
+        VERIFY = "verify", "Verify"
+        UNVERIFY = "unverify", "Unverify"
+        REPORT_RESOLVED = "report_resolved", "Report Resolved"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    review = models.ForeignKey(
+        Review, on_delete=models.CASCADE, related_name='moderation_actions'
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='review_moderation_actions',
+    )
+    action = models.CharField(max_length=30, choices=Action.choices)
+    reason = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['review', 'created_at']),
+            models.Index(fields=['actor', 'created_at']),
+        ]
+
+
+class UserReputationSnapshot(models.Model):
+    """Deterministic backend-owned reputation aggregate for a user."""
+
+    class ReputationRole(models.TextChoices):
+        CLIENT = "client", "Client"
+        TECHNICIAN = "technician", "Technician"
+
+    class Label(models.TextChoices):
+        NEW = "new", "New"
+        ESTABLISHED = "established", "Established"
+        HIGHLY_RATED = "highly_rated", "Highly Rated"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='reputation_snapshots',
+    )
+    role = models.CharField(max_length=20, choices=ReputationRole.choices, db_index=True)
+    average_rating = models.DecimalField(max_digits=3, decimal_places=2, default=Decimal("0.00"))
+    review_count = models.PositiveIntegerField(default=0)
+    rating_1_count = models.PositiveIntegerField(default=0)
+    rating_2_count = models.PositiveIntegerField(default=0)
+    rating_3_count = models.PositiveIntegerField(default=0)
+    rating_4_count = models.PositiveIntegerField(default=0)
+    rating_5_count = models.PositiveIntegerField(default=0)
+    completed_contract_count = models.PositiveIntegerField(default=0)
+    label = models.CharField(max_length=20, choices=Label.choices, default=Label.NEW)
+    last_recalculated_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'role'], name='unique_user_reputation_role'),
+        ]
+        indexes = [
+            models.Index(fields=['user', 'role']),
+            models.Index(fields=['label']),
         ]

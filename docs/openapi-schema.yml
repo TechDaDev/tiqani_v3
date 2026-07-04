@@ -90,6 +90,202 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaginatedAdminActivityList'
           description: ''
+  /api/admin/audit-events/:
+    get:
+      operationId: admin_audit_events_list
+      description: GET /api/admin/activity/ — activity feed.
+      parameters:
+      - in: query
+        name: actor
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: audience
+        schema:
+          type: string
+          enum:
+          - admin
+          - system
+          - user
+        description: |-
+          * `user` - User
+          * `admin` - Admin
+          * `system` - System
+      - in: query
+        name: created_at__gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_at__lte
+        schema:
+          type: string
+          format: date-time
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: target_type
+        schema:
+          type: string
+      - in: query
+        name: verb
+        schema:
+          type: string
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAdminActivityList'
+          description: ''
+  /api/admin/chargebacks/:
+    get:
+      operationId: admin_chargebacks_retrieve
+      description: List all chargebacks.
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/chargebacks/{chargeback_id}/:
+    get:
+      operationId: admin_chargebacks_retrieve_2
+      description: Get chargeback details.
+      parameters:
+      - in: path
+        name: chargeback_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/chargebacks/{chargeback_id}/sandbox-partial/:
+    post:
+      operationId: admin_chargebacks_sandbox_partial_create
+      description: 'Sandbox: partial chargeback.'
+      parameters:
+      - in: path
+        name: chargeback_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/chargebacks/{chargeback_id}/sandbox-reject/:
+    post:
+      operationId: admin_chargebacks_sandbox_reject_create
+      description: 'Sandbox: reject chargeback.'
+      parameters:
+      - in: path
+        name: chargeback_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/chargebacks/{chargeback_id}/sandbox-uphold/:
+    post:
+      operationId: admin_chargebacks_sandbox_uphold_create
+      description: 'Sandbox: uphold chargeback.'
+      parameters:
+      - in: path
+        name: chargeback_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/chargebacks/{chargeback_id}/start-review/:
+    post:
+      operationId: admin_chargebacks_start_review_create
+      description: Start chargeback review.
+      parameters:
+      - in: path
+        name: chargeback_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/chargebacks/{chargeback_id}/submit-evidence/:
+    post:
+      operationId: admin_chargebacks_submit_evidence_create
+      description: Submit evidence for chargeback.
+      parameters:
+      - in: path
+        name: chargeback_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/chargebacks/sandbox-create/:
+    post:
+      operationId: admin_chargebacks_sandbox_create_create
+      description: Create a sandbox chargeback event.
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/admin/contracts/:
     get:
       operationId: admin_contracts_list
@@ -122,8 +318,10 @@ paths:
         schema:
           type: string
           enum:
+          - active
           - canceled
           - completed
+          - completion_requested
           - draft
           - in_progress
           - pending_acceptance
@@ -137,6 +335,8 @@ paths:
           * `pending_signatures` - Pending Signatures
           * `pending_finalization` - Pending Finalization
           * `in_progress` - In Progress
+          * `active` - Active
+          * `completion_requested` - Completion Requested
           * `completed` - Completed
           * `canceled` - Canceled
       tags:
@@ -209,6 +409,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/AdminContractForceCancel'
           description: ''
+  /api/admin/dashboard/:
+    get:
+      operationId: admin_dashboard_retrieve
+      description: GET /api/admin/dashboard/summary/ — aggregated platform stats.
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/admin/dashboard/summary/:
     get:
       operationId: admin_dashboard_summary_retrieve
@@ -752,6 +964,208 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/admin/disputes/:
+    get:
+      operationId: admin_disputes_retrieve
+      description: List all disputes for staff.
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/disputes/{dispute_id}/:
+    get:
+      operationId: admin_disputes_retrieve_2
+      description: Full dispute detail for staff.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/disputes/{dispute_id}/assign/:
+    post:
+      operationId: admin_disputes_assign_create
+      description: Assign staff to a dispute.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/disputes/{dispute_id}/close/:
+    post:
+      operationId: admin_disputes_close_create
+      description: Close a resolved/rejected dispute.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/disputes/{dispute_id}/propose-resolution/:
+    post:
+      operationId: admin_disputes_propose_resolution_create
+      description: Propose resolution (no financial execution).
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/disputes/{dispute_id}/reconciliation/:
+    get:
+      operationId: admin_disputes_reconciliation_retrieve
+      description: Get reconciliation data for a dispute.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/disputes/{dispute_id}/refunds/:
+    post:
+      operationId: admin_disputes_refunds_create
+      description: Staff-initiated refund for a dispute.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/disputes/{dispute_id}/reject/:
+    post:
+      operationId: admin_disputes_reject_create
+      description: Reject a dispute.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/disputes/{dispute_id}/resolve/:
+    post:
+      operationId: admin_disputes_resolve_create
+      description: Resolve a dispute with full financial execution.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/disputes/{dispute_id}/start-mediation/:
+    post:
+      operationId: admin_disputes_start_mediation_create
+      description: Start mediation.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/disputes/{dispute_id}/start-review/:
+    post:
+      operationId: admin_disputes_start_review_create
+      description: Start review of a dispute.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/admin/finance/payment-intents/:
     get:
       operationId: admin_finance_payment_intents_list
@@ -934,14 +1348,18 @@ paths:
           enum:
           - approved
           - canceled
+          - failed
           - paid
           - pending
+          - processing
           - rejected
         description: |-
           * `pending` - Pending
           * `approved` - Approved
+          * `processing` - Processing
           * `rejected` - Rejected
           * `paid` - Paid
+          * `failed` - Failed
           * `canceled` - Canceled
       - in: query
         name: user
@@ -1028,6 +1446,216 @@ paths:
               schema:
                 $ref: '#/components/schemas/AdminWithdrawalAction'
           description: ''
+  /api/admin/payments/:
+    get:
+      operationId: admin_payments_list
+      description: GET /api/admin/finance/payment-intents/.
+      parameters:
+      - in: query
+        name: contract
+        schema:
+          type: string
+          format: uuid
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: purpose
+        schema:
+          type: string
+          enum:
+          - contract_funding
+          - wallet_deposit
+          - withdrawal
+        description: |-
+          * `contract_funding` - Contract Funding
+          * `wallet_deposit` - Wallet Deposit
+          * `withdrawal` - Withdrawal
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - canceled
+          - failed
+          - paid
+          - pending
+          - requires_action
+        description: |-
+          * `pending` - Pending
+          * `requires_action` - Requires Action
+          * `paid` - Paid
+          * `failed` - Failed
+          * `canceled` - Canceled
+      - in: query
+        name: user
+        schema:
+          type: string
+          format: uuid
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAdminPaymentIntentList'
+          description: ''
+  /api/admin/platform-health/:
+    get:
+      operationId: admin_platform_health_retrieve
+      description: GET /api/admin/platform-health/ — staff-only summarized operations
+        status.
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/platform-statistics/:
+    get:
+      operationId: admin_platform_statistics_retrieve
+      description: GET /api/admin/platform-statistics/ — release-readiness alias.
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/refunds/:
+    get:
+      operationId: admin_refunds_list
+      description: GET /api/admin/refunds/ — staff refund oversight.
+      parameters:
+      - in: query
+        name: created_at__gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_at__lte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: dispute
+        schema:
+          type: string
+          format: uuid
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: source_type
+        schema:
+          type: string
+          enum:
+          - escrow
+          - manual_recovery
+          - platform_fee_reversal
+          - sandbox_provider
+          - split_sources
+          - technician_wallet_reversal
+        description: |-
+          * `escrow` - Escrow
+          * `technician_wallet_reversal` - Technician Wallet Reversal
+          * `platform_fee_reversal` - Platform Fee Reversal
+          * `split_sources` - Split Sources
+          * `manual_recovery` - Manual Recovery
+          * `sandbox_provider` - Sandbox Provider
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - canceled
+          - completed
+          - failed
+          - partially_completed
+          - pending
+          - processing
+        description: |-
+          * `pending` - Pending
+          * `processing` - Processing
+          * `completed` - Completed
+          * `failed` - Failed
+          * `canceled` - Canceled
+          * `partially_completed` - Partially Completed
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedRefundRecordList'
+          description: ''
+  /api/admin/refunds/{refund_id}/retry/:
+    post:
+      operationId: admin_refunds_retry_create
+      description: Retry a failed refund.
+      parameters:
+      - in: path
+        name: refund_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/refunds/{refund_id}/sandbox-confirm/:
+    post:
+      operationId: admin_refunds_sandbox_confirm_create
+      description: Sandbox confirm a refund.
+      parameters:
+      - in: path
+        name: refund_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/admin/reviews/:
     get:
       operationId: admin_reviews_list
@@ -1342,6 +1970,40 @@ paths:
               schema:
                 $ref: '#/components/schemas/TechnicianReject'
           description: ''
+  /api/admin/technicians/{id}/suspend/:
+    post:
+      operationId: admin_technicians_suspend_create
+      description: POST /api/admin/technicians/<id>/reject/.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TechnicianRejectRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TechnicianRejectRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TechnicianRejectRequest'
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TechnicianReject'
+          description: ''
   /api/admin/technicians/pending/:
     get:
       operationId: admin_technicians_pending_list
@@ -1568,6 +2230,44 @@ paths:
   /api/admin/users/{id}/deactivate/:
     post:
       operationId: admin_users_deactivate_create
+      description: POST /api/admin/users/<id>/deactivate/.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/users/{id}/restore/:
+    post:
+      operationId: admin_users_restore_create
+      description: POST /api/admin/users/<id>/activate/.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/users/{id}/suspend/:
+    post:
+      operationId: admin_users_suspend_create
       description: POST /api/admin/users/<id>/deactivate/.
       parameters:
       - in: path
@@ -2758,6 +3458,65 @@ paths:
               schema:
                 $ref: '#/components/schemas/Message'
           description: ''
+  /api/chat/rooms/by-request/{request_id}/:
+    get:
+      operationId: chat_rooms_by_request_retrieve
+      description: |-
+        GET:   Get existing room linked to a service request.
+        POST:  Create (or get) a conversation for a service request.
+      summary: Get conversation for service request
+      parameters:
+      - in: path
+        name: request_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Chat
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Room'
+          description: ''
+        '404':
+          description: Room not found
+    post:
+      operationId: chat_rooms_by_request_create
+      description: |-
+        GET:   Get existing room linked to a service request.
+        POST:  Create (or get) a conversation for a service request.
+      summary: Create or get conversation for service request
+      parameters:
+      - in: path
+        name: request_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Chat
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Room'
+          description: ''
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Room'
+          description: ''
   /api/chat/rooms/unread-summary/:
     get:
       operationId: chat_rooms_unread_summary_retrieve
@@ -2881,10 +3640,124 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/contracts/{contract_id}/activate/:
+    post:
+      operationId: contracts_activate_create
+      description: Activate contract execution.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/contracts/{contract_id}/active-dispute/:
+    get:
+      operationId: contracts_active_dispute_retrieve
+      description: Get the active dispute for a contract, if any.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/contracts/{contract_id}/cancel/:
     post:
       operationId: contracts_cancel_create
       description: 'POST: Cancel contract.'
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/contracts/{contract_id}/complete/:
+    post:
+      operationId: contracts_complete_create
+      description: Client confirms contract completion.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/contracts/{contract_id}/completion-reject/:
+    post:
+      operationId: contracts_completion_reject_create
+      description: Client rejects completion request.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/contracts/{contract_id}/completion-request/:
+    post:
+      operationId: contracts_completion_request_create
+      description: Technician requests contract completion.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/contracts/{contract_id}/dispute-eligibility/:
+    get:
+      operationId: contracts_dispute_eligibility_retrieve
+      description: Check if a contract is eligible for dispute.
       parameters:
       - in: path
         name: contract_id
@@ -2950,6 +3823,44 @@ paths:
           description: Permission denied.
         '404':
           description: Final document not found.
+  /api/contracts/{contract_id}/execution-history/:
+    get:
+      operationId: contracts_execution_history_retrieve
+      description: Get execution history for a contract.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/contracts/{contract_id}/execution/eligibility/:
+    get:
+      operationId: contracts_execution_eligibility_retrieve
+      description: Check if contract can start execution.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/contracts/{contract_id}/extension-requests/:
     get:
       operationId: contracts_extension_requests_retrieve
@@ -3084,6 +3995,100 @@ paths:
           description: Invalid state for freezing.
         '403':
           description: Permission denied.
+  /api/contracts/{contract_id}/milestones/:
+    get:
+      operationId: contracts_milestones_list
+      description: List or create milestones for a contract.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedExecutionMilestoneListList'
+          description: ''
+    post:
+      operationId: contracts_milestones_create
+      description: List or create milestones for a contract.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecutionMilestoneCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ExecutionMilestoneCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ExecutionMilestoneCreateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionMilestoneCreate'
+          description: ''
+  /api/contracts/{contract_id}/milestones/reorder/:
+    post:
+      operationId: contracts_milestones_reorder_create
+      description: Reorder milestones.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/contracts/{contract_id}/request-signature-otp/:
     post:
       operationId: contracts_request_signature_otp_create
@@ -3107,6 +4112,64 @@ paths:
           description: Failed to send OTP or invalid state.
         '403':
           description: Permission denied.
+  /api/contracts/{contract_id}/review-eligibility/:
+    get:
+      operationId: contracts_review_eligibility_retrieve
+      description: GET /api/contracts/<contract_id>/review-eligibility/.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewEligibility'
+          description: ''
+  /api/contracts/{contract_id}/reviews/:
+    post:
+      operationId: contracts_reviews_create
+      description: POST /api/contracts/<contract_id>/reviews/.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractReviewCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ContractReviewCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ContractReviewCreateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractReviewCreate'
+          description: ''
   /api/contracts/{contract_id}/sign/:
     post:
       operationId: contracts_sign_create
@@ -3279,6 +4342,157 @@ paths:
         required: true
       - in: path
         name: stage_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/contracts/milestones/{milestone_id}/:
+    get:
+      operationId: contracts_milestones_retrieve
+      description: Retrieve or update a milestone.
+      parameters:
+      - in: path
+        name: milestone_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionMilestoneDetail'
+          description: ''
+    patch:
+      operationId: contracts_milestones_partial_update
+      description: Retrieve or update a milestone.
+      parameters:
+      - in: path
+        name: milestone_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedExecutionMilestoneUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedExecutionMilestoneUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedExecutionMilestoneUpdateRequest'
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionMilestoneUpdate'
+          description: ''
+  /api/contracts/milestones/{milestone_id}/approve/:
+    post:
+      operationId: contracts_milestones_approve_create
+      description: Client approves a milestone.
+      parameters:
+      - in: path
+        name: milestone_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/contracts/milestones/{milestone_id}/revision/:
+    post:
+      operationId: contracts_milestones_revision_create
+      description: Client requests revision on a submission.
+      parameters:
+      - in: path
+        name: milestone_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/contracts/milestones/{milestone_id}/start/:
+    post:
+      operationId: contracts_milestones_start_create
+      description: Technician starts work on a milestone.
+      parameters:
+      - in: path
+        name: milestone_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/contracts/milestones/{milestone_id}/submissions/:
+    get:
+      operationId: contracts_milestones_submissions_retrieve
+      description: List submissions for a milestone.
+      parameters:
+      - in: path
+        name: milestone_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - contracts
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/contracts/milestones/{milestone_id}/submit/:
+    post:
+      operationId: contracts_milestones_submit_create
+      description: Technician submits a deliverable.
+      parameters:
+      - in: path
+        name: milestone_id
         schema:
           type: string
           format: uuid
@@ -3613,6 +4827,125 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaginatedAdminSettlementListList'
           description: ''
+  /api/disputes/:
+    get:
+      operationId: disputes_retrieve
+      description: List disputes for the current user (as opener, respondent, or staff).
+      tags:
+      - disputes
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/disputes/{dispute_id}/:
+    get:
+      operationId: disputes_retrieve_2
+      description: Get dispute details.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - disputes
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/disputes/{dispute_id}/cancel/:
+    post:
+      operationId: disputes_cancel_create
+      description: Cancel a dispute.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - disputes
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/disputes/{dispute_id}/evidence/:
+    post:
+      operationId: disputes_evidence_create
+      description: Submit evidence for a dispute.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - disputes
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/disputes/{dispute_id}/refunds/:
+    get:
+      operationId: disputes_refunds_retrieve
+      description: List refunds for a dispute.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - disputes
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/disputes/{dispute_id}/statements/:
+    post:
+      operationId: disputes_statements_create
+      description: Add a statement to a dispute.
+      parameters:
+      - in: path
+        name: dispute_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - disputes
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/disputes/create/:
+    post:
+      operationId: disputes_create_create
+      description: Open a new dispute on a contract.
+      tags:
+      - disputes
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/notifications/:
     get:
       operationId: notifications_list
@@ -3763,12 +5096,252 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/notifications/preferences/:
+    get:
+      operationId: notifications_preferences_retrieve
+      description: GET/PATCH /api/notifications/preferences/.
+      tags:
+      - notifications
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreference'
+          description: ''
+    patch:
+      operationId: notifications_preferences_partial_update
+      description: GET/PATCH /api/notifications/preferences/.
+      tags:
+      - notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationPreferenceRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationPreferenceRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationPreferenceRequest'
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreference'
+          description: ''
   /api/notifications/unread-count/:
     get:
       operationId: notifications_unread_count_retrieve
       description: GET /api/notifications/unread-count/ — unread count.
       tags:
       - notifications
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/offers/:
+    get:
+      operationId: offers_retrieve
+      description: GET /api/offers/ — List incoming offers for the authenticated client's
+        requests.
+      tags:
+      - offers
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/offers/{offer_id}/:
+    get:
+      operationId: offers_retrieve_2
+      description: GET /api/offers/<uuid:offer_id>/ — View incoming offer detail.
+      parameters:
+      - in: path
+        name: offer_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - offers
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/offers/{offer_id}/accept/:
+    post:
+      operationId: offers_accept_create
+      description: POST /api/offers/<uuid:offer_id>/accept/ — Accept offer and create
+        contract.
+      parameters:
+      - in: path
+        name: offer_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - offers
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/offers/{offer_id}/reject/:
+    post:
+      operationId: offers_reject_create
+      description: POST /api/offers/<uuid:offer_id>/reject/ — Reject offer.
+      parameters:
+      - in: path
+        name: offer_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - offers
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/offers/by-request/{request_id}/:
+    get:
+      operationId: offers_by_request_retrieve
+      description: |-
+        GET /api/offers/by-request/<uuid:request_id>/ — List offers for a specific request.
+        Accessible to client (request owner) or technician (assigned).
+      parameters:
+      - in: path
+        name: request_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - offers
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/refunds/{refund_id}/:
+    get:
+      operationId: refunds_retrieve
+      description: Get refund details.
+      parameters:
+      - in: path
+        name: refund_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - refunds
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/requests/:
+    get:
+      operationId: requests_retrieve
+      description: |-
+        GET  /api/requests/          — List authenticated client's requests.
+        POST /api/requests/          — Create a new request (client only).
+      tags:
+      - requests
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: requests_create
+      description: |-
+        GET  /api/requests/          — List authenticated client's requests.
+        POST /api/requests/          — Create a new request (client only).
+      tags:
+      - requests
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/requests/{request_id}/:
+    get:
+      operationId: requests_retrieve_2
+      description: GET /api/requests/<uuid:request_id>/ — Client view their request
+        detail.
+      parameters:
+      - in: path
+        name: request_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - requests
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/requests/{request_id}/cancel/:
+    post:
+      operationId: requests_cancel_create
+      description: POST /api/requests/<uuid:request_id>/cancel/ — Client cancels their
+        request.
+      parameters:
+      - in: path
+        name: request_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - requests
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/requests/{request_id}/withdraw/:
+    post:
+      operationId: requests_withdraw_create
+      description: POST /api/requests/<uuid:request_id>/withdraw/ — Client withdraws
+        their request.
+      parameters:
+      - in: path
+        name: request_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - requests
       security:
       - jwtAuth: []
       - bearerAuth: []
@@ -4066,6 +5639,253 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaginatedReviewPublicList'
           description: ''
+  /api/reviews/users/{user_id}/reputation/:
+    get:
+      operationId: reviews_users_reputation_retrieve
+      description: GET /api/users/<user_id>/reputation/.
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - reviews
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserReputationSnapshot'
+          description: ''
+  /api/reviews/users/{user_id}/reviews/:
+    get:
+      operationId: reviews_users_reviews_list
+      description: GET /api/users/<user_id>/reviews/.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: path
+        name: user_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - reviews
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedReviewPublicList'
+          description: ''
+  /api/technician/offers/:
+    get:
+      operationId: technician_offers_retrieve
+      description: |-
+        GET  /api/technician/offers/          — List own offers.
+        POST /api/technician/offers/          — Create draft offer.
+      tags:
+      - technician
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: technician_offers_create
+      description: |-
+        GET  /api/technician/offers/          — List own offers.
+        POST /api/technician/offers/          — Create draft offer.
+      tags:
+      - technician
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/technician/offers/{offer_id}/:
+    get:
+      operationId: technician_offers_retrieve_2
+      description: |-
+        GET   /api/technician/offers/<uuid:offer_id>/   — View own offer.
+        PATCH /api/technician/offers/<uuid:offer_id>/   — Update draft offer.
+      parameters:
+      - in: path
+        name: offer_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - technician
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: technician_offers_partial_update
+      description: |-
+        GET   /api/technician/offers/<uuid:offer_id>/   — View own offer.
+        PATCH /api/technician/offers/<uuid:offer_id>/   — Update draft offer.
+      parameters:
+      - in: path
+        name: offer_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - technician
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/technician/offers/{offer_id}/submit/:
+    post:
+      operationId: technician_offers_submit_create
+      description: POST /api/technician/offers/<uuid:offer_id>/submit/ — Submit draft
+        offer.
+      parameters:
+      - in: path
+        name: offer_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - technician
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/technician/offers/{offer_id}/withdraw/:
+    post:
+      operationId: technician_offers_withdraw_create
+      description: POST /api/technician/offers/<uuid:offer_id>/withdraw/ — Withdraw
+        submitted offer.
+      parameters:
+      - in: path
+        name: offer_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - technician
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/technician/requests/:
+    get:
+      operationId: technician_requests_retrieve
+      description: GET /api/technician/requests/ — List authenticated technician's
+        incoming requests.
+      tags:
+      - technician
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/technician/requests/{request_id}/:
+    get:
+      operationId: technician_requests_retrieve_2
+      description: GET /api/technician/requests/<uuid:request_id>/ — Technician view
+        request detail.
+      parameters:
+      - in: path
+        name: request_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - technician
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/technician/requests/{request_id}/accept/:
+    post:
+      operationId: technician_requests_accept_create
+      description: POST /api/technician/requests/<uuid:request_id>/accept/ — Technician
+        accepts.
+      parameters:
+      - in: path
+        name: request_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - technician
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/technician/requests/{request_id}/decline/:
+    post:
+      operationId: technician_requests_decline_create
+      description: POST /api/technician/requests/<uuid:request_id>/decline/ — Technician
+        declines.
+      parameters:
+      - in: path
+        name: request_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - technician
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/technicians/:
     get:
       operationId: technicians_retrieve
@@ -4242,9 +6062,286 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/users/{user_id}/reputation/:
+    get:
+      operationId: users_reputation_retrieve
+      description: GET /api/users/<user_id>/reputation/.
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - users
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserReputationSnapshot'
+          description: ''
+  /api/users/{user_id}/reviews/:
+    get:
+      operationId: users_reviews_list
+      description: GET /api/users/<user_id>/reviews/.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: path
+        name: user_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - users
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedReviewPublicList'
+          description: ''
+  /api/wallet/admin/withdrawals/:
+    get:
+      operationId: wallet_admin_withdrawals_retrieve
+      description: List all withdrawal requests (staff only).
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wallet/admin/withdrawals/{withdrawal_id}/process/:
+    post:
+      operationId: wallet_admin_withdrawals_process_create
+      description: Move withdrawal from APPROVED to PROCESSING.
+      parameters:
+      - in: path
+        name: withdrawal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wallet/admin/withdrawals/{withdrawal_id}/retry/:
+    post:
+      operationId: wallet_admin_withdrawals_retry_create
+      description: Retry a failed withdrawal payout.
+      parameters:
+      - in: path
+        name: withdrawal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wallet/admin/withdrawals/{withdrawal_id}/sandbox-confirm/:
+    post:
+      operationId: wallet_admin_withdrawals_sandbox_confirm_create
+      description: Complete sandbox payout for a withdrawal.
+      parameters:
+      - in: path
+        name: withdrawal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wallet/available-balance/:
+    get:
+      operationId: wallet_available_balance_retrieve
+      description: Get technician's available balance.
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/wallet/contracts/{contract_id}/breakdown/:
     get:
       operationId: wallet_contracts_breakdown_retrieve
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wallet/contracts/{contract_id}/financial-summary/:
+    get:
+      operationId: wallet_contracts_financial_summary_retrieve
+      description: Get full financial summary for a contract.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wallet/contracts/{contract_id}/funding/eligibility/:
+    get:
+      operationId: wallet_contracts_funding_eligibility_retrieve
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wallet/contracts/{contract_id}/funding/intents/:
+    post:
+      operationId: wallet_contracts_funding_intents_create
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wallet/contracts/{contract_id}/funding/status/:
+    get:
+      operationId: wallet_contracts_funding_status_retrieve
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wallet/contracts/{contract_id}/settlement/:
+    get:
+      operationId: wallet_contracts_settlement_retrieve
+      description: Get settlement for a contract.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wallet/contracts/{contract_id}/settlement/eligibility/:
+    get:
+      operationId: wallet_contracts_settlement_eligibility_retrieve
+      description: Check if a completed contract is eligible for escrow settlement.
+      parameters:
+      - in: path
+        name: contract_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wallet/contracts/{contract_id}/settlements/:
+    post:
+      operationId: wallet_contracts_settlements_create
+      description: Release escrow for a completed contract.
       parameters:
       - in: path
         name: contract_id
@@ -4339,6 +6436,24 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/wallet/payment-intents/{intent_id}/sandbox-confirm/:
+    post:
+      operationId: wallet_payment_intents_sandbox_confirm_create
+      parameters:
+      - in: path
+        name: intent_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/wallet/transactions/:
     get:
       operationId: wallet_transactions_retrieve
@@ -4392,6 +6507,25 @@ paths:
   /api/wallet/withdrawals/{withdrawal_id}/approve/:
     post:
       operationId: wallet_withdrawals_approve_create
+      parameters:
+      - in: path
+        name: withdrawal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - wallet
+      security:
+      - jwtAuth: []
+      - bearerAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wallet/withdrawals/{withdrawal_id}/cancel/:
+    post:
+      operationId: wallet_withdrawals_cancel_create
+      description: Cancel a pending or approved withdrawal request.
       parameters:
       - in: path
         name: withdrawal_id
@@ -4685,7 +6819,7 @@ components:
           description: Calculated deadline date (start_date + duration_days)
         status:
           allOf:
-          - $ref: '#/components/schemas/Status065Enum'
+          - $ref: '#/components/schemas/Status5c1Enum'
           description: |-
             Current contract status
 
@@ -4694,6 +6828,8 @@ components:
             * `pending_signatures` - Pending Signatures
             * `pending_finalization` - Pending Finalization
             * `in_progress` - In Progress
+            * `active` - Active
+            * `completion_requested` - Completion Requested
             * `completed` - Completed
             * `canceled` - Canceled
         stage_number:
@@ -4721,6 +6857,16 @@ components:
           format: date-time
           nullable: true
           description: When the signed/final contract package was finalized
+        activated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When contract execution was activated
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When contract was completed (escrow still held)
         client:
           type: string
           format: uuid
@@ -4773,7 +6919,7 @@ components:
           maxLength: 20
         status:
           allOf:
-          - $ref: '#/components/schemas/Status065Enum'
+          - $ref: '#/components/schemas/Status5c1Enum'
           description: |-
             Current contract status
 
@@ -4782,6 +6928,8 @@ components:
             * `pending_signatures` - Pending Signatures
             * `pending_finalization` - Pending Finalization
             * `in_progress` - In Progress
+            * `active` - Active
+            * `completion_requested` - Completion Requested
             * `completed` - Completed
             * `canceled` - Canceled
         client_name:
@@ -5388,6 +7536,10 @@ components:
         reports:
           type: string
           readOnly: true
+        reviewer_role:
+          oneOf:
+          - $ref: '#/components/schemas/SignerRoleEnum'
+          - $ref: '#/components/schemas/BlankEnum'
         rating:
           type: integer
           maximum: 5
@@ -5427,6 +7579,8 @@ components:
         technician_response:
           type: string
           description: Optional response from the technician
+        status:
+          $ref: '#/components/schemas/Status2e1Enum'
         is_public:
           type: boolean
           description: If false, hides the review from public listings
@@ -5448,6 +7602,14 @@ components:
           format: date-time
           nullable: true
           description: When the review was flagged for moderation
+        edit_count:
+          type: integer
+          maximum: 32767
+          minimum: 0
+        last_edited_at:
+          type: string
+          format: date-time
+          nullable: true
         created_at:
           type: string
           format: date-time
@@ -5468,7 +7630,13 @@ components:
         technician:
           type: string
           format: uuid
-          description: Technician being reviewed
+          nullable: true
+          description: Technician tied to the contract or being reviewed
+        reviewee:
+          type: string
+          format: uuid
+          nullable: true
+          description: User being reviewed
       required:
       - created_at
       - id
@@ -5476,7 +7644,6 @@ components:
       - reports
       - reviewer
       - reviewer_name
-      - technician
       - technician_name
       - updated_at
     AdminReviewList:
@@ -5765,7 +7932,7 @@ components:
           maxLength: 254
         role:
           allOf:
-          - $ref: '#/components/schemas/RoleEnum'
+          - $ref: '#/components/schemas/RoleCacEnum'
           readOnly: true
           title: User Role
         role_display:
@@ -5854,7 +8021,7 @@ components:
           maxLength: 254
         role:
           allOf:
-          - $ref: '#/components/schemas/RoleEnum'
+          - $ref: '#/components/schemas/RoleCacEnum'
           title: User Role
         role_display:
           type: string
@@ -5958,6 +8125,15 @@ components:
           type: string
           format: date-time
           nullable: true
+        idempotency_key:
+          type: string
+          nullable: true
+          maxLength: 64
+        failure_code:
+          type: string
+          maxLength: 100
+        failure_message:
+          type: string
         user:
           type: string
           format: uuid
@@ -5984,15 +8160,19 @@ components:
       enum:
       - pending
       - approved
+      - processing
       - rejected
       - paid
+      - failed
       - canceled
       type: string
       description: |-
         * `pending` - Pending
         * `approved` - Approved
+        * `processing` - Processing
         * `rejected` - Rejected
         * `paid` - Paid
+        * `failed` - Failed
         * `canceled` - Canceled
     AttachmentUploadRequest:
       type: object
@@ -6262,6 +8442,68 @@ components:
       - kind
       - mime_type
       - sha256
+    ContractReviewCreate:
+      type: object
+      description: Contract-scoped review payload.
+      properties:
+        rating:
+          type: integer
+          maximum: 5
+          minimum: 1
+        title:
+          type: string
+          maxLength: 150
+        comment:
+          type: string
+        work_quality_rating:
+          type: integer
+          maximum: 5
+          minimum: 1
+        communication_rating:
+          type: integer
+          maximum: 5
+          minimum: 1
+        timeliness_rating:
+          type: integer
+          maximum: 5
+          minimum: 1
+        professionalism_rating:
+          type: integer
+          maximum: 5
+          minimum: 1
+      required:
+      - rating
+    ContractReviewCreateRequest:
+      type: object
+      description: Contract-scoped review payload.
+      properties:
+        rating:
+          type: integer
+          maximum: 5
+          minimum: 1
+        title:
+          type: string
+          maxLength: 150
+        comment:
+          type: string
+        work_quality_rating:
+          type: integer
+          maximum: 5
+          minimum: 1
+        communication_rating:
+          type: integer
+          maximum: 5
+          minimum: 1
+        timeliness_rating:
+          type: integer
+          maximum: 5
+          minimum: 1
+        professionalism_rating:
+          type: integer
+          maximum: 5
+          minimum: 1
+      required:
+      - rating
     ContractSignRequest:
       type: object
       description: Submit OTP to create signature proof.
@@ -6342,6 +8584,252 @@ components:
         * `technician_commission` - Technician Commission
         * `client_service_fee` - Client Service Fee
         * `adjustment` - Adjustment
+    ExecutionMilestoneCreate:
+      type: object
+      description: Create a draft milestone.
+      properties:
+        title:
+          type: string
+          description: Milestone title
+          maxLength: 255
+        description:
+          type: string
+          description: Detailed description of work
+        due_date:
+          type: string
+          format: date
+          nullable: true
+          description: Target completion date
+        sequence:
+          type: integer
+      required:
+      - title
+    ExecutionMilestoneCreateRequest:
+      type: object
+      description: Create a draft milestone.
+      properties:
+        title:
+          type: string
+          minLength: 1
+          description: Milestone title
+          maxLength: 255
+        description:
+          type: string
+          description: Detailed description of work
+        due_date:
+          type: string
+          format: date
+          nullable: true
+          description: Target completion date
+        sequence:
+          type: integer
+      required:
+      - title
+    ExecutionMilestoneDetail:
+      type: object
+      description: Full milestone detail with submissions and revisions.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        contract:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Parent contract
+        sequence:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          description: Order of milestone within contract
+        title:
+          type: string
+          description: Milestone title
+          maxLength: 255
+        description:
+          type: string
+          description: Detailed description of work
+        due_date:
+          type: string
+          format: date
+          nullable: true
+          description: Target completion date
+        status:
+          allOf:
+          - $ref: '#/components/schemas/StatusC37Enum'
+          readOnly: true
+          description: |-
+            Current milestone status
+
+            * `DRAFT` - Draft
+            * `PENDING` - Pending
+            * `IN_PROGRESS` - In Progress
+            * `SUBMITTED` - Submitted
+            * `REVISION_REQUESTED` - Revision Requested
+            * `APPROVED` - Approved
+            * `CANCELLED` - Cancelled
+        created_by:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+          description: User who created the milestone
+        started_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: When technician started work
+        submitted_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: When technician submitted deliverable
+        approved_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: When client approved
+        revision_count:
+          type: integer
+          readOnly: true
+          description: Number of revision cycles
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        submissions:
+          type: string
+          readOnly: true
+        revisions:
+          type: string
+          readOnly: true
+      required:
+      - approved_at
+      - contract
+      - created_at
+      - created_by
+      - id
+      - revision_count
+      - revisions
+      - sequence
+      - started_at
+      - status
+      - submissions
+      - submitted_at
+      - title
+      - updated_at
+    ExecutionMilestoneList:
+      type: object
+      description: List view for milestones (no sensitive fields).
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        contract:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Parent contract
+        sequence:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          description: Order of milestone within contract
+        title:
+          type: string
+          description: Milestone title
+          maxLength: 255
+        description:
+          type: string
+          description: Detailed description of work
+        due_date:
+          type: string
+          format: date
+          nullable: true
+          description: Target completion date
+        status:
+          allOf:
+          - $ref: '#/components/schemas/StatusC37Enum'
+          readOnly: true
+          description: |-
+            Current milestone status
+
+            * `DRAFT` - Draft
+            * `PENDING` - Pending
+            * `IN_PROGRESS` - In Progress
+            * `SUBMITTED` - Submitted
+            * `REVISION_REQUESTED` - Revision Requested
+            * `APPROVED` - Approved
+            * `CANCELLED` - Cancelled
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        started_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: When technician started work
+        submitted_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: When technician submitted deliverable
+        approved_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: When client approved
+        revision_count:
+          type: integer
+          readOnly: true
+          description: Number of revision cycles
+      required:
+      - approved_at
+      - contract
+      - created_at
+      - id
+      - revision_count
+      - sequence
+      - started_at
+      - status
+      - submitted_at
+      - title
+      - updated_at
+    ExecutionMilestoneUpdate:
+      type: object
+      description: Update a draft milestone (title, description, due_date only).
+      properties:
+        title:
+          type: string
+          description: Milestone title
+          maxLength: 255
+        description:
+          type: string
+          description: Detailed description of work
+        due_date:
+          type: string
+          format: date
+          nullable: true
+          description: Target completion date
+      required:
+      - title
     FeeModeEnum:
       enum:
       - added_on_top
@@ -6408,6 +8896,16 @@ components:
       description: |-
         * `draft_pdf` - Draft PDF
         * `signed_pdf` - Signed PDF
+    LabelEnum:
+      enum:
+      - new
+      - established
+      - highly_rated
+      type: string
+      description: |-
+        * `new` - New
+        * `established` - Established
+        * `highly_rated` - Highly Rated
     LinkContractRequest:
       type: object
       description: Link an existing contract to the room.
@@ -6560,6 +9058,12 @@ components:
         target_url:
           type: string
           readOnly: true
+        title_key:
+          type: string
+          readOnly: true
+        body_key:
+          type: string
+          readOnly: true
         metadata:
           readOnly: true
         is_read:
@@ -6577,6 +9081,7 @@ components:
       required:
       - actor
       - actor_name
+      - body_key
       - created_at
       - id
       - is_read
@@ -6588,6 +9093,52 @@ components:
       - target_type
       - target_url
       - title
+      - title_key
+    NotificationPreference:
+      type: object
+      description: In-app notification preference serializer.
+      properties:
+        offers:
+          type: boolean
+        contracts:
+          type: boolean
+        payments:
+          type: boolean
+        execution:
+          type: boolean
+        messages:
+          type: boolean
+        disputes:
+          type: boolean
+        refunds:
+          type: boolean
+        reviews:
+          type: boolean
+        security:
+          type: boolean
+        system:
+          type: boolean
+        email_enabled:
+          type: boolean
+          readOnly: true
+          description: Reserved; production email delivery is deferred.
+        push_enabled:
+          type: boolean
+          readOnly: true
+          description: Reserved; production push delivery is deferred.
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - email_enabled
+      - push_enabled
+      - updated_at
     NotificationTypeEnum:
       enum:
       - contract_created
@@ -7009,6 +9560,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Category'
+    PaginatedExecutionMilestoneListList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExecutionMilestoneList'
     PaginatedNotificationList:
       type: object
       required:
@@ -7055,6 +9629,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RechargeResponse'
+    PaginatedRefundRecordList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/RefundRecord'
     PaginatedReviewPublicList:
       type: object
       required:
@@ -7188,6 +9785,47 @@ components:
           maximum: 2147483647
           minimum: 0
           description: Display order in listings
+    PatchedExecutionMilestoneUpdateRequest:
+      type: object
+      description: Update a draft milestone (title, description, due_date only).
+      properties:
+        title:
+          type: string
+          minLength: 1
+          description: Milestone title
+          maxLength: 255
+        description:
+          type: string
+          description: Detailed description of work
+        due_date:
+          type: string
+          format: date
+          nullable: true
+          description: Target completion date
+    PatchedNotificationPreferenceRequest:
+      type: object
+      description: In-app notification preference serializer.
+      properties:
+        offers:
+          type: boolean
+        contracts:
+          type: boolean
+        payments:
+          type: boolean
+        execution:
+          type: boolean
+        messages:
+          type: boolean
+        disputes:
+          type: boolean
+        refunds:
+          type: boolean
+        reviews:
+          type: boolean
+        security:
+          type: boolean
+        system:
+          type: boolean
     PatchedReviewUpdateRequest:
       type: object
       description: Used for PATCH /api/reviews/<id>/ — reviewer updates own review.
@@ -7488,6 +10126,119 @@ components:
       - status
       - wallet_credit_amount
       - wallet_transaction
+    RefundRecord:
+      type: object
+      description: Refund record view serializer.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        dispute:
+          type: string
+          format: uuid
+          readOnly: true
+        contract:
+          type: string
+          format: uuid
+          readOnly: true
+        client:
+          type: string
+          format: uuid
+          readOnly: true
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,13}(?:\.\d{0,2})?$
+          readOnly: true
+        currency:
+          type: string
+          readOnly: true
+        source_type:
+          allOf:
+          - $ref: '#/components/schemas/SourceTypeEnum'
+          readOnly: true
+        source_type_display:
+          type: string
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/RefundRecordStatusEnum'
+          readOnly: true
+        status_display:
+          type: string
+          readOnly: true
+        refund_method:
+          type: string
+          readOnly: true
+        provider_reference:
+          type: string
+          readOnly: true
+        wallet_transaction:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+        created_by:
+          type: string
+          format: uuid
+          readOnly: true
+        initiated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        completed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        failed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        failure_code:
+          type: string
+          readOnly: true
+        failure_message:
+          type: string
+          readOnly: true
+      required:
+      - amount
+      - client
+      - completed_at
+      - contract
+      - created_by
+      - currency
+      - dispute
+      - failed_at
+      - failure_code
+      - failure_message
+      - id
+      - initiated_at
+      - provider_reference
+      - refund_method
+      - source_type
+      - source_type_display
+      - status
+      - status_display
+      - wallet_transaction
+    RefundRecordStatusEnum:
+      enum:
+      - pending
+      - processing
+      - completed
+      - failed
+      - canceled
+      - partially_completed
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `processing` - Processing
+        * `completed` - Completed
+        * `failed` - Failed
+        * `canceled` - Canceled
+        * `partially_completed` - Partially Completed
     ReviewCreate:
       type: object
       description: Used for POST /api/reviews/ — clients create review after completed
@@ -7579,6 +10330,28 @@ components:
       required:
       - contract_id
       - rating
+    ReviewEligibility:
+      type: object
+      properties:
+        eligible:
+          type: boolean
+        reason_code:
+          type: string
+        reviewee:
+          type: object
+          additionalProperties: {}
+          nullable: true
+        existing_review:
+          type: string
+          nullable: true
+        editable:
+          type: boolean
+      required:
+      - editable
+      - eligible
+      - existing_review
+      - reason_code
+      - reviewee
     ReviewPublic:
       type: object
       description: Public review detail — used for list & detail views.
@@ -7591,12 +10364,26 @@ components:
           type: string
           format: uuid
           readOnly: true
-          description: Technician being reviewed
+          nullable: true
+          description: Technician tied to the contract or being reviewed
+        reviewee:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+          description: User being reviewed
+        reviewee_name:
+          type: string
+          readOnly: true
         reviewer:
           type: string
           format: uuid
           readOnly: true
           description: User who submitted the review
+        reviewer_role:
+          allOf:
+          - $ref: '#/components/schemas/SignerRoleEnum'
+          readOnly: true
         reviewer_name:
           type: string
           readOnly: true
@@ -7639,14 +10426,29 @@ components:
           type: string
           readOnly: true
           description: Optional response from the technician
+        status:
+          allOf:
+          - $ref: '#/components/schemas/Status2e1Enum'
+          readOnly: true
         is_verified:
           type: boolean
           readOnly: true
           description: True when linked to a contract or manually approved
+        is_public:
+          type: boolean
+          readOnly: true
+          description: If false, hides the review from public listings
         helpful_count:
           type: integer
           readOnly: true
           description: Number of times users marked this review helpful
+        reported_count:
+          type: integer
+          readOnly: true
+          description: Number of times the review was reported
+        edit_count:
+          type: integer
+          readOnly: true
         created_at:
           type: string
           format: date-time
@@ -7659,13 +10461,20 @@ components:
       - comment
       - communication_rating
       - created_at
+      - edit_count
       - helpful_count
       - id
+      - is_public
       - is_verified
       - professionalism_rating
       - rating
+      - reported_count
+      - reviewee
+      - reviewee_name
       - reviewer
       - reviewer_name
+      - reviewer_role
+      - status
       - technician
       - technician_name
       - technician_response
@@ -7747,7 +10556,7 @@ components:
         comment:
           type: string
           description: Detailed feedback from the client
-    RoleEnum:
+    RoleCacEnum:
       enum:
       - client
       - technician
@@ -7791,6 +10600,17 @@ components:
           nullable: true
           readOnly: true
         linked_contract_status:
+          type: string
+          readOnly: true
+        service_request_id:
+          type: string
+          format: uuid
+          nullable: true
+          readOnly: true
+        service_request_title:
+          type: string
+          readOnly: true
+        service_request_status:
           type: string
           readOnly: true
         status:
@@ -7841,6 +10661,9 @@ components:
       - linked_contract_id
       - linked_contract_status
       - metadata
+      - service_request_id
+      - service_request_status
+      - service_request_title
       - status
       - technician_id
       - technician_user
@@ -7890,6 +10713,13 @@ components:
           format: uuid
           nullable: true
           readOnly: true
+        service_request_id:
+          type: string
+          format: uuid
+          readOnly: true
+        service_request_title:
+          type: string
+          readOnly: true
         last_message_preview:
           type: string
           readOnly: true
@@ -7916,6 +10746,8 @@ components:
       - last_message_at
       - last_message_preview
       - linked_contract_id
+      - service_request_id
+      - service_request_title
       - status
       - technician_user
       - unread_count
@@ -8010,6 +10842,22 @@ components:
       required:
       - category
       - name
+    SourceTypeEnum:
+      enum:
+      - escrow
+      - technician_wallet_reversal
+      - platform_fee_reversal
+      - split_sources
+      - manual_recovery
+      - sandbox_provider
+      type: string
+      description: |-
+        * `escrow` - Escrow
+        * `technician_wallet_reversal` - Technician Wallet Reversal
+        * `platform_fee_reversal` - Platform Fee Reversal
+        * `split_sources` - Split Sources
+        * `manual_recovery` - Manual Recovery
+        * `sandbox_provider` - Sandbox Provider
     StageNumberEnum:
       enum:
       - 2
@@ -8022,13 +10870,27 @@ components:
         * `3` - 3 Stages
         * `4` - 4 Stages
         * `5` - 5 Stages
-    Status065Enum:
+    Status2e1Enum:
+      enum:
+      - published
+      - under_review
+      - hidden
+      - removed
+      type: string
+      description: |-
+        * `published` - Published
+        * `under_review` - Under Review
+        * `hidden` - Hidden
+        * `removed` - Removed
+    Status5c1Enum:
       enum:
       - draft
       - pending_acceptance
       - pending_signatures
       - pending_finalization
       - in_progress
+      - active
+      - completion_requested
       - completed
       - canceled
       type: string
@@ -8038,6 +10900,8 @@ components:
         * `pending_signatures` - Pending Signatures
         * `pending_finalization` - Pending Finalization
         * `in_progress` - In Progress
+        * `active` - Active
+        * `completion_requested` - Completion Requested
         * `completed` - Completed
         * `canceled` - Canceled
     Status940Enum:
@@ -8082,6 +10946,24 @@ components:
         * `active` - Active
         * `suspended` - Suspended
         * `blocked` - Blocked
+    StatusC37Enum:
+      enum:
+      - DRAFT
+      - PENDING
+      - IN_PROGRESS
+      - SUBMITTED
+      - REVISION_REQUESTED
+      - APPROVED
+      - CANCELLED
+      type: string
+      description: |-
+        * `DRAFT` - Draft
+        * `PENDING` - Pending
+        * `IN_PROGRESS` - In Progress
+        * `SUBMITTED` - Submitted
+        * `REVISION_REQUESTED` - Revision Requested
+        * `APPROVED` - Approved
+        * `CANCELLED` - Cancelled
     StatusE55Enum:
       enum:
       - OPEN
@@ -8258,6 +11140,66 @@ components:
       required:
       - rooms
       - total_unread
+    UserReputationSnapshot:
+      type: object
+      description: Backend-owned transparent reputation aggregate.
+      properties:
+        user:
+          type: string
+          format: uuid
+          readOnly: true
+        role:
+          allOf:
+          - $ref: '#/components/schemas/SignerRoleEnum'
+          readOnly: true
+        average_rating:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,1}(?:\.\d{0,2})?$
+          readOnly: true
+        review_count:
+          type: integer
+          readOnly: true
+        rating_1_count:
+          type: integer
+          readOnly: true
+        rating_2_count:
+          type: integer
+          readOnly: true
+        rating_3_count:
+          type: integer
+          readOnly: true
+        rating_4_count:
+          type: integer
+          readOnly: true
+        rating_5_count:
+          type: integer
+          readOnly: true
+        completed_contract_count:
+          type: integer
+          readOnly: true
+        label:
+          allOf:
+          - $ref: '#/components/schemas/LabelEnum'
+          readOnly: true
+        last_recalculated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+      required:
+      - average_rating
+      - completed_contract_count
+      - label
+      - last_recalculated_at
+      - rating_1_count
+      - rating_2_count
+      - rating_3_count
+      - rating_4_count
+      - rating_5_count
+      - review_count
+      - role
+      - user
   securitySchemes:
     jwtAuth:
       type: http

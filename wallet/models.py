@@ -319,8 +319,10 @@ class WithdrawalRequest(TimestampedModel):
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
         APPROVED = "approved", "Approved"
+        PROCESSING = "processing", "Processing"
         REJECTED = "rejected", "Rejected"
         PAID = "paid", "Paid"
+        FAILED = "failed", "Failed"
         CANCELED = "canceled", "Canceled"
 
     user = models.ForeignKey(
@@ -339,6 +341,9 @@ class WithdrawalRequest(TimestampedModel):
     admin_note = models.TextField(blank=True)
     reviewed_at = models.DateTimeField(null=True, blank=True)
     paid_at = models.DateTimeField(null=True, blank=True)
+    idempotency_key = models.CharField(max_length=64, unique=True, null=True, blank=True)
+    failure_code = models.CharField(max_length=100, blank=True)
+    failure_message = models.TextField(blank=True)
 
     class Meta:
         ordering = ["-created_at"]
@@ -347,3 +352,73 @@ class WithdrawalRequest(TimestampedModel):
 
     def __str__(self):
         return f"Withdrawal {self.amount} – {self.get_status_display()}"
+
+
+class ContractSettlement(TimestampedModel):
+    """Immutable record of a completed contract escrow settlement."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        PROCESSING = "processing", "Processing"
+        COMPLETED = "completed", "Completed"
+        FAILED = "failed", "Failed"
+        REVERSED = "reversed", "Reversed"
+
+    contract = models.ForeignKey(
+        "contract.Contract", on_delete=models.PROTECT,
+        related_name="settlements",
+    )
+    payment_breakdown = models.ForeignKey(
+        ContractPaymentBreakdown, null=True, blank=True,
+        on_delete=models.SET_NULL,
+    )
+    released_principal = models.DecimalField(max_digits=15, decimal_places=2)
+    technician_net_amount = models.DecimalField(max_digits=15, decimal_places=2)
+    technician_commission_amount = models.DecimalField(max_digits=15, decimal_places=2)
+    client_service_fee_amount = models.DecimalField(max_digits=15, decimal_places=2)
+    total_platform_fee = models.DecimalField(max_digits=15, decimal_places=2)
+    currency = models.CharField(max_length=3, default="IQD")
+    status = models.CharField(
+        max_length=20, choices=Status.choices,
+        default=Status.PENDING, db_index=True,
+    )
+    initiated_by = models.ForeignKey(
+        "accounts.CustomUser", null=True, blank=True,
+        on_delete=models.SET_NULL,
+    )
+    initiated_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    failed_at = models.DateTimeField(null=True, blank=True)
+    failure_code = models.CharField(max_length=100, blank=True)
+    failure_message = models.TextField(blank=True)
+    idempotency_key = models.CharField(max_length=64, unique=True, null=True, blank=True)
+    technician_wallet_transaction = models.ForeignKey(
+        WalletTransaction, null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="settlement_releases",
+    )
+    platform_commission_earning = models.ForeignKey(
+        PlatformEarning, null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="settlement_commission",
+    )
+    client_fee_earning = models.ForeignKey(
+        PlatformEarning, null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="settlement_client_fee",
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Contract Settlement"
+        verbose_name_plural = "Contract Settlements"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["contract"],
+                condition=models.Q(status="completed"),
+                name="unique_completed_settlement_per_contract",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Settlement {self.id}: {self.released_principal} – {self.get_status_display()}"

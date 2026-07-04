@@ -7,6 +7,7 @@ import logging
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db import transaction
+from django.http import Http404
 
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -32,7 +33,9 @@ from .serializers import (
     AttachmentUploadSerializer,
     PriceOfferSerializer,
     UnreadSummarySerializer,
+    RequestRoomCreateSerializer,
 )
+from servicerequest.models import ServiceRequest
 from .permissions import (
     CanCreateRoom,
     IsRoomParticipant,
@@ -190,6 +193,78 @@ class RoomDetailView(APIView):
         room = self.get_object()
         serializer = RoomSerializer(room, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+# ===================================================================
+# Request-linked conversation
+# ===================================================================
+
+class RoomByRequestView(APIView):
+    """
+    GET:   Get existing room linked to a service request.
+    POST:  Create (or get) a conversation for a service request.
+    """
+
+    permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser]
+
+    def _get_request(self, request_id):
+        """Get a service request and verify the current user is involved."""
+        service_request = get_object_or_404(ServiceRequest, id=request_id)
+
+        # Verify user is the client or assigned technician
+        user = self.request.user
+        is_client = (
+            hasattr(user, "client_profile")
+            and user.client_profile == service_request.client
+        )
+        is_technician = (
+            hasattr(user, "technician_profile")
+            and user.technician_profile == service_request.technician
+        )
+        if not is_client and not is_technician and not user.is_staff:
+            raise Http404
+
+        return service_request
+
+    @extend_schema(
+        summary="Get conversation for service request",
+        responses={200: RoomSerializer, 404: OpenApiResponse(description="Room not found")},
+        tags=["Chat"],
+    )
+    def get(self, request, request_id):
+        service_request = self._get_request(request_id)
+        room = ServiceChatRoom.objects.filter(service_request=service_request).first()
+        if not room:
+            return Response(
+                {"detail": "No conversation linked to this request."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        serializer = RoomSerializer(room, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="Create or get conversation for service request",
+        responses={200: RoomSerializer, 201: RoomSerializer},
+        tags=["Chat"],
+    )
+    def post(self, request, request_id):
+        service_request = self._get_request(request_id)
+
+        try:
+            room, created = svc.get_or_create_room_for_request(
+                service_request=service_request,
+                created_by=request.user,
+            )
+        except ValueError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = RoomSerializer(room, context={"request": request})
+        status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        return Response(serializer.data, status=status_code)
 
 
 # ===================================================================

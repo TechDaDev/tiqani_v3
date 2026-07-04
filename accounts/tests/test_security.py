@@ -219,7 +219,7 @@ class AdminRoleSecurityTest(APITestCase):
 
     def test_superuser_can_approve_technician(self):
         url = f'/api/admin/technicians/{self.tech_profile.id}/approve/'
-        resp = self.super_auth.post(url)
+        resp = self.super_auth.post(url, {'reason': 'Security regression approval'}, format='json')
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.tech_profile.refresh_from_db()
         self.assertTrue(self.tech_profile.approved)

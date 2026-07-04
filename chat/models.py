@@ -17,6 +17,10 @@ from django.utils.translation import gettext_lazy as _
 from tiqani_v3.file_validators import validate_document_file
 
 
+# Forward reference for service_request
+SERVICE_REQUEST_MODEL = "servicerequest.ServiceRequest"
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -78,6 +82,14 @@ class ServiceChatRoom(models.Model):
         related_name="chat_rooms",
         verbose_name=_("Linked Contract"),
     )
+    service_request = models.ForeignKey(
+        SERVICE_REQUEST_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="chat_rooms",
+        verbose_name=_("Service Request"),
+    )
     status = models.CharField(
         max_length=20,
         choices=Status.choices,
@@ -104,11 +116,19 @@ class ServiceChatRoom(models.Model):
     class Meta:
         verbose_name = _("Service Chat Room")
         verbose_name_plural = _("Service Chat Rooms")
-        indexes = [
+        constraints = [
+            models.UniqueConstraint(
+                fields=["service_request"],
+                name="uq_room_service_request",
+                condition=models.Q(service_request__isnull=False),
+            ),
+        ]
+        indexes=[
             models.Index(fields=["client", "technician", "status"], name="idx_room_client_tech_status"),
             models.Index(fields=["technician", "status", "updated_at"], name="idx_room_tech_status_time"),
             models.Index(fields=["client", "status", "updated_at"], name="idx_room_client_status_time"),
             models.Index(fields=["linked_contract"], name="idx_room_linked_contract"),
+            models.Index(fields=["service_request"], name="idx_room_service_request"),
             models.Index(fields=["last_message_at"], name="idx_room_last_message"),
         ]
 
