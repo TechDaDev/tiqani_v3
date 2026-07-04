@@ -1,7 +1,11 @@
 """Serializers for admin dashboard APIs."""
 
+import mimetypes
+import os
+
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 from accounts.models import TechnicianProfile, ClientProfile
 from contract.models import Contract, ContractStage, TimeExtensionRequest
@@ -13,6 +17,94 @@ from ratereview.models import Review, ReviewReport
 from notification.models import ActivityLog
 
 User = get_user_model()
+
+
+TECHNICIAN_APPROVAL_FIELD_LABELS = {
+    "phone_number": "phone_number",
+    "governorate": "governorate",
+    "address": "address",
+    "gender": "gender",
+    "date_of_birth": "date_of_birth",
+    "profile_image": "profile_image",
+    "job_title": "job_title",
+    "about": "about",
+    "years_of_expertise": "years_of_expertise",
+    "identification_documents": "documents",
+    "github": "github_url",
+    "linkedin": "linkedin_url",
+}
+
+
+def _field_valid(tech, field_name):
+    value = getattr(tech, field_name, None)
+    if not value:
+        return False
+    field = tech._meta.get_field(field_name)
+    try:
+        field.run_validators(value)
+    except DjangoValidationError:
+        return False
+    return True
+
+
+def technician_approval_missing_requirements(tech):
+    missing = [
+        TECHNICIAN_APPROVAL_FIELD_LABELS.get(field, field)
+        for field in tech.get_incomplete_fields()
+    ]
+    if not _field_valid(tech, "github"):
+        missing.append("github_url")
+    if not _field_valid(tech, "linkedin"):
+        missing.append("linkedin_url")
+    if not tech.identification_documents:
+        missing.append("documents")
+    if not tech.user.is_active:
+        missing.append("active_account")
+    if not tech.is_available:
+        missing.append("not_suspended")
+    return sorted(set(missing))
+
+
+def technician_approval_checklist(tech):
+    missing = set(technician_approval_missing_requirements(tech))
+    return [
+        {"key": "profile_exists", "passed": True},
+        {"key": "profile_complete", "passed": not any(
+            key in missing for key in [
+                "phone_number", "governorate", "address", "gender", "date_of_birth",
+                "profile_image", "job_title", "about", "years_of_expertise",
+            ]
+        )},
+        {"key": "github_url", "passed": "github_url" not in missing},
+        {"key": "linkedin_url", "passed": "linkedin_url" not in missing},
+        {"key": "documents", "passed": "documents" not in missing},
+        {"key": "active_account", "passed": "active_account" not in missing},
+        {"key": "not_suspended", "passed": "not_suspended" not in missing},
+    ]
+
+
+def technician_document_items(tech):
+    document = tech.identification_documents
+    if not document:
+        return []
+
+    name = os.path.basename(document.name or "identification-document")
+    content_type = mimetypes.guess_type(name)[0] or "application/octet-stream"
+    size = None
+    try:
+        size = document.size
+    except Exception:
+        size = None
+
+    return [{
+        "id": "identification_documents",
+        "name": name,
+        "type": content_type,
+        "status": "uploaded",
+        "uploaded_at": tech.updated_at,
+        "size": size,
+        "download_url": f"/api/admin/technicians/{tech.id}/documents/identification_documents/",
+    }]
 
 
 # ------------------------------------------------------------------
@@ -199,19 +291,76 @@ class AdminTechnicianDetailSerializer(serializers.ModelSerializer):
     user = AdminUserDetailSerializer(read_only=True)
     incomplete_fields = serializers.SerializerMethodField()
     approval_requirements = serializers.SerializerMethodField()
+    documents = serializers.SerializerMethodField()
+    images = serializers.SerializerMethodField()
+    skill_sets = serializers.SerializerMethodField()
+    governorate = serializers.CharField(source='user.governorate', read_only=True)
+    gender = serializers.CharField(source='user.gender', read_only=True)
+    profile_image = serializers.CharField(source='user.profile_image', read_only=True)
 
     class Meta:
         model = TechnicianProfile
-        fields = '__all__'
+        fields = [
+            'id', 'user', 'job_title', 'rate', 'approved', 'is_available',
+            'years_of_expertise', 'governorate', 'is_complete',
+            'incomplete_fields', 'has_documents', 'has_github', 'has_linkedin',
+            'github', 'linkedin', 'about', 'last_active', 'gender',
+            'profile_image', 'documents', 'images', 'skill_sets',
+            'approval_requirements', 'created_at', 'updated_at',
+        ]
 
     def get_incomplete_fields(self, obj):
         return obj.get_incomplete_fields()
 
-    def get_approval_requirements(self, obj):
-        missing = obj.get_incomplete_fields()
+    def get_has_documents(self, obj):
+        return bool(obj.identification_documents)
+
+    def get_has_github(self, obj):
+        return bool(obj.github)
+
+    def get_has_linkedin(self, obj):
+        return bool(obj.linkedin)
+
+    has_documents = serializers.SerializerMethodField()
+    has_github = serializers.SerializerMethodField()
+    has_linkedin = serializers.SerializerMethodField()
+
+    def get_documents(self, obj):
+        return technician_document_items(obj)
+
+    def get_images(self, obj):
+        request = self.context.get('request')
+        items = []
+        for image in obj.portfolio_images.all():
+            url = ''
+            if image.image:
+                try:
+                    url = request.build_absolute_uri(image.image.url) if request else image.image.url
+                except Exception:
+                    url = ''
+            items.append({
+                'id': image.id,
+                'image': url,
+                'description': image.description or '',
+            })
+        return items
+
+    def get_skill_sets(self, obj):
+        skill_set = getattr(obj, 'skill_set', None)
+        if not skill_set:
+            return {'categories_detail': [], 'skills_detail': [], 'sub_skills_detail': []}
         return {
-            'can_approve': obj.user.is_active and not missing,
-            'missing': missing + ([] if obj.user.is_active else ['active_account']),
+            'categories_detail': [{'id': item.id, 'name': item.name} for item in skill_set.categories.all()],
+            'skills_detail': [{'id': item.id, 'name': item.name} for item in skill_set.skills.all()],
+            'sub_skills_detail': [{'id': item.id, 'name': item.name} for item in skill_set.sub_skills.all()],
+        }
+
+    def get_approval_requirements(self, obj):
+        missing = technician_approval_missing_requirements(obj)
+        return {
+            'can_approve': not missing,
+            'missing': missing,
+            'checklist': technician_approval_checklist(obj),
         }
 
 

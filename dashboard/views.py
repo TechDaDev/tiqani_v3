@@ -1,8 +1,10 @@
 """Admin dashboard views — summary, users, technicians, contracts, reviews, finance, activity."""
 
+import mimetypes
 import os
 from decimal import Decimal
 from django.conf import settings
+from django.http import FileResponse, Http404
 from django.db import models as db_models
 from django.db.models import Count, Q, Sum
 from django.shortcuts import get_object_or_404
@@ -53,6 +55,7 @@ from .serializers import (
     AdminWithdrawalSerializer, AdminWithdrawalActionSerializer,
     AdminPaymentIntentMarkPaidSerializer,
     AdminActivitySerializer,
+    technician_approval_missing_requirements,
 )
 
 User = get_user_model()
@@ -60,27 +63,6 @@ User = get_user_model()
 
 def _chart_items(mapping):
     return [{"label": key, "value": int(value or 0)} for key, value in mapping.items()]
-
-
-def _technician_approval_missing_requirements(tech):
-    field_labels = {
-        "phone_number": "phone_number",
-        "governorate": "governorate",
-        "address": "address",
-        "gender": "gender",
-        "date_of_birth": "date_of_birth",
-        "profile_image": "profile_image",
-        "job_title": "job_title",
-        "about": "about",
-        "years_of_expertise": "years_of_expertise",
-        "identification_documents": "documents",
-        "github": "github_url",
-        "linkedin": "linkedin_url",
-    }
-    missing = [field_labels.get(field, field) for field in tech.get_incomplete_fields()]
-    if not tech.user.is_active:
-        missing.append("active_account")
-    return sorted(set(missing))
 
 
 def _require_reason(request):
@@ -416,6 +398,40 @@ class AdminTechnicianDetailView(RetrieveAPIView):
     lookup_field = 'id'
 
 
+class AdminTechnicianDocumentView(GenericAPIView):
+    """GET /api/admin/technicians/<id>/documents/<document_id>/ — safe staff-only document download."""
+    permission_classes = [IsAuthenticated, IsAccountManager]
+
+    def get(self, request, *args, **kwargs):
+        tech = get_object_or_404(TechnicianProfile.objects.select_related('user'), id=kwargs['id'])
+        document_id = kwargs.get('document_id')
+        if document_id != 'identification_documents' or not tech.identification_documents:
+            raise Http404
+
+        document = tech.identification_documents
+        filename = os.path.basename(document.name or 'identification-document')
+        content_type = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+
+        _admin_activity(
+            "technician_document_downloaded",
+            actor=request.user,
+            target_type="technician_document",
+            target_id=tech.id,
+            target_repr=f"{tech} document",
+            previous_state={},
+            new_state={"document": document_id},
+            reason="admin_review",
+        )
+        response = FileResponse(
+            document.storage.open(document.name, 'rb'),
+            as_attachment=True,
+            filename=filename,
+            content_type=content_type,
+        )
+        response['Cache-Control'] = 'no-store'
+        return response
+
+
 class AdminTechnicianApproveView(GenericAPIView):
     """POST /api/admin/technicians/<id>/approve/."""
     permission_classes = [IsAuthenticated, IsSystemAdmin]
@@ -426,7 +442,7 @@ class AdminTechnicianApproveView(GenericAPIView):
         if error:
             return error
         tech = get_object_or_404(TechnicianProfile, id=kwargs['id'])
-        missing = _technician_approval_missing_requirements(tech)
+        missing = technician_approval_missing_requirements(tech)
         if missing:
             return Response(
                 {

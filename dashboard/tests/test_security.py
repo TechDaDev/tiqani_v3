@@ -2,6 +2,7 @@
 
 from decimal import Decimal
 from datetime import date
+from django.core.files.base import ContentFile
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 from django.contrib.auth import get_user_model
@@ -65,6 +66,8 @@ class ActivityLogCreationTest(APITestCase):
         self.super_auth.force_authenticate(user=self.superuser)
         self.sys_auth = APIClient()
         self.sys_auth.force_authenticate(user=self.sys_admin)
+        self.client_auth = APIClient()
+        self.client_auth.force_authenticate(user=client_user)
 
     def test_user_activate_creates_activity_log(self):
         self.tech_user.is_active = False
@@ -121,6 +124,60 @@ class ActivityLogCreationTest(APITestCase):
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(resp.data['code'], 'TECHNICIAN_APPROVAL_REQUIREMENTS_MISSING')
         self.assertIn('documents', resp.data['missing'])
+
+    def test_technician_approval_blocks_missing_linkedin(self):
+        self.tech.linkedin = ''
+        self.tech.save()
+        resp = self.sys_auth.post(
+            f'/api/admin/technicians/{self.tech.id}/approve/',
+            {'reason': 'Regression approval'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(resp.data['code'], 'TECHNICIAN_APPROVAL_REQUIREMENTS_MISSING')
+        self.assertIn('linkedin_url', resp.data['missing'])
+
+    def test_admin_technician_detail_includes_safe_documents_and_checklist(self):
+        self.tech.identification_documents.save(
+            'admin-review.pdf',
+            ContentFile(b'%PDF-1.4 admin review'),
+            save=True,
+        )
+        resp = self.sys_auth.get(f'/api/admin/technicians/{self.tech.id}/')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertIn('documents', resp.data)
+        self.assertTrue(resp.data['documents'][0]['name'].endswith('.pdf'))
+        self.assertEqual(resp.data['documents'][0]['download_url'], f'/api/admin/technicians/{self.tech.id}/documents/identification_documents/')
+        self.assertIn('approval_requirements', resp.data)
+        self.assertIn('checklist', resp.data['approval_requirements'])
+        serialized = str(resp.data)
+        self.assertNotIn('/tmp/', serialized)
+        self.assertNotIn('password', serialized.lower())
+        self.assertNotIn('token', serialized.lower())
+
+    def test_admin_can_download_technician_document(self):
+        self.tech.identification_documents.save(
+            'admin-download.pdf',
+            ContentFile(b'%PDF-1.4 admin download'),
+            save=True,
+        )
+        resp = self.sys_auth.get(
+            f'/api/admin/technicians/{self.tech.id}/documents/identification_documents/'
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertIn('attachment;', resp.get('Content-Disposition'))
+        self.assertIn('.pdf', resp.get('Content-Disposition'))
+
+    def test_participant_cannot_access_technician_document(self):
+        self.tech.identification_documents.save(
+            'admin-denied.pdf',
+            ContentFile(b'%PDF-1.4 denied'),
+            save=True,
+        )
+        resp = self.client_auth.get(
+            f'/api/admin/technicians/{self.tech.id}/documents/identification_documents/'
+        )
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_technician_reject_creates_activity_log(self):
         before = ActivityLog.objects.filter(verb='technician_rejected').count()
