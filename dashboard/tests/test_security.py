@@ -209,7 +209,11 @@ class ActivityLogCreationTest(APITestCase):
             amount=Decimal('30000'), requested_method='bank',
         )
         before = ActivityLog.objects.filter(verb='withdrawal_approved').count()
-        self.sys_auth.post(f'/api/admin/finance/withdrawals/{wr.id}/approve/', {}, format='json')
+        self.sys_auth.post(
+            f'/api/admin/finance/withdrawals/{wr.id}/approve/',
+            {'reason': 'Regression approval'},
+            format='json',
+        )
         after = ActivityLog.objects.filter(verb='withdrawal_approved').count()
         self.assertEqual(after, before + 1)
 
@@ -222,7 +226,11 @@ class ActivityLogCreationTest(APITestCase):
             amount=Decimal('30000'), requested_method='bank',
         )
         before = ActivityLog.objects.filter(verb='withdrawal_rejected').count()
-        self.sys_auth.post(f'/api/admin/finance/withdrawals/{wr.id}/reject/', {}, format='json')
+        self.sys_auth.post(
+            f'/api/admin/finance/withdrawals/{wr.id}/reject/',
+            {'reason': 'Regression rejection'},
+            format='json',
+        )
         after = ActivityLog.objects.filter(verb='withdrawal_rejected').count()
         self.assertEqual(after, before + 1)
 

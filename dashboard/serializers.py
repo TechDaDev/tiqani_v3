@@ -2,6 +2,7 @@
 
 import mimetypes
 import os
+from decimal import Decimal
 
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
@@ -10,9 +11,11 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from accounts.models import TechnicianProfile, ClientProfile
 from contract.models import Contract, ContractStage, TimeExtensionRequest
 from wallet.models import (
-    PlatformEarning, PaymentIntent, WithdrawalRequest,
-    ContractPaymentBreakdown, WalletTransaction,
+    ContractPaymentBreakdown, ContractSettlement, PaymentIntent, PlatformEarning,
+    PlatformWallet, PlatformWalletTransaction, WithdrawalRequest, Wallet,
+    WalletTransaction,
 )
+from dispute.models import RefundRecord
 from ratereview.models import Review, ReviewReport
 from notification.models import ActivityLog
 
@@ -508,11 +511,251 @@ class AdminWithdrawalSerializer(serializers.ModelSerializer):
 
 
 class AdminWithdrawalActionSerializer(serializers.Serializer):
-    note = serializers.CharField(required=False, allow_blank=True)
+    note = serializers.CharField(required=True, allow_blank=False, max_length=2000)
 
 
 class AdminPaymentIntentMarkPaidSerializer(serializers.Serializer):
     pass
+
+
+def _money(value):
+    return str(value or Decimal("0.00"))
+
+
+def _user_label(user):
+    if not user:
+        return ""
+    return user.get_full_name() or user.username
+
+
+def _mask_reference(value):
+    value = str(value or "")
+    if not value:
+        return ""
+    if len(value) <= 8:
+        return "****"
+    return f"{value[:4]}...{value[-4:]}"
+
+
+class AdminFinancialPaymentSerializer(serializers.ModelSerializer):
+    payer = serializers.SerializerMethodField()
+    contract_reference = serializers.CharField(source="contract.contract_reference", read_only=True)
+    amount = serializers.SerializerMethodField()
+    provider_reference_masked = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PaymentIntent
+        fields = [
+            "id", "contract", "contract_reference", "payer", "amount", "currency",
+            "purpose", "provider", "provider_reference_masked", "status",
+            "paid_at", "created_at", "updated_at",
+        ]
+        read_only_fields = fields
+
+    def get_payer(self, obj):
+        return {"id": str(obj.user_id), "name": _user_label(obj.user)}
+
+    def get_amount(self, obj):
+        return _money(obj.amount)
+
+    def get_provider_reference_masked(self, obj):
+        return _mask_reference(obj.provider_reference)
+
+
+class AdminFinancialRefundSerializer(serializers.ModelSerializer):
+    client = serializers.SerializerMethodField()
+    technician = serializers.SerializerMethodField()
+    contract_reference = serializers.CharField(source="contract.contract_reference", read_only=True)
+    dispute_id = serializers.UUIDField(source="dispute.id", read_only=True)
+    amount = serializers.SerializerMethodField()
+    provider_reference_masked = serializers.SerializerMethodField()
+    reconciliation = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RefundRecord
+        fields = [
+            "id", "contract", "contract_reference", "dispute_id", "client", "technician",
+            "amount", "currency", "source_type", "status", "refund_method",
+            "provider_reference_masked", "reconciliation", "initiated_at",
+            "completed_at", "failed_at", "created_at", "updated_at",
+        ]
+        read_only_fields = fields
+
+    def get_client(self, obj):
+        return {"id": str(obj.client_id), "name": _user_label(obj.client)}
+
+    def get_technician(self, obj):
+        user = getattr(getattr(obj.contract, "technician", None), "user", None)
+        return {"id": str(user.id), "name": _user_label(user)} if user else None
+
+    def get_amount(self, obj):
+        return _money(obj.amount)
+
+    def get_provider_reference_masked(self, obj):
+        return _mask_reference(obj.provider_reference)
+
+    def get_reconciliation(self, obj):
+        return {
+            "has_wallet_transaction": bool(obj.wallet_transaction_id),
+            "is_completed": obj.status == "completed",
+            "source_type": obj.source_type,
+        }
+
+
+class AdminFinancialWithdrawalSerializer(serializers.ModelSerializer):
+    user = serializers.SerializerMethodField()
+    amount = serializers.SerializerMethodField()
+    requested_method_masked = serializers.SerializerMethodField()
+
+    class Meta:
+        model = WithdrawalRequest
+        fields = [
+            "id", "user", "amount", "currency", "status", "requested_method_masked",
+            "notes", "admin_note", "reviewed_at", "paid_at", "created_at", "updated_at",
+        ]
+        read_only_fields = fields
+
+    def get_user(self, obj):
+        return {"id": str(obj.user_id), "name": _user_label(obj.user)}
+
+    def get_amount(self, obj):
+        return _money(obj.amount)
+
+    def get_requested_method_masked(self, obj):
+        return _mask_reference(obj.requested_method) or obj.requested_method
+
+
+class AdminFinancialLedgerSerializer(serializers.ModelSerializer):
+    user = serializers.SerializerMethodField()
+    amount = serializers.SerializerMethodField()
+    source_object = serializers.SerializerMethodField()
+    direction = serializers.SerializerMethodField()
+
+    class Meta:
+        model = WalletTransaction
+        fields = [
+            "id", "user", "wallet", "contract", "transaction_type", "direction",
+            "amount", "amount_usd", "exchange_rate", "source_object",
+            "description", "created_at", "updated_at",
+        ]
+        read_only_fields = fields
+
+    def get_user(self, obj):
+        user = getattr(obj.wallet, "user", None)
+        return {"id": str(user.id), "name": _user_label(user)} if user else None
+
+    def get_amount(self, obj):
+        return _money(obj.amount)
+
+    def get_source_object(self, obj):
+        if obj.contract_id:
+            return {"type": "contract", "id": str(obj.contract_id)}
+        return {"type": "wallet", "id": str(obj.wallet_id)}
+
+    def get_direction(self, obj):
+        if obj.transaction_type in {"deposit", "refund", "release"}:
+            return "credit"
+        return "debit"
+
+
+class AdminFinancialEscrowSerializer(serializers.ModelSerializer):
+    client = serializers.SerializerMethodField()
+    technician = serializers.SerializerMethodField()
+    contract_reference = serializers.CharField(source="contract.contract_reference", read_only=True)
+    title = serializers.CharField(source="contract.work_description", read_only=True)
+    escrow_amount = serializers.SerializerMethodField()
+    settled_at = serializers.DateTimeField(source="completed_at", read_only=True)
+    dispute_state = serializers.SerializerMethodField()
+    refund_state = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ContractSettlement
+        fields = [
+            "id", "contract", "contract_reference", "title", "client", "technician",
+            "escrow_amount", "released_principal", "technician_net_amount",
+            "total_platform_fee", "currency", "status", "initiated_at",
+            "settled_at", "dispute_state", "refund_state", "created_at", "updated_at",
+        ]
+        read_only_fields = fields
+
+    def get_client(self, obj):
+        user = getattr(getattr(obj.contract, "client", None), "user", None)
+        return {"id": str(user.id), "name": _user_label(user)} if user else None
+
+    def get_technician(self, obj):
+        user = getattr(getattr(obj.contract, "technician", None), "user", None)
+        return {"id": str(user.id), "name": _user_label(user)} if user else None
+
+    def get_escrow_amount(self, obj):
+        return _money(getattr(obj.contract, "escrow_amount", None))
+
+    def get_dispute_state(self, obj):
+        dispute = obj.contract.disputes.order_by("-created_at").first()
+        return dispute.status if dispute else ""
+
+    def get_refund_state(self, obj):
+        refund = obj.contract.refunds.order_by("-created_at").first()
+        return refund.status if refund else ""
+
+
+class AdminFinancialAuditSerializer(serializers.ModelSerializer):
+    actor = serializers.SerializerMethodField()
+    amount = serializers.SerializerMethodField()
+    reason = serializers.SerializerMethodField()
+    previous_state = serializers.SerializerMethodField()
+    new_state = serializers.SerializerMethodField()
+    source_service = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ActivityLog
+        fields = [
+            "id", "verb", "actor", "target_type", "target_id", "target_repr",
+            "amount", "reason", "previous_state", "new_state", "source_service",
+            "created_at",
+        ]
+        read_only_fields = fields
+
+    def _metadata(self, obj):
+        return obj.metadata if isinstance(obj.metadata, dict) else {}
+
+    def get_actor(self, obj):
+        return {"id": str(obj.actor_id), "name": _user_label(obj.actor)} if obj.actor else None
+
+    def get_amount(self, obj):
+        amount = self._metadata(obj).get("amount")
+        return str(amount) if amount is not None else ""
+
+    def get_reason(self, obj):
+        return str(self._metadata(obj).get("reason") or "")
+
+    def get_previous_state(self, obj):
+        return self._metadata(obj).get("previous_state") or {}
+
+    def get_new_state(self, obj):
+        return self._metadata(obj).get("new_state") or {}
+
+    def get_source_service(self, obj):
+        return str(self._metadata(obj).get("source_service") or "admin")
+
+
+class AdminFinancialUserWalletSerializer(serializers.ModelSerializer):
+    user = serializers.SerializerMethodField()
+    balance = serializers.SerializerMethodField()
+    recent_transactions = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Wallet
+        fields = ["user", "balance", "transaction_id", "updated_at", "recent_transactions"]
+        read_only_fields = fields
+
+    def get_user(self, obj):
+        return {"id": str(obj.user_id), "name": _user_label(obj.user)}
+
+    def get_balance(self, obj):
+        return _money(obj.balance)
+
+    def get_recent_transactions(self, obj):
+        return AdminFinancialLedgerSerializer(obj.transactions.all()[:10], many=True).data
 
 
 # ------------------------------------------------------------------

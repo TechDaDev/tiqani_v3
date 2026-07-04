@@ -7,6 +7,7 @@ from django.conf import settings
 from django.http import FileResponse, Http404
 from django.db import models as db_models
 from django.db.models import Count, Q, Sum
+from django.db.models.functions import TruncMonth
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
@@ -23,9 +24,10 @@ from accounts.models import TechnicianProfile, ClientProfile
 from contract.models import Contract, ContractStage
 from contract.services import cancel_contract
 from wallet.models import (
-    PlatformEarning, PaymentIntent, WithdrawalRequest,
-    Wallet, ContractPaymentBreakdown,
+    ContractSettlement, PlatformEarning, PaymentIntent, PlatformWallet,
+    PlatformWalletTransaction, WithdrawalRequest, Wallet, WalletTransaction,
 )
+from dispute.models import RefundRecord, UserFinancialLiability
 from wallet.services import (
     approve_withdrawal_request, reject_withdrawal_request,
     mark_payment_intent_paid,
@@ -54,6 +56,10 @@ from .serializers import (
     AdminPlatformEarningSerializer, AdminPaymentIntentSerializer,
     AdminWithdrawalSerializer, AdminWithdrawalActionSerializer,
     AdminPaymentIntentMarkPaidSerializer,
+    AdminFinancialAuditSerializer, AdminFinancialEscrowSerializer,
+    AdminFinancialLedgerSerializer, AdminFinancialPaymentSerializer,
+    AdminFinancialRefundSerializer, AdminFinancialUserWalletSerializer,
+    AdminFinancialWithdrawalSerializer,
     AdminActivitySerializer,
     technician_approval_missing_requirements,
 )
@@ -660,6 +666,203 @@ class AdminReviewUnverifyView(GenericAPIView):
 # Finance / Oversight
 # =====================================================================
 
+def _money(value):
+    return str(value or Decimal('0.00'))
+
+
+def _status_chart(queryset, field='status'):
+    return [
+        {'label': row[field] or 'unknown', 'value': int(row['count'] or 0)}
+        for row in queryset.values(field).annotate(count=Count('id')).order_by(field)
+    ]
+
+
+def _month_chart(queryset, amount_field='amount'):
+    rows = (
+        queryset.annotate(month=TruncMonth('created_at'))
+        .values('month')
+        .annotate(total=Sum(amount_field), count=Count('id'))
+        .order_by('month')
+    )
+    return [
+        {
+            'label': row['month'].strftime('%Y-%m') if row['month'] else '',
+            'value': _money(row['total']),
+            'count': int(row['count'] or 0),
+        }
+        for row in rows
+    ]
+
+
+class AdminFinancialOverviewView(GenericAPIView):
+    """GET /api/admin/financial/overview/ — read-only financial oversight."""
+    permission_classes = [IsAuthenticated, IsFinanceAdmin]
+
+    def get(self, request, *args, **kwargs):
+        paid_payments = PaymentIntent.objects.filter(status=PaymentIntent.Status.PAID)
+        pending_withdrawals = WithdrawalRequest.objects.filter(status=WithdrawalRequest.Status.PENDING)
+        completed_withdrawals = WithdrawalRequest.objects.filter(status__in=[
+            WithdrawalRequest.Status.PAID, WithdrawalRequest.Status.APPROVED,
+        ])
+        completed_refunds = RefundRecord.objects.filter(status='completed')
+        open_contracts = Contract.objects.filter(is_delete=False).exclude(status__in=['completed', 'canceled'])
+        platform_wallet = PlatformWallet.objects.first()
+        recent_activity = ActivityLog.objects.filter(
+            Q(verb__icontains='payment') |
+            Q(verb__icontains='withdrawal') |
+            Q(verb__icontains='refund') |
+            Q(verb__icontains='settlement') |
+            Q(target_type__in=['payment_intent', 'withdrawal', 'refund', 'settlement'])
+        ).select_related('actor').order_by('-created_at')[:10]
+
+        return Response({
+            'summary': {
+                'grossPayments': _money(paid_payments.aggregate(v=Sum('amount'))['v']),
+                'netPlatformFees': _money(PlatformEarning.objects.filter(
+                    status__in=[PlatformEarning.Status.EARNED, PlatformEarning.Status.PENDING]
+                ).aggregate(v=Sum('amount'))['v']),
+                'pendingWithdrawals': _money(pending_withdrawals.aggregate(v=Sum('amount'))['v']),
+                'completedWithdrawals': _money(completed_withdrawals.aggregate(v=Sum('amount'))['v']),
+                'refundsIssued': _money(completed_refunds.aggregate(v=Sum('amount'))['v']),
+                'escrowHeld': _money(Contract.objects.filter(is_delete=False).aggregate(v=Sum('escrow_amount'))['v']),
+                'openLiabilities': _money(UserFinancialLiability.objects.filter(status='open').aggregate(v=Sum('remaining_amount'))['v']),
+                'walletBalanceTotal': _money(Wallet.objects.aggregate(v=Sum('balance'))['v']),
+            },
+            'counts': {
+                'payments': PaymentIntent.objects.count(),
+                'refunds': RefundRecord.objects.count(),
+                'withdrawalsPending': pending_withdrawals.count(),
+                'withdrawalsCompleted': completed_withdrawals.count(),
+                'ledgerEntries': WalletTransaction.objects.count(),
+                'escrowContracts': open_contracts.filter(escrow_amount__gt=0).count(),
+            },
+            'charts': {
+                'paymentsByStatus': _status_chart(PaymentIntent.objects.all()),
+                'withdrawalsByStatus': _status_chart(WithdrawalRequest.objects.all()),
+                'refundsByReason': _status_chart(RefundRecord.objects.all(), 'source_type'),
+                'ledgerByType': _status_chart(WalletTransaction.objects.all(), 'transaction_type'),
+                'monthlyFlow': _month_chart(PaymentIntent.objects.all()),
+            },
+            'recentActivity': AdminFinancialAuditSerializer(recent_activity, many=True).data,
+            'platformWallet': {
+                'currency': getattr(platform_wallet, 'currency', 'IQD'),
+                'balance': _money(getattr(platform_wallet, 'balance', None)),
+            },
+        })
+
+
+class AdminFinancialPaymentListView(ListAPIView):
+    permission_classes = [IsAuthenticated, IsFinanceAdmin]
+    serializer_class = AdminFinancialPaymentSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    search_fields = ['provider_reference', 'contract__contract_reference', 'user__username']
+    ordering_fields = ['created_at', 'updated_at', 'amount', 'status']
+    filterset_fields = {
+        'status': ['exact'], 'purpose': ['exact'], 'provider': ['exact'],
+        'user': ['exact'], 'contract': ['exact'], 'created_at': ['gte', 'lte'],
+        'amount': ['gte', 'lte'],
+    }
+
+    def get_queryset(self):
+        return PaymentIntent.objects.select_related('user', 'contract').all().order_by('-created_at')
+
+
+class AdminFinancialRefundListView(ListAPIView):
+    permission_classes = [IsAuthenticated, IsFinanceAdmin]
+    serializer_class = AdminFinancialRefundSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    search_fields = ['provider_reference', 'contract__contract_reference', 'client__username']
+    ordering_fields = ['created_at', 'updated_at', 'amount', 'status']
+    filterset_fields = {
+        'status': ['exact'], 'source_type': ['exact'], 'client': ['exact'],
+        'contract': ['exact'], 'dispute': ['exact'], 'created_at': ['gte', 'lte'],
+        'amount': ['gte', 'lte'],
+    }
+
+    def get_queryset(self):
+        return RefundRecord.objects.select_related(
+            'client', 'contract', 'contract__technician__user', 'dispute', 'wallet_transaction'
+        ).all().order_by('-created_at')
+
+
+class AdminFinancialWithdrawalListView(ListAPIView):
+    permission_classes = [IsAuthenticated, IsFinanceAdmin]
+    serializer_class = AdminFinancialWithdrawalSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    search_fields = ['user__username', 'requested_method', 'notes', 'admin_note']
+    ordering_fields = ['created_at', 'updated_at', 'amount', 'status']
+    filterset_fields = {
+        'status': ['exact'], 'user': ['exact'], 'created_at': ['gte', 'lte'],
+        'amount': ['gte', 'lte'],
+    }
+
+    def get_queryset(self):
+        return WithdrawalRequest.objects.select_related('user', 'wallet').all().order_by('-created_at')
+
+
+class AdminFinancialLedgerListView(ListAPIView):
+    http_method_names = ['get', 'head', 'options']
+    permission_classes = [IsAuthenticated, IsFinanceAdmin]
+    serializer_class = AdminFinancialLedgerSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    search_fields = ['description', 'wallet__user__username', 'contract__contract_reference']
+    ordering_fields = ['created_at', 'updated_at', 'amount', 'transaction_type']
+    filterset_fields = {
+        'transaction_type': ['exact'], 'wallet__user': ['exact'], 'contract': ['exact'],
+        'created_at': ['gte', 'lte'], 'amount': ['gte', 'lte'],
+    }
+
+    def get_queryset(self):
+        return WalletTransaction.objects.select_related('wallet', 'wallet__user', 'contract').all().order_by('-created_at')
+
+
+class AdminFinancialEscrowListView(ListAPIView):
+    permission_classes = [IsAuthenticated, IsFinanceAdmin]
+    serializer_class = AdminFinancialEscrowSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    search_fields = ['contract__contract_reference', 'contract__work_description']
+    ordering_fields = ['created_at', 'updated_at', 'released_principal', 'status']
+    filterset_fields = {'status': ['exact'], 'contract': ['exact'], 'created_at': ['gte', 'lte']}
+
+    def get_queryset(self):
+        return ContractSettlement.objects.select_related(
+            'contract', 'contract__client__user', 'contract__technician__user'
+        ).all().order_by('-created_at')
+
+
+class AdminFinancialAuditListView(ListAPIView):
+    permission_classes = [IsAuthenticated, IsFinanceAdmin]
+    serializer_class = AdminFinancialAuditSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    search_fields = ['verb', 'target_repr', 'actor__username']
+    ordering_fields = ['created_at', 'verb', 'target_type']
+    filterset_fields = {
+        'actor': ['exact'], 'verb': ['exact'], 'target_type': ['exact'],
+        'created_at': ['gte', 'lte'],
+    }
+
+    def get_queryset(self):
+        return ActivityLog.objects.filter(
+            Q(verb__icontains='payment') |
+            Q(verb__icontains='withdrawal') |
+            Q(verb__icontains='refund') |
+            Q(verb__icontains='settlement') |
+            Q(target_type__in=['payment_intent', 'withdrawal', 'refund', 'settlement'])
+        ).select_related('actor').order_by('-created_at')
+
+
+class AdminFinancialUserWalletView(RetrieveAPIView):
+    permission_classes = [IsAuthenticated, IsFinanceAdmin]
+    serializer_class = AdminFinancialUserWalletSerializer
+    lookup_url_kwarg = 'user_id'
+
+    def get_queryset(self):
+        return Wallet.objects.select_related('user').all()
+
+    def get_object(self):
+        return get_object_or_404(self.get_queryset(), user_id=self.kwargs['user_id'])
+
+
 class AdminFinanceSummaryView(GenericAPIView):
     """GET /api/admin/finance/summary/."""
     permission_classes = [IsAuthenticated, IsFinanceAdmin]
@@ -744,10 +947,12 @@ class AdminWithdrawalApproveView(GenericAPIView):
     serializer_class = AdminWithdrawalActionSerializer
 
     def post(self, request, *args, **kwargs):
+        reason, error = _require_reason(request)
+        if error:
+            return error
         wr = get_object_or_404(WithdrawalRequest, id=kwargs['id'])
-        note = request.data.get('note', '')
         try:
-            wr = approve_withdrawal_request(wr, request.user, note=note)
+            wr = approve_withdrawal_request(wr, request.user, note=reason)
             return Response({'status': 'ok', 'withdrawal_status': wr.status})
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -759,10 +964,12 @@ class AdminWithdrawalRejectView(GenericAPIView):
     serializer_class = AdminWithdrawalActionSerializer
 
     def post(self, request, *args, **kwargs):
+        reason, error = _require_reason(request)
+        if error:
+            return error
         wr = get_object_or_404(WithdrawalRequest, id=kwargs['id'])
-        note = request.data.get('note', '')
         try:
-            wr = reject_withdrawal_request(wr, request.user, note=note)
+            wr = reject_withdrawal_request(wr, request.user, note=reason)
             return Response({'status': 'ok', 'withdrawal_status': wr.status})
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)

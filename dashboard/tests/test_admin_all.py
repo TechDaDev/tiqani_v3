@@ -421,7 +421,11 @@ class AdminFinanceTest(AdminTestBase):
             user=self.tech_user, wallet=wallet,
             amount=Decimal('50000'), requested_method='bank',
         )
-        resp = self.fin_auth.post(f'/api/admin/finance/withdrawals/{wr.id}/approve/', {}, format='json')
+        resp = self.fin_auth.post(
+            f'/api/admin/finance/withdrawals/{wr.id}/approve/',
+            {'reason': 'Finance approval'},
+            format='json',
+        )
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         wr.refresh_from_db()
         self.assertEqual(wr.status, WithdrawalRequest.Status.APPROVED)
