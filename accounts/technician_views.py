@@ -9,6 +9,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 
@@ -132,6 +133,7 @@ class TechnicianProfileView(APIView):
     PATCH: Update technician profile (job_title, about, years_of_expertise, etc.)
     """
     permission_classes = [IsTechnician]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get(self, request):
         """Retrieve technician profile."""
@@ -142,6 +144,15 @@ class TechnicianProfileView(APIView):
     def patch(self, request):
         """Update technician profile."""
         profile = get_object_or_404(TechnicianProfile, user=request.user)
+        user = profile.user
+
+        if 'identification_documents' in request.data:
+            profile.identification_documents = request.data['identification_documents']
+
+        if 'profile_image' in request.data:
+            user.profile_image = request.data['profile_image']
+            user.save(update_fields=['profile_image'])
+
         serializer = TechnicianProfileSerializer(
             profile,
             data=request.data,
