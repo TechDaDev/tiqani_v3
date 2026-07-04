@@ -190,10 +190,10 @@ USE_TZ = True
 # ---------------------------------------------------------------------------
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
-STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_ROOT = env.path("STATIC_ROOT", default=BASE_DIR / "staticfiles")
 
 MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_ROOT = env.path("MEDIA_ROOT", default=BASE_DIR / "media")
 
 # ---------------------------------------------------------------------------
 # Media storage — S3-compatible (overridable in prod.py / dev.py)

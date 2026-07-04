@@ -31,6 +31,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Runtime deps only
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
+    netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
@@ -46,11 +47,13 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY . .
 
 # Ownership for runtime
-RUN chown -R django:django $APP_HOME
+RUN chmod +x scripts/entrypoint.sh && chown -R django:django $APP_HOME
 
 USER django
 
 EXPOSE 8000
+
+ENTRYPOINT ["./scripts/entrypoint.sh"]
 
 # Default command — overridden by entrypoint in compose
 CMD ["gunicorn", "tiqani_v3.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "4", "--timeout", "120"]
