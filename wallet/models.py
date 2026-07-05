@@ -1,9 +1,11 @@
 import uuid
 from decimal import Decimal
+from pathlib import Path
 
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+from tiqani_v3.file_validators import validate_wallet_recharge_receipt_file
 
 
 class TimestampedModel(models.Model):
@@ -14,6 +16,11 @@ class TimestampedModel(models.Model):
 
     class Meta:
         abstract = True
+
+
+def wallet_recharge_receipt_upload_path(instance, filename):
+    ext = Path(filename).suffix.lower()
+    return f"wallet/recharge_receipts/{instance.user_id}/{uuid.uuid4().hex}{ext}"
 
 
 class Wallet(models.Model):
@@ -352,6 +359,83 @@ class WithdrawalRequest(TimestampedModel):
 
     def __str__(self):
         return f"Withdrawal {self.amount} – {self.get_status_display()}"
+
+
+class WalletRechargeRequest(TimestampedModel):
+    """User-submitted wallet funding request reviewed by finance/admin."""
+
+    class Status(models.TextChoices):
+        PENDING_REVIEW = "pending_review", "Pending Review"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+        CANCELLED = "cancelled", "Cancelled"
+
+    user = models.ForeignKey(
+        "accounts.CustomUser",
+        on_delete=models.CASCADE,
+        related_name="wallet_recharge_requests",
+    )
+    wallet = models.ForeignKey(
+        Wallet,
+        on_delete=models.PROTECT,
+        related_name="recharge_requests",
+    )
+    amount = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal("0.01"))],
+    )
+    currency = models.CharField(max_length=3, default="IQD")
+    note = models.TextField(blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING_REVIEW,
+        db_index=True,
+    )
+    receipt_file = models.FileField(
+        upload_to=wallet_recharge_receipt_upload_path,
+        validators=[validate_wallet_recharge_receipt_file],
+    )
+    original_filename = models.CharField(max_length=500, blank=True)
+    file_size = models.PositiveBigIntegerField(null=True, blank=True)
+    mime_type = models.CharField(max_length=100, blank=True)
+    reviewed_by = models.ForeignKey(
+        "accounts.CustomUser",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="wallet_recharge_reviews",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    review_note = models.TextField(blank=True)
+    approved_transaction = models.OneToOneField(
+        WalletTransaction,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="recharge_request",
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Wallet Recharge Request"
+        verbose_name_plural = "Wallet Recharge Requests"
+        indexes = [
+            models.Index(fields=["user", "status", "created_at"]),
+            models.Index(fields=["status", "created_at"]),
+            models.Index(fields=["wallet", "status"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user"],
+                condition=models.Q(status="pending_review"),
+                name="unique_pending_wallet_recharge_per_user",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Recharge {self.amount} {self.currency} - {self.get_status_display()}"
 
 
 class ContractSettlement(TimestampedModel):

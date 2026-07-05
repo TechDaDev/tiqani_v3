@@ -19,6 +19,13 @@ from django.utils.translation import gettext_lazy as _
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 DOCUMENT_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png"}
 PROOF_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".webp"}
+DEFAULT_WALLET_RECHARGE_RECEIPT_EXTENSIONS = {"pdf", "jpg", "jpeg", "png", "webp"}
+DEFAULT_WALLET_RECHARGE_RECEIPT_CONTENT_TYPES = {
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+}
 
 # Explicitly blocked extensions — even if they match allowed sets
 BLOCKED_EXTENSIONS = {
@@ -112,6 +119,24 @@ def _validate_content_type(file, field_label="File"):
         )
 
 
+def _normalize_extensions(values):
+    return {
+        value.lower() if str(value).startswith(".") else f".{str(value).lower()}"
+        for value in values
+    }
+
+
+def _validate_allowed_content_type(file, allowed_content_types, field_label="File"):
+    content_type = getattr(file, "content_type", None)
+    if content_type and content_type not in set(allowed_content_types):
+        raise ValidationError(
+            _(
+                f"{field_label} MIME type '{content_type}' is not supported. "
+                f"Allowed: {', '.join(sorted(allowed_content_types))}."
+            )
+        )
+
+
 # ---------------------------------------------------------------------------
 # Public validators
 # ---------------------------------------------------------------------------
@@ -158,3 +183,27 @@ def validate_proof_file(file):
     _validate_extension(file.name, PROOF_EXTENSIONS, "Proof file")
     _validate_file_size(file, max_mb, "Proof file")
     _validate_content_type(file, "Proof file")
+
+
+def validate_wallet_recharge_receipt_file(file):
+    """
+    Validate wallet recharge receipts.
+    Allowed defaults: pdf, jpg, jpeg, png, webp. Max default: 5 MB.
+    """
+    allowed_extensions = _normalize_extensions(
+        getattr(
+            settings,
+            "WALLET_RECHARGE_RECEIPT_ALLOWED_EXTENSIONS",
+            DEFAULT_WALLET_RECHARGE_RECEIPT_EXTENSIONS,
+        )
+    )
+    allowed_content_types = getattr(
+        settings,
+        "WALLET_RECHARGE_RECEIPT_ALLOWED_CONTENT_TYPES",
+        DEFAULT_WALLET_RECHARGE_RECEIPT_CONTENT_TYPES,
+    )
+    max_mb = getattr(settings, "MAX_WALLET_RECHARGE_RECEIPT_UPLOAD_MB", 5)
+    _validate_extension(file.name, allowed_extensions, "Wallet recharge receipt")
+    _validate_file_size(file, max_mb, "Wallet recharge receipt")
+    _validate_content_type(file, "Wallet recharge receipt")
+    _validate_allowed_content_type(file, allowed_content_types, "Wallet recharge receipt")

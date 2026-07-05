@@ -5,6 +5,7 @@ from .models import (
     ContractPaymentBreakdown,
     PlatformEarning,
     PaymentIntent,
+    WalletRechargeRequest,
     WithdrawalRequest,
 )
 
@@ -41,3 +42,18 @@ class WithdrawalRequestAdmin(admin.ModelAdmin):
     list_display = ("user", "amount", "status", "created_at", "reviewed_at")
     list_filter = ("status",)
     search_fields = ("user__username",)
+
+
+@admin.register(WalletRechargeRequest)
+class WalletRechargeRequestAdmin(admin.ModelAdmin):
+    list_display = ("user", "amount", "currency", "status", "created_at", "reviewed_at")
+    list_filter = ("status", "currency")
+    search_fields = ("user__username", "user__email", "original_filename", "review_note")
+    readonly_fields = (
+        "original_filename",
+        "file_size",
+        "mime_type",
+        "approved_transaction",
+        "created_at",
+        "updated_at",
+    )

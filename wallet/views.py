@@ -2,6 +2,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 
 from .models import (
@@ -9,6 +10,7 @@ from .models import (
     PlatformFeeConfig,
     ContractPaymentBreakdown,
     PaymentIntent,
+    WalletRechargeRequest,
     WithdrawalRequest,
     Wallet,
     WalletTransaction,
@@ -17,6 +19,8 @@ from .serializers import (
     WalletSerializer,
     WalletBalanceSerializer,
     WalletTransactionSerializer,
+    WalletRechargeRequestCreateSerializer,
+    WalletRechargeRequestSerializer,
     PlatformFeeConfigSerializer,
     ContractPaymentBreakdownSerializer,
     PaymentIntentSerializer,
@@ -69,6 +73,99 @@ class WalletTransactionListView(APIView):
             qs = qs.filter(created_at__lte=cb)
         serializer = WalletTransactionSerializer(qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class WalletRechargeRequestListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        qs = WalletRechargeRequest.objects.filter(user=request.user).select_related(
+            "user", "wallet", "reviewed_by", "approved_transaction"
+        )
+        status_value = request.query_params.get("status")
+        if status_value:
+            qs = qs.filter(status=status_value)
+        serializer = WalletRechargeRequestSerializer(qs, many=True, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        serializer = WalletRechargeRequestCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            recharge = svc.create_wallet_recharge_request(
+                request.user,
+                serializer.validated_data["amount"],
+                serializer.validated_data["receipt_file"],
+                serializer.validated_data.get("note", ""),
+            )
+            return Response(
+                WalletRechargeRequestSerializer(recharge, context={"request": request}).data,
+                status=status.HTTP_201_CREATED,
+            )
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class WalletRechargeRequestDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self, request, recharge_id):
+        recharge = get_object_or_404(
+            WalletRechargeRequest.objects.select_related(
+                "user", "wallet", "reviewed_by", "approved_transaction"
+            ),
+            id=recharge_id,
+        )
+        if not request.user.is_staff and recharge.user_id != request.user.id:
+            return None
+        return recharge
+
+    def get(self, request, recharge_id):
+        recharge = self.get_object(request, recharge_id)
+        if recharge is None:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(
+            WalletRechargeRequestSerializer(recharge, context={"request": request}).data,
+            status=status.HTTP_200_OK,
+        )
+
+
+class WalletRechargeRequestCancelView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, recharge_id):
+        recharge = get_object_or_404(WalletRechargeRequest, id=recharge_id)
+        if recharge.user_id != request.user.id:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            recharge = svc.cancel_wallet_recharge_request(recharge, request.user)
+            return Response(
+                WalletRechargeRequestSerializer(recharge, context={"request": request}).data,
+                status=status.HTTP_200_OK,
+            )
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class WalletRechargeRequestReceiptView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, recharge_id):
+        recharge = get_object_or_404(WalletRechargeRequest, id=recharge_id)
+        if not request.user.is_staff and recharge.user_id != request.user.id:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        if not recharge.receipt_file:
+            return Response({"detail": "Receipt not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        response = FileResponse(
+            recharge.receipt_file.open("rb"),
+            as_attachment=True,
+            filename=recharge.original_filename or "wallet-recharge-receipt",
+            content_type=recharge.mime_type or "application/octet-stream",
+        )
+        response["Cache-Control"] = "no-store"
+        response["X-Content-Type-Options"] = "nosniff"
+        return response
 
 
 # ── Withdrawals ────────────────────────────────

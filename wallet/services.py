@@ -10,6 +10,7 @@ from .models import (
     ContractPaymentBreakdown,
     PlatformEarning,
     PaymentIntent,
+    WalletRechargeRequest,
     WithdrawalRequest,
     Wallet,
     WalletTransaction,
@@ -237,6 +238,225 @@ def get_available_balance(wallet):
     if available < 0:
         available = Decimal("0.00")
     return _quantize(available)
+
+
+def get_or_create_wallet(user):
+    wallet, _ = Wallet.objects.get_or_create(user=user)
+    return wallet
+
+
+@transaction.atomic
+def create_wallet_recharge_request(user, amount, receipt_file, note=""):
+    amount = _quantize(Decimal(str(amount)))
+    if amount <= 0:
+        raise ValueError("Recharge amount must be positive.")
+    if not receipt_file:
+        raise ValueError("Receipt file is required.")
+    if WalletRechargeRequest.objects.filter(
+        user=user,
+        status=WalletRechargeRequest.Status.PENDING_REVIEW,
+    ).exists():
+        raise ValueError("You already have a pending wallet recharge request.")
+
+    wallet = get_or_create_wallet(user)
+    request_obj = WalletRechargeRequest.objects.create(
+        user=user,
+        wallet=wallet,
+        amount=amount,
+        currency="IQD",
+        note=(note or "").strip(),
+        receipt_file=receipt_file,
+        original_filename=getattr(receipt_file, "name", "") or "",
+        file_size=getattr(receipt_file, "size", None),
+        mime_type=getattr(receipt_file, "content_type", "") or "",
+    )
+
+    try:
+        from notification.services import create_activity, notify_admins
+
+        create_activity(
+            "wallet_recharge_requested",
+            actor=user,
+            target_type="wallet_recharge_request",
+            target_id=request_obj.id,
+            target_repr=f"{user.username} requested {amount} IQD wallet recharge",
+            audience="admin",
+            metadata={
+                "amount": str(amount),
+                "status": request_obj.status,
+                "source_service": "wallet",
+            },
+        )
+        notify_admins(
+            "wallet_transaction",
+            "Wallet recharge request",
+            f"{user.username} submitted a wallet recharge request.",
+            actor=user,
+            target_type="wallet_recharge_request",
+            target_id=request_obj.id,
+            metadata={"amount": str(amount), "status": request_obj.status},
+        )
+    except Exception:
+        pass
+
+    return request_obj
+
+
+@transaction.atomic
+def approve_wallet_recharge_request(recharge_request, reviewer, review_note=""):
+    locked_req = WalletRechargeRequest.objects.select_for_update().get(id=recharge_request.id)
+    if locked_req.status == WalletRechargeRequest.Status.APPROVED and locked_req.approved_transaction_id:
+        return locked_req
+    if locked_req.status != WalletRechargeRequest.Status.PENDING_REVIEW:
+        raise ValueError("Only pending wallet recharge requests can be approved.")
+
+    wallet = Wallet.objects.select_for_update().get(id=locked_req.wallet_id)
+    wallet.balance = _quantize(wallet.balance + locked_req.amount)
+    wallet.save(update_fields=["balance", "updated_at"])
+
+    txn = WalletTransaction.objects.create(
+        wallet=wallet,
+        contract=None,
+        transaction_type=WalletTransaction.Type.DEPOSIT,
+        amount=locked_req.amount,
+        description=f"Wallet recharge approved from receipt request {locked_req.id}",
+    )
+
+    locked_req.status = WalletRechargeRequest.Status.APPROVED
+    locked_req.reviewed_by = reviewer
+    locked_req.reviewed_at = timezone.now()
+    locked_req.review_note = (review_note or "").strip()
+    locked_req.approved_transaction = txn
+    locked_req.save(
+        update_fields=[
+            "status",
+            "reviewed_by",
+            "reviewed_at",
+            "review_note",
+            "approved_transaction",
+            "updated_at",
+        ]
+    )
+
+    try:
+        from notification.services import create_activity, create_notification, notify_wallet_transaction
+
+        create_activity(
+            "wallet_recharge_approved",
+            actor=reviewer,
+            target_type="wallet_recharge_request",
+            target_id=locked_req.id,
+            target_repr=f"Approved wallet recharge {locked_req.id}",
+            audience="admin",
+            metadata={
+                "amount": str(locked_req.amount),
+                "previous_state": {"status": WalletRechargeRequest.Status.PENDING_REVIEW},
+                "new_state": {"status": locked_req.status, "transaction_id": str(txn.id)},
+                "reason": locked_req.review_note,
+                "source_service": "wallet",
+            },
+        )
+        create_notification(
+            locked_req.user,
+            "wallet_transaction",
+            "Wallet recharge approved",
+            f"Your wallet was credited with {locked_req.amount} {locked_req.currency}.",
+            actor=reviewer,
+            target_type="wallet_recharge_request",
+            target_id=locked_req.id,
+            metadata={"amount": str(locked_req.amount), "transaction_id": str(txn.id)},
+        )
+        notify_wallet_transaction(txn)
+    except Exception:
+        pass
+
+    return locked_req
+
+
+@transaction.atomic
+def reject_wallet_recharge_request(recharge_request, reviewer, review_note=""):
+    note = (review_note or "").strip()
+    if not note:
+        raise ValueError("Review note is required when rejecting a wallet recharge request.")
+
+    locked_req = WalletRechargeRequest.objects.select_for_update().get(id=recharge_request.id)
+    if locked_req.status != WalletRechargeRequest.Status.PENDING_REVIEW:
+        raise ValueError("Only pending wallet recharge requests can be rejected.")
+
+    locked_req.status = WalletRechargeRequest.Status.REJECTED
+    locked_req.reviewed_by = reviewer
+    locked_req.reviewed_at = timezone.now()
+    locked_req.review_note = note
+    locked_req.save(
+        update_fields=["status", "reviewed_by", "reviewed_at", "review_note", "updated_at"]
+    )
+
+    try:
+        from notification.services import create_activity, create_notification
+
+        create_activity(
+            "wallet_recharge_rejected",
+            actor=reviewer,
+            target_type="wallet_recharge_request",
+            target_id=locked_req.id,
+            target_repr=f"Rejected wallet recharge {locked_req.id}",
+            audience="admin",
+            metadata={
+                "amount": str(locked_req.amount),
+                "previous_state": {"status": WalletRechargeRequest.Status.PENDING_REVIEW},
+                "new_state": {"status": locked_req.status},
+                "reason": note,
+                "source_service": "wallet",
+            },
+        )
+        create_notification(
+            locked_req.user,
+            "wallet_transaction",
+            "Wallet recharge rejected",
+            note,
+            actor=reviewer,
+            target_type="wallet_recharge_request",
+            target_id=locked_req.id,
+            metadata={"amount": str(locked_req.amount), "status": locked_req.status},
+        )
+    except Exception:
+        pass
+
+    return locked_req
+
+
+@transaction.atomic
+def cancel_wallet_recharge_request(recharge_request, user):
+    locked_req = WalletRechargeRequest.objects.select_for_update().get(id=recharge_request.id)
+    if locked_req.user_id != user.id:
+        raise ValueError("You cannot cancel this wallet recharge request.")
+    if locked_req.status != WalletRechargeRequest.Status.PENDING_REVIEW:
+        raise ValueError("Only pending wallet recharge requests can be cancelled.")
+
+    locked_req.status = WalletRechargeRequest.Status.CANCELLED
+    locked_req.save(update_fields=["status", "updated_at"])
+
+    try:
+        from notification.services import create_activity
+
+        create_activity(
+            "wallet_recharge_cancelled",
+            actor=user,
+            target_type="wallet_recharge_request",
+            target_id=locked_req.id,
+            target_repr=f"Cancelled wallet recharge {locked_req.id}",
+            audience="admin",
+            metadata={
+                "amount": str(locked_req.amount),
+                "previous_state": {"status": WalletRechargeRequest.Status.PENDING_REVIEW},
+                "new_state": {"status": locked_req.status},
+                "source_service": "wallet",
+            },
+        )
+    except Exception:
+        pass
+
+    return locked_req
 
 
 WITHDRAWAL_MINIMUM = Decimal("1000.00")

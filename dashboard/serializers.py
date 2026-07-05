@@ -13,7 +13,7 @@ from contract.models import Contract, ContractStage, TimeExtensionRequest
 from wallet.models import (
     ContractPaymentBreakdown, ContractSettlement, PaymentIntent, PlatformEarning,
     PlatformWallet, PlatformWalletTransaction, WithdrawalRequest, Wallet,
-    WalletTransaction,
+    WalletRechargeRequest, WalletTransaction,
 )
 from dispute.models import RefundRecord
 from ratereview.models import Review, ReviewReport
@@ -623,6 +623,50 @@ class AdminFinancialWithdrawalSerializer(serializers.ModelSerializer):
 
     def get_requested_method_masked(self, obj):
         return _mask_reference(obj.requested_method) or obj.requested_method
+
+
+class AdminFinancialRechargeRequestSerializer(serializers.ModelSerializer):
+    user = serializers.SerializerMethodField()
+    reviewed_by = serializers.SerializerMethodField()
+    amount = serializers.SerializerMethodField()
+    receipt_download_url = serializers.SerializerMethodField()
+    approved_transaction_id = serializers.UUIDField(source="approved_transaction.id", read_only=True)
+
+    class Meta:
+        model = WalletRechargeRequest
+        fields = [
+            "id", "user", "amount", "currency", "note", "status",
+            "receipt_download_url", "original_filename", "file_size", "mime_type",
+            "reviewed_by", "reviewed_at", "review_note", "approved_transaction_id",
+            "created_at", "updated_at",
+        ]
+        read_only_fields = fields
+
+    def get_user(self, obj):
+        return {
+            "id": str(obj.user_id),
+            "name": _user_label(obj.user),
+            "email": obj.user.email,
+            "username": obj.user.username,
+        }
+
+    def get_reviewed_by(self, obj):
+        if not obj.reviewed_by_id:
+            return None
+        return {
+            "id": str(obj.reviewed_by_id),
+            "name": _user_label(obj.reviewed_by),
+            "email": obj.reviewed_by.email,
+            "username": obj.reviewed_by.username,
+        }
+
+    def get_amount(self, obj):
+        return _money(obj.amount)
+
+    def get_receipt_download_url(self, obj):
+        request = self.context.get("request")
+        path = f"/api/admin/financial/recharge-requests/{obj.id}/receipt/"
+        return request.build_absolute_uri(path) if request else path
 
 
 class AdminFinancialLedgerSerializer(serializers.ModelSerializer):

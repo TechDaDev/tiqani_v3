@@ -7,3 +7,8 @@
 - OpenTelemetry/metrics export is deferred until hosting target is selected.
 - Multi-region deployment, Kubernetes, and autoscaling are deferred.
 - Local Redis absence produces non-fatal realtime warnings.
+# Wallet Recharge Provider Integration
+
+Wallet recharge is currently a manual finance-review flow based on uploaded transfer receipts.
+It does not yet reconcile directly against a bank or payment-provider webhook.
+Future provider integration should preserve the current review, idempotency, and audit model.

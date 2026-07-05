@@ -29,3 +29,9 @@ Do not hard-delete:
 - reviews;
 - ledger entries;
 - audit events.
+# Wallet Recharge Administration
+
+Finance admins review wallet recharge requests from the admin financial recharge queue.
+Approval credits the user wallet once and links the request to the resulting wallet transaction.
+Rejection records the finance review note and leaves the wallet balance unchanged.
+Receipt access is restricted to the request owner and finance/admin reviewers.

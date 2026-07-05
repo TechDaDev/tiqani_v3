@@ -25,12 +25,14 @@ from contract.models import Contract, ContractStage
 from contract.services import cancel_contract
 from wallet.models import (
     ContractSettlement, PlatformEarning, PaymentIntent, PlatformWallet,
-    PlatformWalletTransaction, WithdrawalRequest, Wallet, WalletTransaction,
+    PlatformWalletTransaction, WithdrawalRequest, Wallet, WalletRechargeRequest,
+    WalletTransaction,
 )
 from dispute.models import RefundRecord, UserFinancialLiability
 from wallet.services import (
     approve_withdrawal_request, reject_withdrawal_request,
-    mark_payment_intent_paid,
+    mark_payment_intent_paid, approve_wallet_recharge_request,
+    reject_wallet_recharge_request,
 )
 from ratereview.models import Review, ReviewModerationAction
 from ratereview.services import moderate_review
@@ -58,6 +60,7 @@ from .serializers import (
     AdminPaymentIntentMarkPaidSerializer,
     AdminFinancialAuditSerializer, AdminFinancialEscrowSerializer,
     AdminFinancialLedgerSerializer, AdminFinancialPaymentSerializer,
+    AdminFinancialRechargeRequestSerializer,
     AdminFinancialRefundSerializer, AdminFinancialUserWalletSerializer,
     AdminFinancialWithdrawalSerializer,
     AdminActivitySerializer,
@@ -704,15 +707,25 @@ class AdminFinancialOverviewView(GenericAPIView):
         completed_withdrawals = WithdrawalRequest.objects.filter(status__in=[
             WithdrawalRequest.Status.PAID, WithdrawalRequest.Status.APPROVED,
         ])
+        pending_recharges = WalletRechargeRequest.objects.filter(
+            status=WalletRechargeRequest.Status.PENDING_REVIEW
+        )
+        approved_recharges = WalletRechargeRequest.objects.filter(
+            status=WalletRechargeRequest.Status.APPROVED
+        )
+        rejected_recharges = WalletRechargeRequest.objects.filter(
+            status=WalletRechargeRequest.Status.REJECTED
+        )
         completed_refunds = RefundRecord.objects.filter(status='completed')
         open_contracts = Contract.objects.filter(is_delete=False).exclude(status__in=['completed', 'canceled'])
         platform_wallet = PlatformWallet.objects.first()
         recent_activity = ActivityLog.objects.filter(
             Q(verb__icontains='payment') |
             Q(verb__icontains='withdrawal') |
+            Q(verb__icontains='recharge') |
             Q(verb__icontains='refund') |
             Q(verb__icontains='settlement') |
-            Q(target_type__in=['payment_intent', 'withdrawal', 'refund', 'settlement'])
+            Q(target_type__in=['payment_intent', 'withdrawal', 'wallet_recharge_request', 'refund', 'settlement'])
         ).select_related('actor').order_by('-created_at')[:10]
 
         return Response({
@@ -723,6 +736,7 @@ class AdminFinancialOverviewView(GenericAPIView):
                 ).aggregate(v=Sum('amount'))['v']),
                 'pendingWithdrawals': _money(pending_withdrawals.aggregate(v=Sum('amount'))['v']),
                 'completedWithdrawals': _money(completed_withdrawals.aggregate(v=Sum('amount'))['v']),
+                'approvedWalletRecharges': _money(approved_recharges.aggregate(v=Sum('amount'))['v']),
                 'refundsIssued': _money(completed_refunds.aggregate(v=Sum('amount'))['v']),
                 'escrowHeld': _money(Contract.objects.filter(is_delete=False).aggregate(v=Sum('escrow_amount'))['v']),
                 'openLiabilities': _money(UserFinancialLiability.objects.filter(status='open').aggregate(v=Sum('remaining_amount'))['v']),
@@ -733,12 +747,16 @@ class AdminFinancialOverviewView(GenericAPIView):
                 'refunds': RefundRecord.objects.count(),
                 'withdrawalsPending': pending_withdrawals.count(),
                 'withdrawalsCompleted': completed_withdrawals.count(),
+                'walletRechargeRequestsPending': pending_recharges.count(),
+                'walletRechargeRequestsApproved': approved_recharges.count(),
+                'walletRechargeRequestsRejected': rejected_recharges.count(),
                 'ledgerEntries': WalletTransaction.objects.count(),
                 'escrowContracts': open_contracts.filter(escrow_amount__gt=0).count(),
             },
             'charts': {
                 'paymentsByStatus': _status_chart(PaymentIntent.objects.all()),
                 'withdrawalsByStatus': _status_chart(WithdrawalRequest.objects.all()),
+                'walletRechargesByStatus': _status_chart(WalletRechargeRequest.objects.all()),
                 'refundsByReason': _status_chart(RefundRecord.objects.all(), 'source_type'),
                 'ledgerByType': _status_chart(WalletTransaction.objects.all(), 'transaction_type'),
                 'monthlyFlow': _month_chart(PaymentIntent.objects.all()),
@@ -800,6 +818,91 @@ class AdminFinancialWithdrawalListView(ListAPIView):
         return WithdrawalRequest.objects.select_related('user', 'wallet').all().order_by('-created_at')
 
 
+class AdminFinancialRechargeRequestListView(ListAPIView):
+    permission_classes = [IsAuthenticated, IsFinanceAdmin]
+    serializer_class = AdminFinancialRechargeRequestSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    search_fields = ['user__username', 'user__email', 'note', 'review_note', 'original_filename']
+    ordering_fields = ['created_at', 'updated_at', 'amount', 'status', 'reviewed_at']
+    filterset_fields = {
+        'status': ['exact'], 'user': ['exact'], 'created_at': ['gte', 'lte'],
+        'amount': ['gte', 'lte'],
+    }
+
+    def get_queryset(self):
+        return WalletRechargeRequest.objects.select_related(
+            'user', 'wallet', 'reviewed_by', 'approved_transaction'
+        ).all().order_by('-created_at')
+
+
+class AdminFinancialRechargeRequestDetailView(RetrieveAPIView):
+    permission_classes = [IsAuthenticated, IsFinanceAdmin]
+    serializer_class = AdminFinancialRechargeRequestSerializer
+    lookup_url_kwarg = 'id'
+
+    def get_queryset(self):
+        return WalletRechargeRequest.objects.select_related(
+            'user', 'wallet', 'reviewed_by', 'approved_transaction'
+        ).all()
+
+
+class AdminFinancialRechargeReceiptView(GenericAPIView):
+    permission_classes = [IsAuthenticated, IsFinanceAdmin]
+
+    def get(self, request, *args, **kwargs):
+        recharge = get_object_or_404(WalletRechargeRequest, id=kwargs['id'])
+        if not recharge.receipt_file:
+            raise Http404("Receipt not found.")
+        response = FileResponse(
+            recharge.receipt_file.open('rb'),
+            as_attachment=True,
+            filename=recharge.original_filename or 'wallet-recharge-receipt',
+            content_type=recharge.mime_type or 'application/octet-stream',
+        )
+        response['Cache-Control'] = 'no-store'
+        response['X-Content-Type-Options'] = 'nosniff'
+        return response
+
+
+class AdminFinancialRechargeApproveView(GenericAPIView):
+    permission_classes = [IsAuthenticated, IsFinanceAdmin]
+    serializer_class = AdminWithdrawalActionSerializer
+
+    def post(self, request, *args, **kwargs):
+        recharge = get_object_or_404(WalletRechargeRequest, id=kwargs['id'])
+        note = str(request.data.get('review_note') or request.data.get('note') or '').strip()
+        try:
+            recharge = approve_wallet_recharge_request(recharge, request.user, review_note=note)
+            serializer = AdminFinancialRechargeRequestSerializer(
+                recharge, context={'request': request}
+            )
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class AdminFinancialRechargeRejectView(GenericAPIView):
+    permission_classes = [IsAuthenticated, IsFinanceAdmin]
+    serializer_class = AdminWithdrawalActionSerializer
+
+    def post(self, request, *args, **kwargs):
+        recharge = get_object_or_404(WalletRechargeRequest, id=kwargs['id'])
+        note = str(request.data.get('review_note') or request.data.get('note') or '').strip()
+        if not note:
+            return Response(
+                {'review_note': ['A review note is required when rejecting a recharge request.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            recharge = reject_wallet_recharge_request(recharge, request.user, review_note=note)
+            serializer = AdminFinancialRechargeRequestSerializer(
+                recharge, context={'request': request}
+            )
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
 class AdminFinancialLedgerListView(ListAPIView):
     http_method_names = ['get', 'head', 'options']
     permission_classes = [IsAuthenticated, IsFinanceAdmin]
@@ -845,9 +948,10 @@ class AdminFinancialAuditListView(ListAPIView):
         return ActivityLog.objects.filter(
             Q(verb__icontains='payment') |
             Q(verb__icontains='withdrawal') |
+            Q(verb__icontains='recharge') |
             Q(verb__icontains='refund') |
             Q(verb__icontains='settlement') |
-            Q(target_type__in=['payment_intent', 'withdrawal', 'refund', 'settlement'])
+            Q(target_type__in=['payment_intent', 'withdrawal', 'wallet_recharge_request', 'refund', 'settlement'])
         ).select_related('actor').order_by('-created_at')
 
 

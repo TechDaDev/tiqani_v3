@@ -36,3 +36,9 @@
 - Request IDs are attached to responses.
 - Structured logging redacts passwords, tokens, cookies, authorization headers, secrets, and API keys.
 - Audit events remain separate from application logs.
+# Wallet Recharge Receipt Review
+
+- Wallet recharge receipts are validated by extension, MIME type, and size before storage.
+- Receipt downloads require authenticated owner or finance/admin access and use `Cache-Control: no-store`.
+- Wallet recharge approval is transactional and idempotent; duplicate approval does not duplicate wallet credit.
+- Rejection requires a review note and does not mutate wallet balance.

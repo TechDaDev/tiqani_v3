@@ -24,6 +24,7 @@ env = environ.Env(
     SENTRY_DSN=(str, ""),
     SENTRY_ENVIRONMENT=(str, "development"),
     SENTRY_TRACES_SAMPLE_RATE=(float, 0.0),
+    MAX_WALLET_RECHARGE_RECEIPT_UPLOAD_MB=(int, 5),
 )
 
 # Read .env file if it exists
@@ -42,6 +43,21 @@ SENTRY_TRACES_SAMPLE_RATE = env("SENTRY_TRACES_SAMPLE_RATE")
 # API documentation access control
 # ---------------------------------------------------------------------------
 API_DOCS_PUBLIC = env("API_DOCS_PUBLIC")
+
+WALLET_RECHARGE_RECEIPT_ALLOWED_EXTENSIONS = [
+    "pdf",
+    "jpg",
+    "jpeg",
+    "png",
+    "webp",
+]
+WALLET_RECHARGE_RECEIPT_ALLOWED_CONTENT_TYPES = [
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+]
+MAX_WALLET_RECHARGE_RECEIPT_UPLOAD_MB = env("MAX_WALLET_RECHARGE_RECEIPT_UPLOAD_MB")
 
 # ---------------------------------------------------------------------------
 # Security

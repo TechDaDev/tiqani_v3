@@ -86,3 +86,9 @@
 - Current admin financial audit uses `ActivityLog`; not every historical financial model mutation has rich before/after metadata.
 - Richer refund category reporting depends on dispute/refund source records already present.
 - There is no arbitrary balance adjustment service, intentionally.
+# Wallet Recharge Review
+
+Finance admins can review user-submitted wallet recharge requests through `GET /api/admin/financial/recharge-requests/`.
+Approving a request creates exactly one wallet `deposit` transaction and credits the user's wallet once.
+Rejecting a request requires a review note and does not change wallet balance.
+Receipt files are served through authorized download endpoints only; raw storage paths are not serialized.
