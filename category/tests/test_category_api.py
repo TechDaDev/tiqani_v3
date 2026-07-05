@@ -1,6 +1,8 @@
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 from django.contrib.auth import get_user_model
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 
 from category.models import Category, Skill, SubSkill
 
@@ -73,3 +75,36 @@ class CategoryAPITest(APITestCase):
         skill_names = [skill["name"] for skill in response.data["skills"]]
         self.assertEqual(skill_names, ["Pipe Repair"])
         self.assertEqual(response.data["skills"][0]["sub_skills"][0]["name"], "Leaky Faucet")
+
+    def test_category_list_supports_frontend_page_size_with_nested_taxonomy(self):
+        """Category list returns the fast nested taxonomy shape used by the frontend."""
+        response = self.client.get("/api/categories/?page_size=100")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        category = next(item for item in response.data["results"] if item["name"] == "Plumbing")
+        self.assertNotIn("skill_count", category)
+        self.assertEqual(category["skills"][0]["name"], "Pipe Repair")
+        self.assertEqual(category["skills"][0]["sub_skills"][0]["name"], "Leaky Faucet")
+
+    def test_category_list_query_count_is_bounded_for_nested_taxonomy(self):
+        """The taxonomy endpoint must not query once per skill or sub-skill."""
+        for category_index in range(3):
+            category = Category.objects.create(name=f"Category {category_index}", is_active=True)
+            for skill_index in range(4):
+                skill = Skill.objects.create(
+                    name=f"Skill {category_index}-{skill_index}",
+                    category=category,
+                    is_active=True,
+                )
+                for sub_index in range(3):
+                    SubSkill.objects.create(
+                        name=f"Sub {category_index}-{skill_index}-{sub_index}",
+                        skill=skill,
+                        is_active=True,
+                    )
+
+        with CaptureQueriesContext(connection) as ctx:
+            response = self.client.get("/api/categories/?page_size=100")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertLessEqual(len(ctx), 8)

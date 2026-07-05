@@ -61,6 +61,31 @@ class SkillSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "technician_count", "created_at", "updated_at"]
 
 
+class TaxonomySubSkillSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SubSkill
+        fields = ["id", "skill", "name"]
+        read_only_fields = ["id", "skill", "name"]
+
+
+class TaxonomySkillSerializer(serializers.ModelSerializer):
+    sub_skills = TaxonomySubSkillSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Skill
+        fields = ["id", "category", "name", "sub_skills"]
+        read_only_fields = ["id", "category", "name", "sub_skills"]
+
+
+class CategoryTaxonomySerializer(serializers.ModelSerializer):
+    skills = TaxonomySkillSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Category
+        fields = ["id", "name", "skills"]
+        read_only_fields = ["id", "name", "skills"]
+
+
 class CategorySlimSerializer(serializers.ModelSerializer):
     skills = SkillSlimSerializer(many=True, read_only=True)
 

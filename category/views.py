@@ -9,6 +9,7 @@ from category.models import Category, Skill, SubSkill
 from category.serializers import (
 	CategorySerializer,
 	CategorySlimSerializer,
+	CategoryTaxonomySerializer,
 	SkillSerializer,
 	SkillSlimSerializer,
 	SubSkillSerializer,
@@ -93,6 +94,8 @@ class CategoryViewSet(viewsets.ModelViewSet):
 		return qs
 
 	def get_serializer_class(self):
+		if self.action == "list":
+			return CategoryTaxonomySerializer
 		if self.action == "list" and self.request.query_params.get("fields") == "basic":
 			return CategorySlimSerializer
 		return CategorySerializer
