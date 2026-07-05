@@ -156,7 +156,7 @@ class Command(BaseCommand):
         # Phase 9 — delete in dependency-safe order
         from wallet.models import (
             ContractSettlement, PlatformWalletTransaction, PlatformEarning,
-            WithdrawalRequest,
+            WalletRechargeRequest, WithdrawalRequest,
         )
         from contract.models import ContractAuditEvent
         from contract.models import Contract
@@ -211,6 +211,8 @@ class Command(BaseCommand):
 
         # Payout audit records
         WithdrawalRequest.objects.filter(user_id__in=user_ids).delete()
+        # Manual wallet recharge requests
+        WalletRechargeRequest.objects.filter(user_id__in=user_ids).delete()
         # Settlement audit events
         ContractAuditEvent.objects.filter(contract_id__in=contract_ids).delete()
         # Platform wallet transactions

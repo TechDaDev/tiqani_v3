@@ -670,7 +670,7 @@ class AdminReviewUnverifyView(GenericAPIView):
 # =====================================================================
 
 def _money(value):
-    return str(value or Decimal('0.00'))
+    return str((value or Decimal('0.00')).quantize(Decimal('0.01')))
 
 
 def _status_chart(queryset, field='status'):
