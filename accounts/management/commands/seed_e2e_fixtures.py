@@ -19,7 +19,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 from accounts.models import TechnicianProfile, ClientProfile, TechnicianSkillSet
-from category.models import Category, Skill
+from category.models import Category, Skill, SubSkill
 from servicerequest.models import ServiceRequest
 
 User = get_user_model()
@@ -84,6 +84,35 @@ FIXTURE_GOVERNORATES = {
     "restricted_technician": "Basra",
     "second_approved": "Erbil",
 }
+
+FIXTURE_TAXONOMY = [
+    {
+        "name": "E2E Electrical",
+        "description": "E2E selectable electrical category.",
+        "order": 1,
+        "skills": [
+            {
+                "name": "E2E Wiring",
+                "description": "E2E wiring skill.",
+                "order": 1,
+                "sub_skills": ["E2E Panel Wiring"],
+            },
+        ],
+    },
+    {
+        "name": "E2E Plumbing",
+        "description": "E2E selectable plumbing category.",
+        "order": 2,
+        "skills": [
+            {
+                "name": "E2E Pipe Repair",
+                "description": "E2E pipe repair skill.",
+                "order": 1,
+                "sub_skills": ["E2E Leak Repair"],
+            },
+        ],
+    },
+]
 
 
 def get_password():
@@ -235,6 +264,7 @@ class Command(BaseCommand):
     @transaction.atomic
     def _seed_fixtures(self, password):
         """Create or update all fixture users and requests."""
+        self._seed_taxonomy()
         self._create_client(password)
         self._create_technician(password)
         self._create_approved_technician(password)
@@ -249,6 +279,41 @@ class Command(BaseCommand):
         self._seed_phase9_fixtures()
         self._seed_phase10_fixtures()
         self._seed_phase11_fixtures()
+
+    def _seed_taxonomy(self):
+        """Create deterministic selectable taxonomy for technician E2E flows."""
+        for category_index, category_data in enumerate(FIXTURE_TAXONOMY, start=1):
+            category, _ = Category.objects.update_or_create(
+                name=category_data["name"],
+                defaults={
+                    "description": category_data["description"],
+                    "is_active": True,
+                    "is_delete": False,
+                    "order": category_data.get("order", category_index),
+                },
+            )
+            for skill_index, skill_data in enumerate(category_data["skills"], start=1):
+                skill, _ = Skill.objects.update_or_create(
+                    category=category,
+                    name=skill_data["name"],
+                    defaults={
+                        "description": skill_data["description"],
+                        "is_active": True,
+                        "is_delete": False,
+                        "order": skill_data.get("order", skill_index),
+                    },
+                )
+                for sub_index, sub_skill_name in enumerate(skill_data.get("sub_skills", []), start=1):
+                    SubSkill.objects.update_or_create(
+                        skill=skill,
+                        name=sub_skill_name,
+                        defaults={
+                            "is_active": True,
+                            "is_delete": False,
+                            "order": sub_index,
+                        },
+                    )
+        self.stdout.write("  Taxonomy: E2E categories, skills, and sub-skills ready")
 
     def _get_or_create_user(self, key, password):
         """Helper to get_or_create a fixture user."""

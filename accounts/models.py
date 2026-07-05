@@ -275,6 +275,21 @@ class TechnicianProfile(BaseProfile):
             return False
         return (timezone.now() - self.last_active).total_seconds() < 300
 
+    def has_selected_skills(self):
+        skill_set = getattr(self, 'skill_set', None)
+        if not skill_set:
+            return False
+        return skill_set.skills.exists() or skill_set.sub_skills.exists()
+
+    def calculate_completion(self):
+        return super().calculate_completion() and self.has_selected_skills()
+
+    def get_incomplete_fields(self):
+        missing = super().get_incomplete_fields()
+        if not self.has_selected_skills():
+            missing.append('skills')
+        return missing
+
 
 class ClientProfile(BaseProfile):
     user = models.OneToOneField(

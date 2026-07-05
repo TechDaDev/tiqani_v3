@@ -75,9 +75,29 @@ class TechnicianImageSerializer(serializers.ModelSerializer):
 class TechnicianSkillSetSerializer(serializers.ModelSerializer):
     """Serializer for managing technician skills, categories, and sub-skills."""
 
-    categories = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all(), many=True, required=False)
-    skills = serializers.PrimaryKeyRelatedField(queryset=Skill.objects.all(), many=True, required=False)
-    sub_skills = serializers.PrimaryKeyRelatedField(queryset=SubSkill.objects.all(), many=True, required=False)
+    categories = serializers.PrimaryKeyRelatedField(
+        queryset=Category.objects.filter(is_active=True, is_delete=False),
+        many=True,
+        required=False,
+    )
+    skills = serializers.PrimaryKeyRelatedField(
+        queryset=Skill.objects.filter(is_active=True, is_delete=False, category__is_active=True, category__is_delete=False)
+        .select_related("category"),
+        many=True,
+        required=False,
+    )
+    sub_skills = serializers.PrimaryKeyRelatedField(
+        queryset=SubSkill.objects.filter(
+            is_active=True,
+            is_delete=False,
+            skill__is_active=True,
+            skill__is_delete=False,
+            skill__category__is_active=True,
+            skill__category__is_delete=False,
+        ).select_related("skill", "skill__category"),
+        many=True,
+        required=False,
+    )
 
     categories_detail = serializers.SerializerMethodField()
     skills_detail = serializers.SerializerMethodField()
@@ -94,27 +114,66 @@ class TechnicianSkillSetSerializer(serializers.ModelSerializer):
         read_only_fields = ('id', 'created_at')
 
     def get_categories_detail(self, obj):
-        return [{'id': cat.id, 'name': cat.name} for cat in obj.categories.all()]
+        return [
+            {'id': str(cat.id), 'name': cat.name}
+            for cat in obj.categories.order_by('order', 'name')
+        ]
 
     def get_skills_detail(self, obj):
-        return [{'id': skill.id, 'name': skill.name} for skill in obj.skills.all()]
+        return [
+            {
+                'id': str(skill.id),
+                'name': skill.name,
+                'category': {'id': str(skill.category_id), 'name': skill.category.name},
+            }
+            for skill in obj.skills.select_related('category').order_by('category__order', 'category__name', 'order', 'name')
+        ]
 
     def get_sub_skills_detail(self, obj):
-        return [{'id': sub.id, 'name': sub.name} for sub in obj.sub_skills.all()]
+        return [
+            {
+                'id': str(sub.id),
+                'name': sub.name,
+                'parent_skill': {'id': str(sub.skill_id), 'name': sub.skill.name},
+                'category': {'id': str(sub.skill.category_id), 'name': sub.skill.category.name},
+            }
+            for sub in obj.sub_skills.select_related('skill', 'skill__category').order_by(
+                'skill__category__order', 'skill__category__name', 'skill__order', 'skill__name', 'order', 'name'
+            )
+        ]
+
+    def validate(self, attrs):
+        skills = attrs.get('skills')
+        sub_skills = attrs.get('sub_skills')
+        if skills is not None:
+            attrs['skills'] = list(dict.fromkeys(skills))
+        if sub_skills is not None:
+            attrs['sub_skills'] = list(dict.fromkeys(sub_skills))
+        if 'categories' in attrs:
+            attrs['categories'] = list(dict.fromkeys(attrs['categories']))
+        return attrs
 
     def update(self, instance, validated_data):
         with transaction.atomic():
+            category_ids = set()
             if 'categories' in validated_data:
                 categories = validated_data.pop('categories')
-                instance.categories.set(categories)
+                category_ids.update(category.id for category in categories)
 
             if 'skills' in validated_data:
                 skills = validated_data.pop('skills')
                 instance.skills.set(skills)
+                category_ids.update(skill.category_id for skill in skills)
 
             if 'sub_skills' in validated_data:
                 sub_skills = validated_data.pop('sub_skills')
                 instance.sub_skills.set(sub_skills)
+                category_ids.update(sub.skill.category_id for sub in sub_skills)
+
+            if category_ids:
+                instance.categories.set(Category.objects.filter(id__in=category_ids))
+            elif 'categories' in self.initial_data:
+                instance.categories.clear()
 
             return super().update(instance, validated_data)
 

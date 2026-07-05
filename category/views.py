@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Prefetch
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from rest_framework import viewsets, permissions
@@ -46,7 +47,17 @@ class CategoryViewSet(viewsets.ModelViewSet):
 		qs = (
 			Category.objects.select_related("parent")
 			.prefetch_related(
-				"skills__sub_skills",
+				Prefetch(
+					"skills",
+					queryset=Skill.objects.filter(is_delete=False, is_active=True)
+					.prefetch_related(
+						Prefetch(
+							"sub_skills",
+							queryset=SubSkill.objects.filter(is_delete=False, is_active=True).order_by("order", "name"),
+						)
+					)
+					.order_by("order", "name"),
+				),
 				"children",
 			)
 		)

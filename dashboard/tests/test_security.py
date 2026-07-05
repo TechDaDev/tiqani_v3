@@ -8,7 +8,8 @@ from rest_framework.test import APITestCase, APIClient
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
-from accounts.models import TechnicianProfile, ClientProfile, AdminProfile
+from accounts.models import TechnicianProfile, ClientProfile, AdminProfile, TechnicianSkillSet
+from category.models import Category, Skill, SubSkill
 from contract.models import Contract
 from contract.services import cancel_contract
 from wallet.models import PlatformEarning, PaymentIntent, WithdrawalRequest, Wallet
@@ -47,6 +48,13 @@ class ActivityLogCreationTest(APITestCase):
             github='https://github.com/testtech',
             linkedin='https://linkedin.com/in/testtech',
         )
+        self.category = Category.objects.create(name='Admin Category', is_active=True)
+        self.skill = Skill.objects.create(name='Admin Skill', category=self.category, is_active=True)
+        self.sub_skill = SubSkill.objects.create(name='Admin Sub Skill', skill=self.skill, is_active=True)
+        self.skill_set = TechnicianSkillSet.objects.create(technician=self.tech)
+        self.skill_set.categories.add(self.category)
+        self.skill_set.skills.add(self.skill)
+        self.skill_set.sub_skills.add(self.sub_skill)
 
         client_user = User.objects.create_user(
             username='c_al', email='cal@t.com', password='pass123',
@@ -80,6 +88,16 @@ class ActivityLogCreationTest(APITestCase):
         )
         after = ActivityLog.objects.filter(verb='user_restored').count()
         self.assertEqual(after, before + 1)
+
+    def test_admin_technician_detail_shows_multi_skills_and_checklist(self):
+        response = self.sys_auth.get(f'/api/admin/technicians/{self.tech.id}/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['skill_sets']['skills_detail'][0]['name'], 'Admin Skill')
+        self.assertEqual(response.data['skill_sets']['skills_detail'][0]['category']['name'], 'Admin Category')
+        self.assertEqual(response.data['skill_sets']['sub_skills_detail'][0]['parent_skill']['name'], 'Admin Skill')
+        checklist = {item['key']: item['passed'] for item in response.data['approval_requirements']['checklist']}
+        self.assertTrue(checklist['skills'])
 
     def test_user_deactivate_creates_activity_log(self):
         before = ActivityLog.objects.filter(verb='user_suspended').count()

@@ -3,8 +3,8 @@ from rest_framework.test import APITestCase, APIClient
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 
-from accounts.models import TechnicianProfile, BaseProfile
-from category.models import Category
+from accounts.models import TechnicianProfile, BaseProfile, TechnicianSkillSet
+from category.models import Category, Skill, SubSkill
 
 User = get_user_model()
 
@@ -50,6 +50,14 @@ class TechnicianAPITest(APITestCase):
             username="clientuser", email="client@example.com",
             password="Testpass123", role="client",
         )
+
+        self.category_a = Category.objects.create(name="Category A", is_active=True, order=1)
+        self.category_b = Category.objects.create(name="Category B", is_active=True, order=2)
+        self.skill_a1 = Skill.objects.create(name="Skill A1", category=self.category_a, is_active=True, order=1)
+        self.skill_a2 = Skill.objects.create(name="Skill A2", category=self.category_a, is_active=True, order=2)
+        self.skill_b1 = Skill.objects.create(name="Skill B1", category=self.category_b, is_active=True, order=1)
+        self.sub_a1 = SubSkill.objects.create(name="Sub A1", skill=self.skill_a1, is_active=True, order=1)
+        self.sub_b1 = SubSkill.objects.create(name="Sub B1", skill=self.skill_b1, is_active=True, order=1)
 
     def test_public_list_returns_200(self):
         """Public GET /api/technicians/ returns 200."""
@@ -124,3 +132,97 @@ class TechnicianAPITest(APITestCase):
         self.client.force_authenticate(user=self.approved_user)
         response = self.client.patch(self.skills_url, {"categories": []}, format="json")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_technician_can_save_multiple_skills_from_same_category(self):
+        self.client.force_authenticate(user=self.approved_user)
+
+        response = self.client.patch(
+            self.skills_url,
+            {"skills": [str(self.skill_a1.id), str(self.skill_a2.id)]},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertCountEqual(response.data["skills"], [self.skill_a1.id, self.skill_a2.id])
+        self.assertEqual(response.data["categories"], [self.category_a.id])
+
+    def test_technician_can_save_skills_from_different_categories(self):
+        self.client.force_authenticate(user=self.approved_user)
+
+        response = self.client.patch(
+            self.skills_url,
+            {"skills": [str(self.skill_a1.id), str(self.skill_b1.id)]},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertCountEqual(response.data["skills"], [self.skill_a1.id, self.skill_b1.id])
+        self.assertCountEqual(response.data["categories"], [self.category_a.id, self.category_b.id])
+        category_names = {item["category"]["name"] for item in response.data["skills_detail"]}
+        self.assertEqual(category_names, {"Category A", "Category B"})
+
+    def test_technician_can_save_sub_skills_from_different_categories(self):
+        self.client.force_authenticate(user=self.approved_user)
+
+        response = self.client.patch(
+            self.skills_url,
+            {"sub_skills": [str(self.sub_a1.id), str(self.sub_b1.id)]},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertCountEqual(response.data["sub_skills"], [self.sub_a1.id, self.sub_b1.id])
+        self.assertCountEqual(response.data["categories"], [self.category_a.id, self.category_b.id])
+        category_names = {item["category"]["name"] for item in response.data["sub_skills_detail"]}
+        self.assertEqual(category_names, {"Category A", "Category B"})
+
+    def test_technician_profile_response_returns_all_selected_skills(self):
+        skill_set = TechnicianSkillSet.objects.create(technician=self.approved_profile)
+        skill_set.skills.add(self.skill_a1, self.skill_b1)
+        skill_set.sub_skills.add(self.sub_a1, self.sub_b1)
+        skill_set.categories.add(self.category_a, self.category_b)
+        self.client.force_authenticate(user=self.approved_user)
+
+        response = self.client.get(self.me_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["skill_sets"]["skills_detail"]), 2)
+        self.assertEqual(len(response.data["skill_sets"]["sub_skills_detail"]), 2)
+
+    def test_profile_completion_requires_at_least_one_skill_or_sub_skill(self):
+        self.client.force_authenticate(user=self.approved_user)
+        TechnicianSkillSet.objects.filter(technician=self.approved_profile).delete()
+
+        response = self.client.get(self.incomplete_url)
+        self.assertIn("skills", response.data["incomplete_fields"])
+
+        skill_set = TechnicianSkillSet.objects.create(technician=self.approved_profile)
+        skill_set.sub_skills.add(self.sub_a1)
+        skill_set.categories.add(self.category_a)
+        self.approved_profile.save()
+        response = self.client.get(self.incomplete_url)
+        self.assertNotIn("skills", response.data["incomplete_fields"])
+
+    def test_invalid_skill_id_rejected(self):
+        self.client.force_authenticate(user=self.approved_user)
+
+        response = self.client.patch(
+            self.skills_url,
+            {"skills": ["00000000-0000-0000-0000-000000000000"]},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_duplicate_selected_ids_are_stored_once(self):
+        self.client.force_authenticate(user=self.approved_user)
+
+        response = self.client.patch(
+            self.skills_url,
+            {"skills": [str(self.skill_a1.id), str(self.skill_a1.id)]},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        skill_set = TechnicianSkillSet.objects.get(technician=self.approved_profile)
+        self.assertEqual(skill_set.skills.count(), 1)

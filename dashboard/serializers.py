@@ -35,6 +35,7 @@ TECHNICIAN_APPROVAL_FIELD_LABELS = {
     "identification_documents": "documents",
     "github": "github_url",
     "linkedin": "linkedin_url",
+    "skills": "skills",
 }
 
 
@@ -61,6 +62,8 @@ def technician_approval_missing_requirements(tech):
         missing.append("linkedin_url")
     if not tech.identification_documents:
         missing.append("documents")
+    if not tech.has_selected_skills():
+        missing.append("skills")
     if not tech.user.is_active:
         missing.append("active_account")
     if not tech.is_available:
@@ -81,6 +84,7 @@ def technician_approval_checklist(tech):
         {"key": "github_url", "passed": "github_url" not in missing},
         {"key": "linkedin_url", "passed": "linkedin_url" not in missing},
         {"key": "documents", "passed": "documents" not in missing},
+        {"key": "skills", "passed": "skills" not in missing},
         {"key": "active_account", "passed": "active_account" not in missing},
         {"key": "not_suspended", "passed": "not_suspended" not in missing},
     ]
@@ -353,9 +357,29 @@ class AdminTechnicianDetailSerializer(serializers.ModelSerializer):
         if not skill_set:
             return {'categories_detail': [], 'skills_detail': [], 'sub_skills_detail': []}
         return {
-            'categories_detail': [{'id': item.id, 'name': item.name} for item in skill_set.categories.all()],
-            'skills_detail': [{'id': item.id, 'name': item.name} for item in skill_set.skills.all()],
-            'sub_skills_detail': [{'id': item.id, 'name': item.name} for item in skill_set.sub_skills.all()],
+            'categories_detail': [
+                {'id': str(item.id), 'name': item.name}
+                for item in skill_set.categories.order_by('order', 'name')
+            ],
+            'skills_detail': [
+                {
+                    'id': str(item.id),
+                    'name': item.name,
+                    'category': {'id': str(item.category_id), 'name': item.category.name},
+                }
+                for item in skill_set.skills.select_related('category').order_by('category__order', 'category__name', 'order', 'name')
+            ],
+            'sub_skills_detail': [
+                {
+                    'id': str(item.id),
+                    'name': item.name,
+                    'parent_skill': {'id': str(item.skill_id), 'name': item.skill.name},
+                    'category': {'id': str(item.skill.category_id), 'name': item.skill.category.name},
+                }
+                for item in skill_set.sub_skills.select_related('skill', 'skill__category').order_by(
+                    'skill__category__order', 'skill__category__name', 'skill__order', 'skill__name', 'order', 'name'
+                )
+            ],
         }
 
     def get_approval_requirements(self, obj):

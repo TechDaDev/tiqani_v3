@@ -92,6 +92,8 @@ class IncompleteFieldsView(APIView):
         # Get incomplete fields
         incomplete = profile.get_incomplete_fields()
         total_required = len(profile.REQ_USER_FIELDS) + len(profile.REQ_PROFILE_FIELDS)
+        if user.role == 'technician':
+            total_required += 1
         completed = total_required - len(incomplete)
         percentage = (completed / total_required * 100) if total_required > 0 else 100.0
         

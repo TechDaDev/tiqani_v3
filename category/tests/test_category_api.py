@@ -25,6 +25,12 @@ class CategoryAPITest(APITestCase):
         self.sub_skill = SubSkill.objects.create(
             name="Leaky Faucet", skill=self.skill, is_active=True,
         )
+        self.inactive_skill = Skill.objects.create(
+            name="Inactive Skill", category=self.category, is_active=False,
+        )
+        SubSkill.objects.create(
+            name="Inactive Child", skill=self.inactive_skill, is_active=True,
+        )
 
     def test_public_can_list_categories(self):
         """Public can list active categories."""
@@ -58,3 +64,12 @@ class CategoryAPITest(APITestCase):
         response = self.client.get("/api/categories/")
         names = [r["name"] for r in response.data["results"]]
         self.assertNotIn("Inactive Cat", names)
+
+    def test_category_detail_returns_nested_active_skills_and_sub_skills(self):
+        """Category detail includes a stable active taxonomy tree."""
+        response = self.client.get(f"/api/categories/{self.category.id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        skill_names = [skill["name"] for skill in response.data["skills"]]
+        self.assertEqual(skill_names, ["Pipe Repair"])
+        self.assertEqual(response.data["skills"][0]["sub_skills"][0]["name"], "Leaky Faucet")
