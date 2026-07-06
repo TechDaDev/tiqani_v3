@@ -1,6 +1,9 @@
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
+from tempfile import TemporaryDirectory
 
 User = get_user_model()
 
@@ -52,3 +55,56 @@ class CurrentUserAPITest(APITestCase):
         response = self.client.patch(self.url, {"is_staff": True}, format="json")
         self.user.refresh_from_db()
         self.assertFalse(self.user.is_staff)
+
+    def test_authenticated_returns_absolute_profile_image_url(self):
+        with TemporaryDirectory() as media_root:
+            with override_settings(MEDIA_ROOT=media_root):
+                self.user.profile_image = SimpleUploadedFile(
+                    "avatar.png",
+                    b"small-image-bytes",
+                    content_type="image/png",
+                )
+                self.user.save(update_fields=["profile_image"])
+
+                self.client.force_authenticate(user=self.user)
+                response = self.client.get(self.url, HTTP_HOST="api.testserver")
+
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertTrue(
+                    response.data["profile_image"].startswith(
+                        "http://api.testserver/media/"
+                    )
+                )
+                self.assertEqual(
+                    response.data["profile_image_url"], response.data["profile_image"]
+                )
+                self.assertNotIn(str(media_root), response.data["profile_image"])
+
+    def test_login_returns_absolute_profile_image_url(self):
+        with TemporaryDirectory() as media_root:
+            with override_settings(MEDIA_ROOT=media_root):
+                self.user.profile_image = SimpleUploadedFile(
+                    "avatar.png",
+                    b"small-image-bytes",
+                    content_type="image/png",
+                )
+                self.user.save(update_fields=["profile_image"])
+
+                response = self.client.post(
+                    "/api/auth/login/",
+                    {"username": "testuser", "password": "Testpass123"},
+                    format="json",
+                    HTTP_HOST="api.testserver",
+                )
+
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                userdata = response.data["userdata"]
+                self.assertTrue(
+                    userdata["profile_image"].startswith(
+                        "http://api.testserver/media/"
+                    )
+                )
+                self.assertEqual(
+                    userdata["profile_image_url"], userdata["profile_image"]
+                )
+                self.assertNotIn(str(media_root), userdata["profile_image"])

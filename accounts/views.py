@@ -17,6 +17,7 @@ from .serializers import (
 )
 from .email_utils import send_otp_email
 from .models import OTPVerification
+from tiqani_v3.media_utils import get_private_file_url
 
 #TODO: limiting config to settings.py and append to env later
 # --- Configuration ---
@@ -89,13 +90,15 @@ class LoginView(TokenObtainPairView):
         access = refresh.access_token
         
         role = user.admin_profile.role if hasattr(user, 'admin_profile') else user.role
+        profile_image_url = get_private_file_url(user.profile_image, request)
         userdata = {
             'id': str(user.id),
             'username': user.username,
             'role': role,
             'is_staff': user.is_staff,
             'full_name': user.get_full_name(),
-            'profile_image': user.profile_image.url if user.profile_image else None,
+            'profile_image': profile_image_url,
+            'profile_image_url': profile_image_url,
         }
 
         if user.role == 'technician' and hasattr(user, 'technician_profile'):

@@ -6,6 +6,7 @@ from django.db import transaction
 from .models import CustomUser, TechnicianProfile, ClientProfile, OTPVerification
 from wallet.models import Wallet
 from .email_utils import send_otp_email, send_welcome_email, send_password_reset_email
+from tiqani_v3.media_utils import get_private_file_url
 
 
 
@@ -185,6 +186,8 @@ class CurrentUserSerializer(serializers.ModelSerializer):
     """Public-safe serializer for the currently authenticated user."""
 
     role = serializers.SerializerMethodField()
+    profile_image = serializers.SerializerMethodField()
+    profile_image_url = serializers.SerializerMethodField()
     profile_type = serializers.SerializerMethodField()
     is_complete = serializers.SerializerMethodField()
     wallet_balance = serializers.SerializerMethodField()
@@ -205,6 +208,7 @@ class CurrentUserSerializer(serializers.ModelSerializer):
             "gender",
             "date_of_birth",
             "profile_image",
+            "profile_image_url",
             "is_active",
             "is_staff",
             "profile_type",
@@ -220,6 +224,8 @@ class CurrentUserSerializer(serializers.ModelSerializer):
             "is_active",
             "is_staff",
             "profile_type",
+            "profile_image",
+            "profile_image_url",
             "is_complete",
             "wallet_balance",
             "wallet_transaction_id",
@@ -229,6 +235,13 @@ class CurrentUserSerializer(serializers.ModelSerializer):
         if hasattr(obj, "admin_profile"):
             return obj.admin_profile.role
         return obj.role
+
+    def get_profile_image(self, obj):
+        request = self.context.get("request")
+        return get_private_file_url(obj.profile_image, request)
+
+    def get_profile_image_url(self, obj):
+        return self.get_profile_image(obj)
 
     def get_profile_type(self, obj):
         if hasattr(obj, "client_profile"):
