@@ -10,6 +10,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
+from rest_framework.exceptions import ValidationError as DRFValidationError
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 
@@ -21,6 +23,7 @@ from .technician_serializers import (
     TechnicianSkillSetSerializer,
     TechnicianAvailabilitySerializer,
 )
+from tiqani_v3.file_validators import validate_document_file
 
 
 class IsTechnician(IsAuthenticated):
@@ -147,7 +150,13 @@ class TechnicianProfileView(APIView):
         user = profile.user
 
         if 'identification_documents' in request.data:
-            profile.identification_documents = request.data['identification_documents']
+            document = request.data['identification_documents']
+            if document:
+                try:
+                    validate_document_file(document)
+                except DjangoValidationError as exc:
+                    raise DRFValidationError({'identification_documents': exc.messages})
+            profile.identification_documents = document
 
         if 'profile_image' in request.data:
             user.profile_image = request.data['profile_image']

@@ -9,6 +9,7 @@ import os
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.db.models.fields.files import FieldFile
 from django.utils.translation import gettext_lazy as _
 
 
@@ -137,6 +138,11 @@ def _validate_allowed_content_type(file, allowed_content_types, field_label="Fil
         )
 
 
+def _is_existing_committed_field_file(file):
+    """Return True for already-stored model FileField values."""
+    return isinstance(file, FieldFile) and file._committed and file._file is None
+
+
 # ---------------------------------------------------------------------------
 # Public validators
 # ---------------------------------------------------------------------------
@@ -168,6 +174,9 @@ def validate_document_file(file):
     Validate identification/guarantee documents.
     Allowed: pdf, jpg, jpeg, png. Max: 10 MB.
     """
+    if _is_existing_committed_field_file(file):
+        return
+
     max_mb = getattr(settings, "MAX_DOCUMENT_SIZE_MB", 10)
     _validate_extension(file.name, DOCUMENT_EXTENSIONS, "Document")
     _validate_file_size(file, max_mb, "Document")

@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.core.files.uploadedfile import SimpleUploadedFile
 
+from accounts.models import TechnicianProfile
 from tiqani_v3.file_validators import (
     validate_profile_image_file,
     validate_category_icon_file,
@@ -55,6 +56,15 @@ class FileValidatorsTest(TestCase):
             validate_document_file(f)
         except ValidationError:
             self.fail("pdf should be allowed for documents")
+
+    def test_document_allows_existing_committed_legacy_zip_field_file(self):
+        profile = TechnicianProfile(
+            identification_documents="technicians/docs/518550fdb371.zip"
+        )
+        try:
+            validate_document_file(profile.identification_documents)
+        except ValidationError:
+            self.fail("existing committed legacy zip should not be revalidated")
 
     def test_proof_allows_webp(self):
         f = MockFile("proof.webp", size=100 * 1024)
