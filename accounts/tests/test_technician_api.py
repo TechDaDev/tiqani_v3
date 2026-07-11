@@ -226,3 +226,144 @@ class TechnicianAPITest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         skill_set = TechnicianSkillSet.objects.get(technician=self.approved_profile)
         self.assertEqual(skill_set.skills.count(), 1)
+
+
+class TechnicianDetailAPITest(APITestCase):
+    """Tests for GET /api/technicians/<id>/ detail endpoint.
+
+    Critical regression: marketplace list returns user_id (User UUID) but
+    detail must accept that same user_id in the URL. User.id and
+    TechnicianProfile.id are different UUIDs — the fix uses user__id lookup.
+    """
+
+    def setUp(self):
+        self.client = APIClient()
+        self.list_url = reverse("technician_list")
+
+        self.user = User.objects.create_user(
+            username="detailtech", email="detail@example.com",
+            password="Testpass123", role="technician",
+            phone_number="07701234561", governorate="Baghdad", address="Addr",
+            first_name="Detail", last_name="Tech",
+        )
+        self.profile = TechnicianProfile.objects.create(
+            user=self.user, approved=True,
+            job_title="Electrician", about="Expert electrician",
+            years_of_expertise=3,
+        )
+        TechnicianProfile.objects.filter(pk=self.profile.pk).update(is_complete=True)
+        self.profile.refresh_from_db()
+
+        self.unapproved_user = User.objects.create_user(
+            username="unapprovedtech2", email="unapproved2@example.com",
+            password="Testpass123", role="technician",
+            phone_number="07701234562", governorate="Basra", address="Addr2",
+        )
+        self.unapproved_profile = TechnicianProfile.objects.create(
+            user=self.unapproved_user, approved=False,
+        )
+
+    def _detail_url(self, identifier):
+        return reverse("technician_detail", kwargs={"id": identifier})
+
+    def test_list_returns_profile_id(self):
+        """Marketplace list includes profile_id field."""
+        response = self.client.get(self.list_url)
+        results = response.data["results"]
+        profile_ids = [r["profile_id"] for r in results]
+        self.assertIn(str(self.profile.id), profile_ids)
+
+    def test_list_user_id_fetches_detail(self):
+        """user_id from marketplace list works as detail URL param.
+
+        Core regression: frontend passes User UUID to detail URL.
+        View must look up by user__id.
+        """
+        detail_url = self._detail_url(str(self.user.id))
+        response = self.client.get(detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["user_id"], str(self.user.id))
+
+    def test_profile_id_does_not_fetch_detail(self):
+        """Profile UUID (TechnicianProfile.id) is NOT a valid detail URL param.
+
+        Detail endpoint looks up by user__id (User UUID). Profile UUID is a
+        different UUID and must not accidentally match a user.
+        """
+        detail_url = self._detail_url(str(self.profile.id))
+        response = self.client.get(detail_url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_user_id_and_profile_id_are_different(self):
+        """User UUID and Profile UUID are different values."""
+        self.assertNotEqual(str(self.user.id), str(self.profile.id))
+
+    def test_nonexistent_identifier_returns_404(self):
+        """Non-existent UUID returns controlled 404."""
+        detail_url = self._detail_url("00000000-0000-0000-0000-000000000000")
+        response = self.client.get(detail_url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertNotIn("TechnicianProfile", str(response.data.get("detail", "")))
+        self.assertNotIn("matches the given query", str(response.data.get("detail", "")))
+
+    def test_unapproved_profile_returns_404_for_public(self):
+        """Unapproved technician returns 404."""
+        detail_url = self._detail_url(str(self.unapproved_user.id))
+        response = self.client.get(detail_url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_unapproved_profile_visible_to_owner(self):
+        """Unapproved technician visible to owner."""
+        self.client.force_authenticate(user=self.unapproved_user)
+        detail_url = self._detail_url(str(self.unapproved_user.id))
+        response = self.client.get(detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_unapproved_profile_visible_to_admin(self):
+        """Unapproved technician visible to admin."""
+        admin_user = User.objects.create_superuser(
+            username="admin", email="admin@example.com", password="Admin123",
+        )
+        self.client.force_authenticate(user=admin_user)
+        detail_url = self._detail_url(str(self.unapproved_user.id))
+        response = self.client.get(detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_detail_response_contains_profile_id(self):
+        """Detail response includes profile_id."""
+        detail_url = self._detail_url(str(self.user.id))
+        response = self.client.get(detail_url)
+        self.assertIn("profile_id", response.data)
+        self.assertEqual(response.data["profile_id"], str(self.profile.id))
+
+    def test_detail_response_contains_user_id(self):
+        """Detail response includes user_id."""
+        detail_url = self._detail_url(str(self.user.id))
+        response = self.client.get(detail_url)
+        self.assertIn("user_id", response.data)
+        self.assertEqual(response.data["user_id"], str(self.user.id))
+
+    def test_detail_response_has_expected_public_fields(self):
+        """Detail response has expected public fields."""
+        detail_url = self._detail_url(str(self.user.id))
+        response = self.client.get(detail_url)
+        # Must include both profile_id and user_id
+        self.assertIn("profile_id", response.data)
+        self.assertIn("user_id", response.data)
+        self.assertIn("username", response.data)
+        self.assertIn("full_name", response.data)
+        self.assertIn("governorate", response.data)
+        self.assertIn("job_title", response.data)
+        self.assertIn("about", response.data)
+        self.assertIn("years_of_expertise", response.data)
+        self.assertIn("is_available", response.data)
+        self.assertIn("rate", response.data)
+        self.assertIn("is_complete", response.data)
+
+    def test_raw_django_exception_not_leaked(self):
+        """404 response has no raw Django exception text."""
+        detail_url = self._detail_url(str(self.unapproved_user.id))
+        response = self.client.get(detail_url)
+        detail = str(response.data.get("detail", ""))
+        self.assertNotIn("TechnicianProfile", detail)
+        self.assertNotIn("get() returned more", detail)

@@ -18,6 +18,7 @@ class TechnicianListSerializer(serializers.ModelSerializer):
     - incomplete_fields: List of missing required fields
     """
 
+    profile_id = serializers.CharField(source='id', read_only=True)
     user_id = serializers.CharField(source='user.id', read_only=True)
     username = serializers.CharField(source='user.username', read_only=True)
     full_name = serializers.CharField(source='user.get_full_name', read_only=True)
@@ -29,7 +30,7 @@ class TechnicianListSerializer(serializers.ModelSerializer):
     class Meta:
         model = TechnicianProfile
         fields = (
-            'user_id', 'username', 'full_name', 'governorate', 'profile_image',
+            'profile_id', 'user_id', 'username', 'full_name', 'governorate', 'profile_image',
             'job_title', 'about', 'years_of_expertise', 'is_available', 'rate',
             'is_complete', 'incomplete_fields'
         )
@@ -181,6 +182,7 @@ class TechnicianSkillSetSerializer(serializers.ModelSerializer):
 class TechnicianProfileSerializer(serializers.ModelSerializer):
     """Serializer for retrieving and updating technician profile information."""
 
+    profile_id = serializers.CharField(source='id', read_only=True)
     user_id = serializers.CharField(source='user.id', read_only=True)
     username = serializers.CharField(source='user.username', read_only=True)
     full_name = serializers.CharField(source='user.get_full_name', read_only=True)
@@ -203,14 +205,14 @@ class TechnicianProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = TechnicianProfile
         fields = (
-            'user_id', 'username', 'full_name', 'email', 'phone_number', 'address', 'date_of_birth',
+            'profile_id', 'user_id', 'username', 'full_name', 'email', 'phone_number', 'address', 'date_of_birth',
             'governorate', 'gender', 'profile_image', 'job_title', 'about', 'years_of_expertise',
             'is_available', 'approved', 'is_complete', 'rate', 'last_active',
             'github', 'linkedin', 'url1', 'url2', 'identification_documents', 'wallet_id', 'balance',
             'skill_sets', 'images'
         )
         read_only_fields = (
-            'user_id', 'username', 'full_name', 'email', 'phone_number', 'address', 'date_of_birth',
+            'profile_id', 'user_id', 'username', 'full_name', 'email', 'phone_number', 'address', 'date_of_birth',
             'governorate', 'gender', 'profile_image', 'approved', 'is_complete', 'rate', 'last_active',
             'url1', 'url2', 'identification_documents', 'wallet_id', 'balance',
             'skill_sets', 'images'

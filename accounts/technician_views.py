@@ -12,7 +12,6 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.shortcuts import get_object_or_404
 from django.db import transaction
 
 from .models import TechnicianProfile, TechnicianImage, TechnicianSkillSet, CustomUser
@@ -378,7 +377,13 @@ class TechnicianDetailView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, id):
-        profile = get_object_or_404(TechnicianProfile, id=id)
+        try:
+            profile = TechnicianProfile.objects.get(user__id=id)
+        except TechnicianProfile.DoesNotExist:
+            return Response(
+                {"detail": "Technician not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
         # Owner or admin can see unapproved profiles
         user = request.user
